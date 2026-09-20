@@ -9,7 +9,7 @@ const certFile = `${certDir}/localhost.pem`
 const keyFile = `${certDir}/localhost-key.pem`
 const hasTrustedCert = fs.existsSync(certFile) && fs.existsSync(keyFile)
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
   // Some machines' browsers have an HSTS policy cached for "localhost"
   // (Strict-Transport-Security with includeSubDomains, set by some other
   // local server at some point) that forces https:// for that host no
@@ -21,6 +21,10 @@ export default defineConfig({
   // self-signed cert that triggers a one-time "not trusted" warning.
   plugins: [react(), ...(hasTrustedCert ? [] : [basicSsl()])],
   root: fileURLToPath(new URL('.', import.meta.url)),
+  // Os assets compartilhados ficam na pasta public da aplicação, um nível
+  // acima do root do Vite. Servi-los somente no dev evita que o build copie
+  // a pasta inteira para dentro de public/react.
+  publicDir: command === 'serve' ? fileURLToPath(new URL('../public', import.meta.url)) : false,
   build: {
     outDir: fileURLToPath(new URL('../public/react', import.meta.url)),
     emptyOutDir: true,
@@ -36,8 +40,8 @@ export default defineConfig({
     proxy: {
       '/api': 'http://localhost:3000',
       '/auth': 'http://localhost:3000',
-      '/oauth': 'http://localhost:3000',
+      '^/oauth/': 'http://localhost:3000',
       '/media-proxy': 'http://localhost:3000'
     }
   }
-})
+}))

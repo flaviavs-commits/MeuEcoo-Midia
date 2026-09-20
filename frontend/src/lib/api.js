@@ -12,19 +12,34 @@ export class ApiError extends Error {
   }
 }
 
-export function logout() {
-  void ensureCsrfToken().then(token => fetch(`${API_URL}/auth/login/logout`, { method: 'POST', credentials: 'include', headers: token ? { 'X-CSRF-Token': token } : {} })).catch(() => {})
-  window.location.assign('/login.html')
+export async function logout() {
+  try {
+    await publicApiFetch('/auth/login/logout', { method: 'POST' })
+  } catch {
+    // A navegação para o login continua sendo segura mesmo quando a rede caiu.
+  } finally {
+    window.location.assign('/login.html')
+  }
 }
 
-async function ensureCsrfToken() {
+async function ensureCsrfToken(timeoutMs = 15_000, externalSignal) {
   if (csrfToken) return csrfToken
+  const controller = new AbortController()
+  const abortFromCaller = () => controller.abort()
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort()
+    else externalSignal.addEventListener('abort', abortFromCaller, { once: true })
+  }
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await fetch(`${API_URL}/auth/csrf`, { credentials: 'include' })
+    const response = await fetch(`${API_URL}/auth/csrf`, { credentials: 'include', signal: controller.signal })
     const body = await response.json()
     csrfToken = body?.token || null
   } catch {
     csrfToken = null
+  } finally {
+    clearTimeout(timer)
+    externalSignal?.removeEventListener('abort', abortFromCaller)
   }
   return csrfToken
 }
@@ -39,17 +54,22 @@ function errorMessage(body, fallback) {
 }
 
 async function request(path, options = {}) {
-  const { headers = {}, timeoutMs = 15_000, ...requestOptions } = options
+  const { headers = {}, timeoutMs = 15_000, signal: externalSignal, ...requestOptions } = options
   const controller = new AbortController()
+  const abortFromCaller = () => controller.abort()
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort()
+    else externalSignal.addEventListener('abort', abortFromCaller, { once: true })
+  }
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
     const method = String(requestOptions.method || 'GET').toUpperCase()
-    const token = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) ? await ensureCsrfToken() : null
+    const token = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) ? await ensureCsrfToken(timeoutMs, externalSignal) : null
     const response = await fetch(`${API_URL}${path}`, {
       ...requestOptions,
       credentials: 'include',
-      signal: requestOptions.signal || controller.signal,
+      signal: controller.signal,
       headers: {
         ...(requestOptions.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
         ...(token ? { 'X-CSRF-Token': token } : {}),
@@ -64,6 +84,7 @@ async function request(path, options = {}) {
     throw new ApiError('Não foi possível conectar ao servidor.', 0)
   } finally {
     clearTimeout(timer)
+    externalSignal?.removeEventListener('abort', abortFromCaller)
   }
 }
 
