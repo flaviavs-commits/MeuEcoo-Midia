@@ -1,11 +1,11 @@
 /node_modules
 /frontend/node_modules
 .env
-.env.example
+.env.*
+!.env.example
 /data
 /public/uploads/*
 !/public/uploads/.gitkeep
 *.log
 .vercel
-.env*
 /.certs
