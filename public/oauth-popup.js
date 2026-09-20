@@ -1,5 +1,6 @@
 (() => {
   const script = document.currentScript
+  const resultType = script?.dataset.resultType
   const targetUrl = script?.dataset.targetUrl
   const profileUrl = script?.dataset.profileUrl
   const status = document.getElementById('oauth-popup-status')
@@ -17,6 +18,27 @@
   const closePopup = () => {
     try { window.close() } catch {}
     window.setTimeout(showCloseFallback, 250)
+  }
+
+  if (resultType === 'google-connect') {
+    try {
+      const payload = {
+        type: 'google-connect-result',
+        ok: script?.dataset.ok === 'true',
+        email: script?.dataset.email || null,
+        erro: script?.dataset.error || null,
+      }
+      const targetOrigin = script?.dataset.targetOrigin || '*'
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage(payload, targetOrigin)
+        closePopup()
+      } else {
+        showCloseFallback()
+      }
+    } catch {
+      showCloseFallback()
+    }
+    return
   }
 
   if (!targetUrl) {
