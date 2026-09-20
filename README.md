@@ -1,4 +1,4 @@
-# Social Api Manager
+# MeuEcoo Mídia
 
 Gerenciador de contas de redes sociais com back-end Node.js + PostgreSQL.
 Suporta Facebook, Instagram, YouTube e TikTok via OAuth 2.0.
@@ -30,7 +30,7 @@ interação explícita do usuário.
 ## Estrutura do projeto
 
 ```
-social-api-manager/
+meuecoo-midia/
 ├── src/
 │   ├── server.js                  # Servidor Express principal
 │   ├── db/

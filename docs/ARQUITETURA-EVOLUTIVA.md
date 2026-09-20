@@ -1,4 +1,4 @@
-# Diagnóstico e arquitetura evolutiva — Social API Manager
+# Diagnóstico e arquitetura evolutiva — MeuEcoo Mídia
 
 **Tipo:** revisão arquitetural baseada no código existente
 **Data:** 2026-08-09

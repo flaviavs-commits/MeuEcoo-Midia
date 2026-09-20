@@ -156,7 +156,7 @@ describe('AdminPage — reconciliação de pagamentos não vinculados', () => {
 
   const ITEM = {
     sessionId: 'cs_sem_match',
-    amountCents: 10050,
+    amountCents: 12350,
     currency: 'brl',
     createdAt: '2026-09-10T12:00:00.000Z',
     clientReferenceId: 'user:7',
@@ -187,7 +187,7 @@ describe('AdminPage — reconciliação de pagamentos não vinculados', () => {
     // O e-mail aparece na célula da tabela e também como opção do select de
     // usuário; getByRole('cell', ...) ignora a segunda.
     await waitFor(() => expect(screen.getByRole('cell', { name: 'cliente@allowed.test' })).toBeInTheDocument())
-    expect(screen.getByText('R$ 100,50')).toBeInTheDocument()
+    expect(screen.getByText('R$ 123,50')).toBeInTheDocument()
     expect(screen.getByLabelText('Plano para vincular a sessão cs_sem_match')).toHaveValue('pro')
   })
 

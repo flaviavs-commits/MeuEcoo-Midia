@@ -11,7 +11,7 @@ async function main() {
   if (!url || !/^https:\/\//i.test(url)) throw new Error('ZERNIO_WEBHOOK_URL/BASE_URL deve ser uma URL HTTPS pública.')
 
   const result = await zernioClient.createWebhookSettings({
-    name: 'Social API Manager - confirmações de publicação',
+    name: 'MeuEcoo Mídia - confirmações de publicação',
     url,
     secret,
     events: [

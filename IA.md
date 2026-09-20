@@ -1,4 +1,4 @@
-# Contexto operacional — Social API Manager
+# Contexto operacional — MeuEcoo Mídia
 
 ## Estado atual (resumo vivo)
 

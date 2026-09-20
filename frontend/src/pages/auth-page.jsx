@@ -88,6 +88,31 @@ function Message({ message }) {
   return <div className={`auth-message auth-message--${message.type}`} role="alert"><span>{message.text}</span>{message.action && <button type="button" className="auth-message-action" onClick={message.action.onClick}>{message.action.label}</button>}</div>
 }
 
+// Ícone oficial do Google (multicolor), pra o botão de OAuth não depender só
+// de texto pra se identificar como o provedor certo.
+function GoogleIcon() {
+  return <svg className="auth-google-icon" viewBox="0 0 18 18" aria-hidden="true">
+    <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.87 2.7-6.62Z" />
+    <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.8.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 0 0 9 18Z" />
+    <path fill="#FBBC05" d="M3.95 10.7A5.4 5.4 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33Z" />
+    <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97l2.99 2.33C4.66 5.17 6.65 3.58 9 3.58Z" />
+  </svg>
+}
+
+// Alterna a visibilidade da senha — puramente apresentacional, não muda o
+// valor nem como ele é enviado ao backend.
+function EyeIcon({ open }) {
+  return <svg viewBox="0 0 24 24" className="auth-eye-icon" aria-hidden="true">
+    {open
+      ? <path fill="currentColor" d="M12 5c-5 0-9.27 3.11-11 7 1.73 3.89 6 7 11 7s9.27-3.11 11-7c-1.73-3.89-6-7-11-7Zm0 11.5A4.5 4.5 0 1 1 12 7.5a4.5 4.5 0 0 1 0 9Zm0-7.2a2.7 2.7 0 1 0 0 5.4 2.7 2.7 0 0 0 0-5.4Z" />
+      : <path fill="currentColor" d="m3.28 2.22-1.06 1.06 3.1 3.1C3.24 7.77 1.44 9.65.5 12c1.73 3.89 6 7 11 7 1.7 0 3.3-.36 4.72-1l3 3 1.06-1.06L3.28 2.22ZM12 16.5a4.48 4.48 0 0 1-4.36-3.4l1.53 1.53A2.7 2.7 0 0 0 12 15.2c.34 0 .66-.05.96-.15l1.4 1.4c-.72.32-1.52.5-2.36.5Zm-.2-9.9.02-.01c5 0 9.27 3.11 11 7-.6 1.36-1.5 2.55-2.6 3.5l-1.44-1.44A7.9 7.9 0 0 0 20.8 12a10.9 10.9 0 0 0-8.98-5.4l-.02.01Z" />}
+  </svg>
+}
+
+function Spinner() {
+  return <span className="auth-spinner" aria-hidden="true" />
+}
+
 function AuthCard({ children }) {
   return <main className="auth-page"><section className="auth-card"><div className="auth-card-toolbar"><ThemeSelector /></div><a className="auth-brand" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a>{children}<CopyrightNotice /></section></main>
 }
@@ -107,6 +132,8 @@ export function LoginPage() {
   const [code, setCode] = useState('')
   const [message, setMessage] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
+  const rules = passwordRules(password)
 
   useEffect(() => {
     if (queryError) setMessage({ type: 'error', text: queryError })
@@ -230,20 +257,34 @@ export function LoginPage() {
 
     {flow === 'login' && <>
       <form onSubmit={submitCredentials} className="auth-form">
-        {register && <><label className="auth-label" htmlFor="full-name">Nome</label><input id="full-name" className="auth-input" value={fullName} onChange={event => setFullName(event.target.value)} /></>}
-        <label className="auth-label" htmlFor="email">E-mail</label>
-        <input id="email" className="auth-input" type="email" value={email} onChange={event => setEmail(event.target.value)} required />
-        <label className="auth-label" htmlFor="password">Senha</label>
-        <input id="password" className="auth-input" type="password" minLength={register ? PASSWORD_MIN_LENGTH : undefined} maxLength="72" value={password} onChange={event => setPassword(event.target.value)} required />
-        {register && <p className="auth-help">Use de 8 a 72 caracteres, uma maiúscula, um número e um caractere especial.</p>}
-        <button type="submit" className="auth-button" disabled={busy}>{busy ? 'Aguarde…' : register ? 'Criar conta' : 'Entrar'}</button>
+        {register && <div className="auth-field">
+          <label className="auth-label" htmlFor="full-name">Nome</label>
+          <input id="full-name" className="auth-input" value={fullName} onChange={event => setFullName(event.target.value)} autoComplete="name" placeholder="Como devemos te chamar?" />
+        </div>}
+        <div className="auth-field">
+          <label className="auth-label" htmlFor="email">E-mail</label>
+          <input id="email" className="auth-input" type="email" inputMode="email" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="voce@exemplo.com" required />
+        </div>
+        <div className="auth-field">
+          <div className="auth-label-row">
+            <label className="auth-label" htmlFor="password">Senha</label>
+            {!register && <button type="button" className="auth-link auth-forgot-inline" onClick={() => { setFlow('forgot-email'); setMessage(null) }}>Esqueceu?</button>}
+          </div>
+          <div className="auth-input-group">
+            <input id="password" className="auth-input" type={showPassword ? 'text' : 'password'} autoComplete={register ? 'new-password' : 'current-password'} minLength={register ? PASSWORD_MIN_LENGTH : undefined} maxLength="72" value={password} onChange={event => setPassword(event.target.value)} placeholder={register ? 'Crie uma senha segura' : 'Sua senha'} required />
+            <button type="button" className="auth-input-adornment" onClick={() => setShowPassword(value => !value)} aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'} aria-pressed={showPassword}>
+              <EyeIcon open={showPassword} />
+            </button>
+          </div>
+        </div>
+        {register && <div className="auth-rules auth-rules--inline">{Object.entries({ length: '8 a 72 caracteres', uppercase: '1 maiúscula', number: '1 número', special: '1 caractere especial' }).map(([key, label]) => <span key={key} data-state={rules[key] ? 'valid' : 'pending'}><span aria-hidden="true">{rules[key] ? '✓' : '○'}</span>{label}</span>)}</div>}
+        <button type="submit" className="auth-button" disabled={busy}>{busy && <Spinner />}{busy ? 'Aguarde…' : register ? 'Criar conta' : 'Entrar'}</button>
       </form>
-      {!register && <a className="auth-link auth-forgot" href="#forgot" onClick={event => { event.preventDefault(); setFlow('forgot-email'); setMessage(null) }}>Esqueceu sua senha?</a>}
-      <div className="auth-divider"><span>ou</span></div>
-      <a className="auth-button auth-button--google" href={`${API_URL}/auth/login/google`}>Continuar com o Google</a>
+      <div className="auth-divider"><span>ou continue com</span></div>
+      <a className="auth-button auth-button--google" href={`${API_URL}/auth/login/google`}><GoogleIcon />Google</a>
     </>}
 
-    {flow === 'login' && <p className="auth-switch">{register ? 'Já tem uma conta?' : 'Ainda não tem conta?'} {register ? <button type="button" className="auth-link" onClick={() => { setRegister(false); setFlow('login'); setMessage(null) }}>Entrar</button> : <a className="auth-link" href="/criar-conta">Criar conta</a>}</p>}
+    {flow === 'login' && <p className="auth-switch">{register ? 'Já tem uma conta?' : 'Ainda não tem conta?'} <button type="button" className="auth-link" onClick={() => { setRegister(!register); setMessage(null) }}>{register ? 'Entrar' : 'Criar conta'}</button></p>}
     {flow === 'forgot-email' || flow === 'forgot-2fa' || flow === 'forgot-sent' ? <p className="auth-switch"><button type="button" className="auth-link" onClick={() => { setFlow('login'); setMessage(null) }}>Voltar para o login</button></p> : null}
     <p className="auth-legal"><a href="/privacy-policy">Política de Privacidade</a><a href="/terms-of-service">Termos de Uso</a></p>
   </AuthCard>

@@ -15,7 +15,7 @@ describe('requirePlanModule', () => {
     expect(PLANS.basico).toMatchObject({
       id: 'basico',
       name: 'EcooMidia Básico',
-      priceCents: 5250,
+      priceCents: 8750,
       checkoutUrl: 'https://buy.stripe.com/8x27sLg7Z3wS0sb5Bp2VG03',
     })
     expect(PLANS.basico.features).toContain('Analise de métricas')
@@ -36,7 +36,7 @@ describe('requirePlanModule', () => {
     expect(PLANS.pro).toMatchObject({
       id: 'pro',
       name: 'EcooMidia Pro',
-      priceCents: 10050,
+      priceCents: 12350,
       checkoutUrl: 'https://buy.stripe.com/eVq6oHbRJ8Rcej1e7V2VG02',
     })
     expect(PLANS.pro.features).not.toContain('Espaços de trabalho e aprovações')

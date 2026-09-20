@@ -65,7 +65,7 @@ function sessaoPaga(overrides = {}) {
     id: 'cs_test_default',
     object: 'checkout_session',
     payment_status: 'paid',
-    amount_total: 10050,
+    amount_total: 12350,
     currency: 'brl',
     payment_intent: 'pi_test_default',
     ...overrides,
@@ -119,7 +119,7 @@ describe('POST /api/billing/stripe/webhook — assinatura', () => {
 
     const res = await enviarWebhook(evento('checkout.session.completed', sessaoPaga({
       id: 'cs_assinado',
-      amount_total: 5250,
+      amount_total: 8750,
       metadata: { to_plan: 'basico' },
     })))
 
@@ -146,7 +146,7 @@ describe('checkout dinâmico — confirmação pelo webhook', () => {
     expect(billingRepo.confirmarPagamento).toHaveBeenCalledWith({
       gatewaySessionId: 'cs_dinamico',
       gatewayPaymentId: 'pi_dinamico',
-      amountCents: 10050,
+      amountCents: 12350,
       currency: 'brl',
       toPlan: 'pro',
     })
@@ -222,7 +222,7 @@ describe('Payment Link direto — vínculo do usuário pelo client_reference_id'
     const res = await enviarWebhook(evento('checkout.session.completed', sessaoPaga({
       id: 'cs_link_pro',
       payment_intent: 'pi_link_pro',
-      amount_total: 10050,
+      amount_total: 12350,
       client_reference_id: 'user:7',
       customer_details: { email: 'cliente@allowed.test', name: 'Cliente' },
     })))
@@ -234,7 +234,7 @@ describe('Payment Link direto — vínculo do usuário pelo client_reference_id'
       userId: 7,
       fromPlan: 'basico',
       toPlan: 'pro',
-      amountCents: 10050,
+      amountCents: 12350,
       currency: 'brl',
       gatewaySessionId: 'cs_link_pro',
       gatewayPaymentId: 'pi_link_pro',
@@ -249,7 +249,7 @@ describe('Payment Link direto — vínculo do usuário pelo client_reference_id'
 
     const res = await enviarWebhook(evento('checkout.session.completed', sessaoPaga({
       id: 'cs_link_premium',
-      amount_total: 12450,
+      amount_total: 14750,
       client_reference_id: 'user:7',
       customer_details: { email: 'cliente@allowed.test', name: 'Cliente' },
     })))
@@ -267,7 +267,7 @@ describe('Payment Link direto — vínculo do usuário pelo client_reference_id'
 
     const res = await enviarWebhook(evento('checkout.session.completed', sessaoPaga({
       id: 'cs_link_basico',
-      amount_total: 5250,
+      amount_total: 8750,
       client_reference_id: 'user:7',
     })))
 
@@ -285,7 +285,7 @@ describe('Payment Link direto — vínculo do usuário pelo client_reference_id'
 
     const res = await enviarWebhook(evento('checkout.session.completed', sessaoPaga({
       id: 'cs_link_cru',
-      amount_total: 10050,
+      amount_total: 12350,
       customer_details: { email: 'cliente@allowed.test', name: 'Cliente' },
     })))
 
@@ -394,7 +394,7 @@ describe('Payment Link direto — vínculo do usuário pelo client_reference_id'
   test('não credita plano quando a moeda difere da configurada', async () => {
     const res = await enviarWebhook(evento('checkout.session.completed', sessaoPaga({
       id: 'cs_link_moeda',
-      amount_total: 10050,
+      amount_total: 12350,
       currency: 'usd',
       client_reference_id: 'user:7',
     })))
