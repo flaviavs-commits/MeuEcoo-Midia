@@ -4,6 +4,10 @@ process.env.AUTH_TOKEN_SECRET = 'test-secret-auth-12345'
 process.env.SESSION_SECRET = 'test-session-xyz'
 process.env.ALLOWED_EMAIL_DOMAINS = 'allowed.test,internal.test'
 process.env.FREE_INTERNAL_EMAIL_DOMAINS = 'internal.test'
+process.env.FRONTEND_URL = 'https://app.example.test'
+process.env.GOOGLE_CLIENT_ID = 'test-google-client'
+process.env.GOOGLE_CLIENT_SECRET = 'test-google-secret'
+process.env.GOOGLE_LOGIN_REDIRECT_URI = 'https://api.example.test/auth/login/google/callback'
 
 const request = require('supertest')
 
@@ -207,6 +211,39 @@ describe('POST /auth/login/logout', () => {
     const res = await request(app).post(`${BASE}/logout`)
     expect(res.status).toBe(200)
     expect(res.body.ok).toBe(true)
+  })
+})
+
+describe('GET /auth/login/google/callback', () => {
+  test('devolve erro por script externo compatível com CSP', async () => {
+    const res = await request(app).get(`${BASE}/google/callback?state=invalid`)
+
+    expect(res.status).toBe(200)
+    expect(res.text).toContain('<script src="/oauth-popup.js"')
+    expect(res.text).toContain('data-target-url=')
+    expect(res.text).not.toContain('window.location.href')
+  })
+
+  test('entrega o resultado do popup Google por atributos seguros e script externo', async () => {
+    const agent = request.agent(app)
+    const start = await agent.get(`${BASE}/google-connect`)
+    const state = new URL(start.headers.location).searchParams.get('state')
+    const originalFetch = global.fetch
+    global.fetch = jest.fn()
+      .mockResolvedValueOnce({ json: async () => ({ access_token: 'google-access-token' }) })
+      .mockResolvedValueOnce({ json: async () => ({ email: 'pessoa@allowed.test' }) })
+
+    try {
+      const res = await agent.get(`${BASE}/google/callback?state=${encodeURIComponent(state)}&code=test-code`)
+
+      expect(res.status).toBe(200)
+      expect(res.text).toContain('<script src="/oauth-popup.js"')
+      expect(res.text).toContain('data-result-type="google-connect"')
+      expect(res.text).toContain('data-email="pessoa@allowed.test"')
+      expect(res.text).not.toContain('window.opener.postMessage')
+    } finally {
+      global.fetch = originalFetch
+    }
   })
 })
 

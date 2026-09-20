@@ -19,6 +19,16 @@ const { bestEffortEnsureZernioProfile } = require('../services/zernioProfileServ
 
 const BCRYPT_COST = 12
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, character => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  })[character])
+}
+
 // O caminho precisa ser absoluto e não relativo: essa página é servida pelo
 // backend (Railway) dentro do callback do Google, então um caminho relativo
 // como '/login.html' navegava para o domínio do Railway, não para o domínio
@@ -28,9 +38,7 @@ const BCRYPT_COST = 12
 // FRONTEND_URL padrão quando não há origem capturada/válida.
 function friendlyAuthError(msg, baseUrl) {
   const loginUrl = (baseUrl || process.env.FRONTEND_URL || '') + '/login.html?error=' + encodeURIComponent(msg)
-  return `<!DOCTYPE html><html><body><script>
-    window.location.href = ${JSON.stringify(loginUrl)};
-  </script></body></html>`
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Login</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#111318;color:#f3f4f6;font:15px system-ui,sans-serif}main{max-width:420px;margin:24px;padding:24px;border:1px solid #303541;border-radius:16px;background:#191c23;line-height:1.5}a,button{display:inline-block;margin-top:16px;padding:10px 14px;border-radius:10px;border:1px solid #d1993e;background:#d1993e;color:#17130d;font:inherit;font-weight:700;text-decoration:none;cursor:pointer}button{margin-left:8px;border-color:#4a5364;background:#252b36;color:#f3f4f6;font-weight:500}</style></head><body><main><p id="oauth-popup-status">${escapeHtml(msg)}</p><a href="${escapeHtml(loginUrl)}">Voltar ao login</a><button id="oauth-popup-close" type="button" hidden>Fechar janela</button></main><script src="/oauth-popup.js" data-target-url="${escapeHtml(loginUrl)}"></script></body></html>`
 }
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -454,15 +462,14 @@ router.get('/google-connect', (req, res) => {
 // postMessage precisa mirar explicitamente a origin do FRONTEND_URL — usar
 // window.location.origin aqui apontaria para a origin do próprio backend.
 function paginaPopupAiConnect({ ok, email, erro }) {
-  const payload = JSON.stringify({ type: 'google-connect-result', ok, email: email || null, erro: erro || null })
-  const targetOrigin = JSON.stringify(process.env.FRONTEND_URL || '*')
-  return `<!DOCTYPE html><html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#0f1117;color:#fff">
-    <p>${ok ? 'Conta conectada! Fechando...' : 'Não foi possível conectar. Fechando...'}</p>
-    <script>
-      if (window.opener) window.opener.postMessage(${payload}, ${targetOrigin});
-      window.close();
-    </script>
-  </body></html>`
+  const attributes = [
+    'data-result-type="google-connect"',
+    `data-ok="${ok ? 'true' : 'false'}"`,
+    `data-target-origin="${escapeHtml(process.env.FRONTEND_URL || '*')}"`,
+    email ? `data-email="${escapeHtml(email)}"` : '',
+    erro ? `data-error="${escapeHtml(erro)}"` : '',
+  ].filter(Boolean).join(' ')
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Conexão Google</title><style>body{font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;margin:0;background:#0f1117;color:#fff}main{max-width:420px;padding:24px;text-align:center}button{padding:10px 14px;border:1px solid #4a5364;border-radius:10px;background:#252b36;color:#f3f4f6;font:inherit;cursor:pointer}</style></head><body><main><p id="oauth-popup-status">${ok ? 'Conta conectada! Fechando...' : 'Não foi possível conectar. Fechando...'}</p><button id="oauth-popup-close" type="button" hidden>Fechar janela</button></main><script src="/oauth-popup.js" ${attributes}></script></body></html>`
 }
 
 router.get('/google/callback', async (req, res) => {
