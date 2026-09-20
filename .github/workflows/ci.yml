@@ -60,7 +60,7 @@ jobs:
           node-version: 20
 
       - name: Instalar Vercel CLI
-        run: npm install --global vercel@54.14.5
+        run: npm install --global vercel@59.23.2
 
       - name: Publicar na Vercel
         env:
