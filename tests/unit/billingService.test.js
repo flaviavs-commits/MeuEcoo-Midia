@@ -66,7 +66,7 @@ function change(overrides = {}) {
     userId: user.id,
     fromPlan: 'basico',
     toPlan: 'pro',
-    amountCents: 10050,
+    amountCents: 12350,
     currency: 'brl',
     billingMonth: month,
     idempotencyKey: `plan-change-${user.id}-2026-08`,
@@ -90,11 +90,11 @@ beforeEach(() => {
 describe('billingService.requestPlanChange', () => {
   test('cria o primeiro checkout mesmo quando o plano escolhido já está no cadastro pendente', async () => {
     const pendingUser = { ...user, planActive: false }
-    const pending = change({ toPlan: 'basico', amountCents: 5250 })
+    const pending = change({ toPlan: 'basico', amountCents: 8750 })
     billingRepo.buscarPorMes.mockResolvedValue(null)
     billingRepo.criarPendente.mockResolvedValue(pending)
-    billingRepo.reservarProcessamento.mockResolvedValue(change({ toPlan: 'basico', amountCents: 5250, status: 'processing' }))
-    billingRepo.anexarCheckout.mockResolvedValue(change({ toPlan: 'basico', amountCents: 5250, status: 'pending', gatewaySessionId: 'cs_basic', checkoutUrl: 'https://checkout.stripe.test/cs_basic' }))
+    billingRepo.reservarProcessamento.mockResolvedValue(change({ toPlan: 'basico', amountCents: 8750, status: 'processing' }))
+    billingRepo.anexarCheckout.mockResolvedValue(change({ toPlan: 'basico', amountCents: 8750, status: 'pending', gatewaySessionId: 'cs_basic', checkoutUrl: 'https://checkout.stripe.test/cs_basic' }))
     paymentGateway.createCheckout.mockResolvedValue({ id: 'cs_basic', url: 'https://checkout.stripe.test/cs_basic' })
 
     const result = await billingService.requestPlanChange({ user: pendingUser, targetPlan: 'basico', now: new Date('2026-08-17T12:00:00Z') })
@@ -102,7 +102,7 @@ describe('billingService.requestPlanChange', () => {
     expect(result.checkoutUrl).toBe('https://checkout.stripe.test/cs_basic')
     expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
       toPlan: 'basico',
-      amountCents: 5250,
+      amountCents: 8750,
     }))
   })
 
@@ -122,7 +122,7 @@ describe('billingService.requestPlanChange', () => {
     expect(paymentGateway.createCheckout).toHaveBeenCalledTimes(1)
     expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({
       idempotencyKey: 'plan-change-7-2026-08',
-      amountCents: 10050,
+      amountCents: 12350,
     }))
   })
 
@@ -179,21 +179,21 @@ describe('billingService.requestPlanChange', () => {
 
   test('adiciona o MeuEcoo opcional ao total do Pro pelo preço com desconto', async () => {
     billingRepo.buscarPorMes.mockResolvedValue(null)
-    billingRepo.criarPendente.mockResolvedValue(change({ amountCents: 11550, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
-    billingRepo.reservarProcessamento.mockResolvedValue(change({ status: 'processing', amountCents: 11550, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
-    billingRepo.anexarCheckout.mockResolvedValue(change({ status: 'pending', amountCents: 11550, meuEcooSelected: true, meuEcooAmountCents: 1500, gatewaySessionId: 'cs_meuecoo', checkoutUrl: 'https://checkout.stripe.test/cs_meuecoo' }))
+    billingRepo.criarPendente.mockResolvedValue(change({ amountCents: 13850, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
+    billingRepo.reservarProcessamento.mockResolvedValue(change({ status: 'processing', amountCents: 13850, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
+    billingRepo.anexarCheckout.mockResolvedValue(change({ status: 'pending', amountCents: 13850, meuEcooSelected: true, meuEcooAmountCents: 1500, gatewaySessionId: 'cs_meuecoo', checkoutUrl: 'https://checkout.stripe.test/cs_meuecoo' }))
     paymentGateway.createCheckout.mockResolvedValue({ id: 'cs_meuecoo', url: 'https://checkout.stripe.test/cs_meuecoo' })
 
     const result = await billingService.requestPlanChange({ user, targetPlan: 'pro', meuEcoo: true, now: new Date('2026-08-17T12:00:00Z') })
 
     expect(result.charge).toMatchObject({ meuEcooSelected: true, meuEcooAmountCents: 1500 })
-    expect(billingRepo.criarPendente).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 11550, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
-    expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 11550, planAmountCents: 10050, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
+    expect(billingRepo.criarPendente).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 13850, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
+    expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 13850, planAmountCents: 12350, meuEcooSelected: true, meuEcooAmountCents: 1500 }))
   })
 
   test('atualiza a composição antes de repetir checkout sem sessão do gateway', async () => {
-    const failed = change({ status: 'failed', amountCents: 10050, meuEcooSelected: false, meuEcooAmountCents: 0 })
-    const updated = change({ status: 'failed', amountCents: 11550, meuEcooSelected: true, meuEcooAmountCents: 1500 })
+    const failed = change({ status: 'failed', amountCents: 12350, meuEcooSelected: false, meuEcooAmountCents: 0 })
+    const updated = change({ status: 'failed', amountCents: 13850, meuEcooSelected: true, meuEcooAmountCents: 1500 })
     billingRepo.buscarPorMes.mockResolvedValue(failed)
     billingRepo.atualizarItensMeuEcoo.mockResolvedValue(updated)
     billingRepo.reservarProcessamento.mockResolvedValue({ ...updated, status: 'processing' })
@@ -204,11 +204,11 @@ describe('billingService.requestPlanChange', () => {
 
     expect(result.checkoutUrl).toBe('https://checkout.stripe.test/cs_retry')
     expect(billingRepo.atualizarItensMeuEcoo).toHaveBeenCalledWith(12, {
-      amountCents: 11550,
+      amountCents: 13850,
       meuEcooSelected: true,
       meuEcooAmountCents: 1500,
     })
-    expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 11550, planAmountCents: 10050, meuEcooAmountCents: 1500 }))
+    expect(paymentGateway.createCheckout).toHaveBeenCalledWith(expect.objectContaining({ amountCents: 13850, planAmountCents: 12350, meuEcooAmountCents: 1500 }))
   })
 
   test('rejeita o antigo identificador de plano gratuito', async () => {
@@ -260,14 +260,14 @@ describe('billingService.handleWebhook', () => {
 
     const result = await billingService.handleWebhook({
       type: 'checkout.session.completed',
-        data: { object: { id: 'cs_123', payment_status: 'paid', amount_total: 10050, currency: 'brl', payment_intent: 'pi_123', customer_email: 'cliente@allowed.test', metadata: { to_plan: 'pro' } } },
+        data: { object: { id: 'cs_123', payment_status: 'paid', amount_total: 12350, currency: 'brl', payment_intent: 'pi_123', customer_email: 'cliente@allowed.test', metadata: { to_plan: 'pro' } } },
     })
 
     expect(result).toEqual({ status: 'paid' })
     expect(billingRepo.confirmarPagamento).toHaveBeenCalledWith({
       gatewaySessionId: 'cs_123',
       gatewayPaymentId: 'pi_123',
-      amountCents: 10050,
+      amountCents: 12350,
       currency: 'brl',
       toPlan: 'pro',
     })
@@ -286,7 +286,7 @@ describe('billingService.handleWebhook', () => {
 
     const result = await billingService.handleWebhook({
       type: 'checkout.session.completed',
-      data: { object: { id: 'cs_divergente', payment_status: 'paid', amount_total: 10099, currency: 'brl', metadata: { to_plan: 'pro' } } },
+      data: { object: { id: 'cs_divergente', payment_status: 'paid', amount_total: 12399, currency: 'brl', metadata: { to_plan: 'pro' } } },
     })
 
     expect(result).toMatchObject({ status: 'unlinked' })
@@ -300,7 +300,7 @@ describe('billingService.handleWebhook', () => {
 
     const result = await billingService.handleWebhook({
       type: 'checkout.session.completed',
-      data: { object: { id: 'cs_plano_divergente', payment_status: 'paid', amount_total: 10050, currency: 'brl', metadata: { to_plan: 'pro' } } },
+      data: { object: { id: 'cs_plano_divergente', payment_status: 'paid', amount_total: 12350, currency: 'brl', metadata: { to_plan: 'pro' } } },
     })
 
     expect(result).toMatchObject({ status: 'unlinked' })
@@ -312,7 +312,7 @@ describe('billingService.handleWebhook', () => {
 
     await expect(billingService.handleWebhook({
       type: 'checkout.session.completed',
-      data: { object: { id: 'cs_erro_infra', payment_status: 'paid', amount_total: 10050, currency: 'brl', metadata: { to_plan: 'pro' } } },
+      data: { object: { id: 'cs_erro_infra', payment_status: 'paid', amount_total: 12350, currency: 'brl', metadata: { to_plan: 'pro' } } },
     })).rejects.toThrow('connection terminated unexpectedly')
   })
 
@@ -321,7 +321,7 @@ describe('billingService.handleWebhook', () => {
 
     const result = await billingService.handleWebhook({
       type: 'checkout.session.completed',
-      data: { object: { id: 'cs_pro_sem_meuecoo', payment_status: 'paid', amount_total: 10050, currency: 'brl', metadata: { to_plan: 'pro' } } },
+      data: { object: { id: 'cs_pro_sem_meuecoo', payment_status: 'paid', amount_total: 12350, currency: 'brl', metadata: { to_plan: 'pro' } } },
     })
 
     expect(result).toEqual({ status: 'paid' })
@@ -334,7 +334,7 @@ describe('billingService.handleWebhook', () => {
 
     const result = await billingService.handleWebhook({
       type: 'checkout.session.completed',
-        data: { object: { id: 'cs_cancelled', payment_status: 'paid', amount_total: 10050, currency: 'brl', metadata: { to_plan: 'pro' } } },
+        data: { object: { id: 'cs_cancelled', payment_status: 'paid', amount_total: 12350, currency: 'brl', metadata: { to_plan: 'pro' } } },
     })
 
     expect(result).toEqual({ status: 'ignored' })
@@ -346,7 +346,7 @@ describe('billingService.handleWebhook', () => {
 
     const result = await billingService.handleWebhook({
       type: 'checkout.session.completed',
-      data: { object: { id: 'cs_direct_link', payment_status: 'paid', amount_total: 10050, currency: 'brl', payment_intent: 'pi_direct', client_reference_id: 'user:7' } },
+      data: { object: { id: 'cs_direct_link', payment_status: 'paid', amount_total: 12350, currency: 'brl', payment_intent: 'pi_direct', client_reference_id: 'user:7' } },
     })
 
     expect(result).toEqual({ status: 'paid' })
@@ -354,7 +354,7 @@ describe('billingService.handleWebhook', () => {
     expect(billingRepo.confirmarPagamentoDireto).toHaveBeenCalledWith(expect.objectContaining({
       userId: 7,
       toPlan: 'pro',
-      amountCents: 10050,
+      amountCents: 12350,
       currency: 'brl',
       gatewaySessionId: 'cs_direct_link',
       gatewayPaymentId: 'pi_direct',
@@ -364,7 +364,7 @@ describe('billingService.handleWebhook', () => {
   test('marca como não vinculado o pagamento por link sem identificação alguma', async () => {
     const result = await billingService.handleWebhook({
       type: 'checkout.session.completed',
-      data: { object: { id: 'cs_no_ref', payment_status: 'paid', amount_total: 10050, currency: 'brl' } },
+      data: { object: { id: 'cs_no_ref', payment_status: 'paid', amount_total: 12350, currency: 'brl' } },
     })
 
     expect(result).toMatchObject({ status: 'unlinked' })
@@ -388,7 +388,7 @@ describe('billingService.handleWebhook', () => {
 
     const result = await billingService.handleWebhook({
       type: 'checkout.session.completed',
-      data: { object: { id: 'cs_por_email', payment_status: 'paid', amount_total: 10050, currency: 'brl', customer_details: { email: 'Cliente@Allowed.test' } } },
+      data: { object: { id: 'cs_por_email', payment_status: 'paid', amount_total: 12350, currency: 'brl', customer_details: { email: 'Cliente@Allowed.test' } } },
     })
 
     expect(result).toEqual({ status: 'paid' })
@@ -640,7 +640,7 @@ function sessaoStripe(overrides = {}) {
   return {
     id: 'cs_stripe_1',
     payment_status: 'paid',
-    amount_total: 10050,
+    amount_total: 12350,
     currency: 'brl',
     created: Math.floor(new Date('2026-09-10T12:00:00Z').getTime() / 1000),
     client_reference_id: null,
@@ -671,7 +671,7 @@ describe('billingService.getReconciliationReport', () => {
     expect(report.unmatched).toHaveLength(1)
     expect(report.unmatched[0]).toMatchObject({
       sessionId: 'cs_sem_match',
-      amountCents: 10050,
+      amountCents: 12350,
       currency: 'brl',
       suggestedUserId: 7,
       customerEmail: 'cliente@allowed.test',
@@ -725,7 +725,7 @@ describe('billingService.getReconciliationReport', () => {
 
 describe('billingService.linkPaymentManually', () => {
   test('vincula a sessão paga ao usuário e plano indicados pelo admin', async () => {
-    paymentGateway.getCheckoutSession.mockResolvedValue(sessaoStripe({ id: 'cs_manual', amount_total: 12450 }))
+    paymentGateway.getCheckoutSession.mockResolvedValue(sessaoStripe({ id: 'cs_manual', amount_total: 14750 }))
     usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', plan: 'basico' })
     billingRepo.confirmarPagamentoDireto.mockResolvedValue({ id: 50, userId: 7, status: 'paid', toPlan: 'premium', meuEcooSelected: true })
     billingRepo.reservarEnvioMeuEcoo.mockResolvedValue({ id: 50, status: 'paid' })
@@ -735,7 +735,7 @@ describe('billingService.linkPaymentManually', () => {
 
     expect(result).toEqual({ status: 'paid' })
     expect(billingRepo.confirmarPagamentoDireto).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 7, toPlan: 'premium', amountCents: 12450, gatewaySessionId: 'cs_manual',
+      userId: 7, toPlan: 'premium', amountCents: 14750, gatewaySessionId: 'cs_manual',
     }))
     expect(mailer.enviarEmailAcessoMeuEcoo).toHaveBeenCalled()
   })
@@ -882,7 +882,7 @@ describe('billingService.handleWebhook — charge.refunded', () => {
 
     const result = await billingService.handleWebhook({
       type: 'charge.refunded',
-      data: { object: { id: 'ch_1', customer: 'cus_1', amount: 10050, amount_refunded: 10050, currency: 'brl', refunded: true } },
+      data: { object: { id: 'ch_1', customer: 'cus_1', amount: 12350, amount_refunded: 12350, currency: 'brl', refunded: true } },
     })
 
     expect(result).toEqual({ status: 'refunded' })
@@ -895,7 +895,7 @@ describe('billingService.handleWebhook — charge.refunded', () => {
 
     const result = await billingService.handleWebhook({
       type: 'charge.refunded',
-      data: { object: { id: 'ch_2', customer: 'cus_desconhecido', amount: 10050, amount_refunded: 10050, currency: 'brl', refunded: true } },
+      data: { object: { id: 'ch_2', customer: 'cus_desconhecido', amount: 12350, amount_refunded: 12350, currency: 'brl', refunded: true } },
     })
 
     expect(result).toEqual({ status: 'unlinked' })
@@ -911,7 +911,7 @@ describe('billingService.handleWebhook — charge.refunded', () => {
 
     const result = await billingService.handleWebhook({
       type: 'charge.refunded',
-      data: { object: { id: 'ch_3', customer: 'cus_1', amount: 10050, amount_refunded: 2000, currency: 'brl', refunded: false } },
+      data: { object: { id: 'ch_3', customer: 'cus_1', amount: 12350, amount_refunded: 2000, currency: 'brl', refunded: false } },
     })
 
     expect(result).toEqual({ status: 'partial_refund' })
@@ -927,7 +927,7 @@ describe('billingService.handleWebhook — charge.dispute.created', () => {
   test('nunca revoga acesso sozinho, só alerta', async () => {
     const result = await billingService.handleWebhook({
       type: 'charge.dispute.created',
-      data: { object: { id: 'du_1', charge: 'ch_1', payment_intent: 'pi_1', amount: 10050, currency: 'brl', status: 'needs_response', reason: 'fraudulent' } },
+      data: { object: { id: 'du_1', charge: 'ch_1', payment_intent: 'pi_1', amount: 12350, currency: 'brl', status: 'needs_response', reason: 'fraudulent' } },
     })
 
     expect(result).toEqual({ status: 'disputed' })

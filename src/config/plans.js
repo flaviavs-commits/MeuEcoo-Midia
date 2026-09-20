@@ -71,6 +71,7 @@ function publicPlanCatalog() {
     priceCents: plan.priceCents,
     currency: plan.currency,
     cadence: plan.cadence,
+    billingOffer: plan.billingOffer || null,
     meuEcooAccess: plan.meuEcooAccess || 'none',
     meuEcooBasePriceCents: getMeuEcooPricing(plan).basePriceCents,
     meuEcooDiscountPercent: Number(plan.meuEcooDiscountPercent) || 0,

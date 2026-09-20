@@ -16,7 +16,7 @@ function linha(overrides = {}) {
     userId: 7,
     fromPlan: 'basico',
     toPlan: 'pro',
-    amountCents: 10050,
+    amountCents: 12350,
     currency: 'brl',
     billingMonth: '2026-09-01',
     gatewaySessionId: 'cs_link',
@@ -29,7 +29,7 @@ const entrada = {
   userId: 7,
   fromPlan: 'basico',
   toPlan: 'pro',
-  amountCents: 10050,
+  amountCents: 12350,
   currency: 'brl',
   billingMonth: '2026-09-01',
   gatewaySessionId: 'cs_link',
@@ -178,7 +178,7 @@ describe('confirmarPagamento — divergência de valor/plano', () => {
   // permanente" (10/09/2026) depende deste contrato: o erro precisa ter um
   // .code que billingService.handleWebhook reconheça, para tratar como
   // reconciliação em vez de deixar subir como 500 genérico.
-  const registroPago = linha({ amountCents: 10050, currency: 'brl', toPlan: 'pro', status: 'processing' })
+  const registroPago = linha({ amountCents: 12350, currency: 'brl', toPlan: 'pro', status: 'processing' })
 
   test('valor divergente lança erro com code amount_mismatch e faz ROLLBACK', async () => {
     client.query
@@ -189,7 +189,7 @@ describe('confirmarPagamento — divergência de valor/plano', () => {
     await expect(repo.confirmarPagamento({
       gatewaySessionId: 'cs_link',
       gatewayPaymentId: 'pi_link',
-      amountCents: 10099, // diferente do registrado (10050)
+      amountCents: 12399, // diferente do registrado (12350)
       currency: 'brl',
       toPlan: 'pro',
     })).rejects.toMatchObject({ code: 'amount_mismatch' })
@@ -207,7 +207,7 @@ describe('confirmarPagamento — divergência de valor/plano', () => {
     await expect(repo.confirmarPagamento({
       gatewaySessionId: 'cs_link',
       gatewayPaymentId: 'pi_link',
-      amountCents: 10050,
+      amountCents: 12350,
       currency: 'brl',
       toPlan: 'premium', // diferente do registrado (pro)
     })).rejects.toMatchObject({ code: 'plan_mismatch' })

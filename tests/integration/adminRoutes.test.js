@@ -334,7 +334,7 @@ function sessaoStripe(overrides = {}) {
   return {
     id: 'cs_stripe_1',
     payment_status: 'paid',
-    amount_total: 10050,
+    amount_total: 12350,
     currency: 'brl',
     created: Math.floor(new Date('2026-09-10T12:00:00Z').getTime() / 1000),
     client_reference_id: null,
@@ -440,7 +440,7 @@ describe('POST /api/admin/billing/reconciliation/:sessionId/link', () => {
 
   test('200: vincula e registra auditoria no log do admin autor', async () => {
     usersRepo.buscarPorId.mockImplementation(async id => porId(id))
-    paymentGateway.getCheckoutSession.mockResolvedValue(sessaoStripe({ id: 'cs_manual', amount_total: 10050 }))
+    paymentGateway.getCheckoutSession.mockResolvedValue(sessaoStripe({ id: 'cs_manual', amount_total: 12350 }))
     billingRepo.confirmarPagamentoDireto.mockResolvedValue({ id: 50, userId: 7, status: 'paid', toPlan: 'pro', meuEcooSelected: false })
 
     const res = await request(app)

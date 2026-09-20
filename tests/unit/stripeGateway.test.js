@@ -29,8 +29,8 @@ describe('stripeGateway', () => {
       fromPlan: 'basico',
       toPlan: 'pro',
       planName: 'EcooMidia Pro',
-      amountCents: 11550,
-      planAmountCents: 10050,
+      amountCents: 13850,
+      planAmountCents: 12350,
       currency: 'brl',
       billingMonth: '2026-08-01',
       idempotencyKey: 'plan-change-7-2026-08',
@@ -47,7 +47,7 @@ describe('stripeGateway', () => {
     // vira assinatura na mesma sessão (decisão de 10/09/2026).
     expect(body).toContain('line_items%5B0%5D%5Bprice_data%5D%5Brecurring%5D%5Binterval%5D=month')
     expect(body).toContain('line_items%5B1%5D%5Bprice_data%5D%5Brecurring%5D%5Binterval%5D=month')
-    expect(body).toContain('line_items%5B0%5D%5Bprice_data%5D%5Bunit_amount%5D=10050')
+    expect(body).toContain('line_items%5B0%5D%5Bprice_data%5D%5Bunit_amount%5D=12350')
     expect(body).toContain('line_items%5B1%5D%5Bprice_data%5D%5Bunit_amount%5D=1500')
     expect(body).toContain('line_items%5B1%5D%5Bprice_data%5D%5Bproduct_data%5D%5Bname%5D=MeuEcoo')
     // subscription_data.metadata é o equivalente correto em mode=subscription
@@ -71,7 +71,7 @@ describe('stripeGateway', () => {
       fromPlan: 'basico',
       toPlan: 'pro',
       planName: 'EcooMidia Pro',
-      amountCents: 10050,
+      amountCents: 12350,
       currency: 'brl',
       billingMonth: '2026-08-01',
       idempotencyKey: 'plan-change-7-2026-08',
