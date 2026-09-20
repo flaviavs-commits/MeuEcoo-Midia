@@ -10,7 +10,6 @@ export const TIMELINE_STEPS = [
   ['Publique automaticamente', 'Sem precisar abrir cada app.'],
   ['Acompanhe os resultados', 'Tudo em um painel só.'],
 ]
-const TIMELINE_SOCIALS = ['instagram', 'facebook', 'tiktok', 'youtube']
 const clamp = value => Math.max(0, Math.min(1, value))
 
 function LetterText({ text }) {
@@ -26,7 +25,7 @@ function LetterText({ text }) {
   </span>
 }
 
-export function TimelineStory({ BrandGlyph }) {
+export function TimelineStory() {
   const section = useRef(null), stage = useRef(null), camera = useRef(null), rail = useRef(null)
   const rows = useRef([])
   const [active, setActive] = useState(0)
@@ -67,12 +66,6 @@ export function TimelineStory({ BrandGlyph }) {
         row.style.setProperty('--description-reveal', step.description)
         row.style.setProperty('--marker-scale', 1 + step.emphasis * .1)
       })
-      const lastStep = timelineStepFrame(displayed, TIMELINE_STEPS.length - 1)
-      // The dashboard is a final-step insert, not part of the overview. Keep
-      // it binary so it never becomes a translucent layer over steps 1–4
-      // while the camera is still travelling toward the final close-up.
-      const dashboardVisible = pose.focus >= 3.9 && pose.strength > .65 && lastStep.description >= .72
-      root.style.setProperty('--dashboard-presence', dashboardVisible ? '1' : '0')
       if (displayed !== target) frame = requestAnimationFrame(update)
     }
     const request = () => { if (!frame && !simple && !disposed) frame = requestAnimationFrame(update) }
@@ -101,7 +94,6 @@ export function TimelineStory({ BrandGlyph }) {
       })
       if (simple) {
         camera.current.style.transform = ''
-        root.style.setProperty('--dashboard-presence', '1')
         rows.current.forEach(row => {
           for (const name of ['--step-presence', '--title-reveal', '--description-reveal', '--marker-scale']) row.style.removeProperty(name)
         })
@@ -123,7 +115,6 @@ export function TimelineStory({ BrandGlyph }) {
         }
       } else {
         delete root.dataset.entrance
-        root.style.setProperty('--dashboard-presence', '0')
         request()
       }
     }
@@ -167,20 +158,6 @@ export function TimelineStory({ BrandGlyph }) {
             <p><span className="mkt-timeline-sr">{description}</span><LetterText text={description} /></p>
           </div>
         </article>)}
-        <div className="mkt-timeline-dashboard" aria-hidden="true">
-        <div className="mkt-timeline-dashboard-head"><span className="mkt-timeline-dashboard-kicker"><i />Painel final</span><span className="mkt-timeline-dashboard-period">Visão geral</span></div>
-        <div className="mkt-timeline-dashboard-title"><strong>Resultado em um só lugar.</strong><span>O que você publicou começa a voltar em dados.</span></div>
-        <div className="mkt-timeline-dashboard-metrics"><span><b>+38%</b><small>alcance</small></span><span><b>12</b><small>publicados</small></span><span><b>4</b><small>redes</small></span></div>
-        <div className="mkt-timeline-dashboard-chart">
-          <svg viewBox="0 0 360 108" role="presentation" aria-hidden="true">
-            <defs><linearGradient id="mkt-timeline-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="var(--mkt-gold)" stopOpacity=".36" /><stop offset="1" stopColor="var(--mkt-gold)" stopOpacity="0" /></linearGradient></defs>
-            <path className="mkt-chart-area" d="M0 88 C28 78 39 82 62 69 S101 78 123 55 S162 64 183 44 S221 56 241 34 S277 46 300 22 S333 30 360 8 V108 H0 Z" />
-            <path className="mkt-chart-line" d="M0 88 C28 78 39 82 62 69 S101 78 123 55 S162 64 183 44 S221 56 241 34 S277 46 300 22 S333 30 360 8" />
-            {[0, 62, 123, 183, 241, 300, 360].map((x, index) => <circle key={x} className="mkt-chart-dot" cx={x} cy={[88, 69, 55, 44, 34, 22, 8][index]} r="3.2" />)}
-          </svg>
-        </div>
-        <div className="mkt-timeline-dashboard-legend">{TIMELINE_SOCIALS.map(name => <span key={name}><BrandGlyph name={name} size={16} /><label>{name[0].toUpperCase() + name.slice(1)}</label><i aria-hidden="true" /></span>)}</div>
-        </div>
       </div>
     </div>
   </section>

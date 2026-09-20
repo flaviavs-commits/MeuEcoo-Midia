@@ -89,7 +89,7 @@ describe('timeline scroll and motion preference', () => {
       }
       expect(frames.size).toBe(0)
     }
-    const { unmount } = render(<TimelineStory BrandGlyph={() => null} />)
+    const { unmount } = render(<TimelineStory />)
     const region = screen.getByRole('region', { name: 'Sua jornada em cinco passos' })
     expect(region).toHaveAttribute('data-motion', 'full')
     for (const index of [0, 1, 2, 3, 4, 3, 2, 1, 0]) {
@@ -113,7 +113,7 @@ describe('timeline scroll and motion preference', () => {
     expect(region.querySelector('[inert]')).toBeNull()
     const camera = region.querySelector('.mkt-timeline-camera')
     expect(camera.style.transform).toBe('')
-    expect(camera.querySelector('.mkt-timeline-dashboard')).toBeInTheDocument()
+    expect(camera.querySelector('.mkt-timeline-dashboard')).not.toBeInTheDocument()
     for (const row of within(region).getAllByRole('article')) {
       expect(row.style.getPropertyValue('--title-reveal')).toBe('')
       expect(row.style.getPropertyValue('--description-reveal')).toBe('')
