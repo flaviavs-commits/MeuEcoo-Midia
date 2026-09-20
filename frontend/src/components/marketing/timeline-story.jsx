@@ -167,8 +167,7 @@ export function TimelineStory({ BrandGlyph }) {
             <p><span className="mkt-timeline-sr">{description}</span><LetterText text={description} /></p>
           </div>
         </article>)}
-      </div>
-      <div className="mkt-timeline-dashboard" aria-hidden="true">
+        <div className="mkt-timeline-dashboard" aria-hidden="true">
         <div className="mkt-timeline-dashboard-head"><span className="mkt-timeline-dashboard-kicker"><i />Painel final</span><span className="mkt-timeline-dashboard-period">Visão geral</span></div>
         <div className="mkt-timeline-dashboard-title"><strong>Resultado em um só lugar.</strong><span>O que você publicou começa a voltar em dados.</span></div>
         <div className="mkt-timeline-dashboard-metrics"><span><b>+38%</b><small>alcance</small></span><span><b>12</b><small>publicados</small></span><span><b>4</b><small>redes</small></span></div>
@@ -181,6 +180,7 @@ export function TimelineStory({ BrandGlyph }) {
           </svg>
         </div>
         <div className="mkt-timeline-dashboard-legend">{TIMELINE_SOCIALS.map(name => <span key={name}><BrandGlyph name={name} size={16} /><label>{name[0].toUpperCase() + name.slice(1)}</label><i aria-hidden="true" /></span>)}</div>
+        </div>
       </div>
     </div>
   </section>
