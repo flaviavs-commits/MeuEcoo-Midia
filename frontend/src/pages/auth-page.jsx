@@ -399,12 +399,16 @@ export function CreateAccountPage() {
   </main>
 }
 
+export function readResetToken(location = window.location) {
+  const hashToken = new URLSearchParams(String(location.hash || '').replace(/^#/, '')).get('token')
+  const queryToken = new URLSearchParams(String(location.search || '')).get('token')
+  return hashToken || queryToken
+}
+
 export function ResetPasswordPage() {
   const token = useMemo(() => {
-    const hashToken = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('token')
-    const queryToken = new URLSearchParams(window.location.search).get('token')
-    const value = hashToken || queryToken
-    if (hashToken) window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.search}`)
+    const value = readResetToken()
+    if (value) window.history.replaceState({}, document.title, window.location.pathname)
     return value
   }, [])
   const [valid, setValid] = useState(null)
