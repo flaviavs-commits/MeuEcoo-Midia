@@ -188,6 +188,10 @@ export function LandingPage() {
         </div>
         <HeroStage />
       </section>
+      <section className="mkt-section mkt-container mkt-resources" id="recursos" aria-labelledby="features-title">
+        <h2 id="features-title" className="mkt-timeline-sr">Sua jornada nas redes</h2>
+        <TimelineStory BrandGlyph={BrandGlyph} />
+      </section>
       <section className="mkt-about" id="sobre" aria-labelledby="about-title">
         <div className="mkt-container mkt-about-inner">
           <div className="mkt-about-head">
@@ -215,10 +219,6 @@ export function LandingPage() {
             </div>
           </div>
         </div>
-      </section>
-      <section className="mkt-section mkt-container mkt-resources" id="recursos" aria-labelledby="features-title">
-        <h2 id="features-title" className="mkt-timeline-sr">Sua jornada nas redes</h2>
-        <TimelineStory BrandGlyph={BrandGlyph} />
       </section>
       <Plans />
       <section className="mkt-faq mkt-container" aria-labelledby="faq-title">

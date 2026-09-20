@@ -111,7 +111,9 @@ describe('timeline scroll and motion preference', () => {
     expect(region).toHaveAttribute('data-entrance', 'false')
     expect(within(region).getAllByRole('article')).toHaveLength(5)
     expect(region.querySelector('[inert]')).toBeNull()
-    expect(region.querySelector('.mkt-timeline-camera').style.transform).toBe('')
+    const camera = region.querySelector('.mkt-timeline-camera')
+    expect(camera.style.transform).toBe('')
+    expect(camera.querySelector('.mkt-timeline-dashboard')).toBeInTheDocument()
     for (const row of within(region).getAllByRole('article')) {
       expect(row.style.getPropertyValue('--title-reveal')).toBe('')
       expect(row.style.getPropertyValue('--description-reveal')).toBe('')
