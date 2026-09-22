@@ -332,15 +332,40 @@ export function LandingPage() {
             </div>
           </div>
           <div className="mkt-about-steps" aria-label="Pilares da operação">
-            {workflowSteps.map(step => <article className="mkt-about-step" key={step.label}>
-              <div className="mkt-about-step-head">
-                <span className="mkt-about-step-icon"><Icon name={step.icon} size={21} /></span>
-                <span className="mkt-about-step-state"><span aria-hidden="true" /> Fluxo integrado</span>
+            <div className="mkt-workflow-caption"><span>Menos esforço. Mais ritmo.</span><span>Uma ideia, muitas possibilidades <Icon name="arrow" size={18} /></span></div>
+            {workflowSteps.map((step, index) => <article className={`mkt-about-step mkt-about-step--${step.icon}`} key={step.label}>
+              <div className="mkt-workflow-art" aria-hidden="true">
+                {index === 0 && <div className="mkt-paper-scene">
+                  <span className="mkt-paper-note">espaço para criar</span>
+                  <div className="mkt-paper-calendar">
+                    <div className="mkt-paper-calendar-title"><span>Sua próxima semana</span><Icon name="sparkle" size={19} /></div>
+                    <div className="mkt-paper-days">{['S', 'T', 'Q', 'Q', 'S'].map((day, i) => <span key={i}>{day}</span>)}</div>
+                    <div className="mkt-paper-slots">{Array.from({ length: 15 }, (_, i) => <i key={i} className={[1, 7, 13].includes(i) ? 'is-planned' : undefined}>{[1, 7, 13].includes(i) && <Icon name="check" size={14} />}</i>)}</div>
+                    <span className="mkt-paper-event"><i /> Uma boa ideia, no dia certo.</span>
+                  </div>
+                  <span className="mkt-paper-sticker"><Icon name="check" size={16} /> Tudo no seu tempo</span>
+                </div>}
+                {index === 1 && <div className="mkt-publish-scene">
+                  <span className="mkt-publish-orbit" />
+                  <span className="mkt-publish-orbit mkt-publish-orbit--outer" />
+                  <span className="mkt-publish-core"><Icon name="send" size={42} /></span>
+                  {socials.map(([name]) => <span className={`mkt-publish-network mkt-publish-network--${name}`} key={name}><BrandGlyph name={name} size={23} /></span>)}
+                  <span className="mkt-publish-note">Sua ideia ganha o mundo.</span>
+                </div>}
+                {index === 2 && <div className="mkt-growth-scene">
+                  <div className="mkt-growth-disc">
+                    <svg viewBox="0 0 240 200" fill="none"><path className="mkt-growth-grid" d="M25 50H215M25 95H215M25 140H215M60 25V175M120 25V175M180 25V175" /><path className="mkt-growth-area" d="M25 153C52 153 52 117 79 123S109 144 132 102 160 121 182 76 205 63 215 38V175H25Z" /><path className="mkt-growth-line" d="M25 153C52 153 52 117 79 123S109 144 132 102 160 121 182 76 205 63 215 38" /><circle cx="215" cy="38" r="6" /></svg>
+                    <span>cada passo conta</span>
+                  </div>
+                  <span className="mkt-growth-star"><Icon name="sparkle" size={34} /></span>
+                  <span className="mkt-growth-note"><Icon name="chart" size={16} /> Aprenda. Ajuste. Cresça.</span>
+                </div>}
               </div>
-              <p className="mkt-about-step-label">{step.label}</p>
-              <h3>{step.title}</h3>
-              <p className="mkt-about-step-text">{step.text}</p>
-              <div className="mkt-about-step-footer" aria-hidden="true"><span>Parte da sua operação</span><Icon name="arrow" size={16} /></div>
+              <div className="mkt-workflow-copy">
+                <p className="mkt-about-step-label"><span>0{index + 1}</span>{step.label}</p>
+                <h3>{step.title}</h3>
+                <p className="mkt-about-step-text">{step.text}</p>
+              </div>
             </article>)}
           </div>
         </div>
