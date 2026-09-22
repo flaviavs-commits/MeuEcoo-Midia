@@ -12,15 +12,40 @@ const socials = [
   ['youtube', 'YouTube'],
 ]
 
+const navSectionIds = ['conteudo', 'sobre', 'planos']
+const JOURNEY_PHASE_DURATION = 4250
+
 const planCardHighlights = {
   basico: ['Agendamento de conteúdos', 'Gerenciamento de mídia', 'Relatórios essenciais', 'Suporte por e-mail'],
   pro: ['Agendamento e publicações recorrentes', 'Gerenciamento de mídia e rascunhos', 'Relatórios completos', 'Mais automações', 'Suporte prioritário'],
   premium: ['Todas as funcionalidades do Pro', 'Relatórios avançados', 'Mais limites e recursos', 'Suporte em horário estendido'],
 }
 
+const workflowSteps = [
+  {
+    icon: 'calendar',
+    label: 'Planejamento',
+    title: 'Veja a semana com clareza',
+    text: 'Organize ideias, datas e formatos em uma agenda simples de acompanhar.',
+  },
+  {
+    icon: 'repeat',
+    label: 'Publicação',
+    title: 'Publique sem retrabalho',
+    text: 'Adapte cada ideia para a rede certa e deixe a rotina programada.',
+  },
+  {
+    icon: 'chart',
+    label: 'Acompanhamento',
+    title: 'Saiba o que continuar',
+    text: 'Acompanhe os resultados e escolha o próximo passo com mais segurança.',
+  },
+]
+
 function Icon({ name, size = 22 }) {
   const paths = {
     arrow: <><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></>,
+    arrowDown: <><path d="M12 5v14" /><path d="m6 13 6 6 6-6" /></>,
     arrowUp: <><path d="M12 19V5" /><path d="m6 11 6-6 6 6" /></>,
     check: <path d="m5 12 4 4L19 6" />,
     calendar: <><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M16 3v4M8 3v4M3 10h18M8 14h3M8 17h6" /></>,
@@ -86,9 +111,9 @@ function AccountMenu() {
       <span className="mkt-account-title">Sua conta</span>
       <ul>
         <li><a href="/login.html"><span className="mkt-account-ic"><Icon name="login" size={17} /></span><span>Entrar</span></a></li>
-        <li><a className="is-primary" href="/criar-conta"><span className="mkt-account-ic"><Icon name="userPlus" size={17} /></span><span>Criar conta grátis</span><Icon name="arrow" size={15} /></a></li>
+        <li><a className="is-primary" href="/criar-conta"><span className="mkt-account-ic"><Icon name="userPlus" size={17} /></span><span>Começar agora</span><Icon name="arrow" size={15} /></a></li>
       </ul>
-      <p className="mkt-account-foot">Sem cartão de crédito.</p>
+      <p className="mkt-account-foot">Escolha o plano que combina com a sua rotina.</p>
     </nav>
   </div>
 }
@@ -140,38 +165,140 @@ function HeroStage() {
 function Plans() {
   return <section className="mkt-section mkt-container" id="planos" aria-labelledby="plans-title">
     <div className="mkt-plans-head">
-      <div className="mkt-section-head"><p className="mkt-eyebrow">Planos</p><h2 id="plans-title">Escolha o plano ideal<br />para o <em>seu momento.</em></h2><p>Conecte, gerencie e multiplique os resultados das suas redes sociais.</p></div>
+      <div className="mkt-section-head"><p className="mkt-eyebrow">Planos</p><h2 id="plans-title">Escolha o plano ideal<br />para o <em>seu momento.</em></h2><p>Comece com o essencial, ganhe ritmo e amplie a sua operação conforme a sua presença nas redes cresce.</p></div>
       <div className="mkt-plans-networks" aria-label="Redes sociais integradas">
         <div className="mkt-plans-network-icons">{socials.map(([name, label]) => <span key={name} title={label}><BrandGlyph name={name} size={28} /></span>)}</div>
-        <p>Gerencie todas as suas redes em um só lugar.</p>
+        <p>Instagram, Facebook, TikTok e YouTube em um só fluxo.</p>
       </div>
     </div>
     <div className="mkt-plans">{Object.values(PLANS).map(plan => <article className={`mkt-plan mkt-plan--${plan.id}${plan.id === 'pro' ? ' mkt-plan--featured' : ''}`} key={plan.id}>
       {plan.id === 'pro' && <span className="mkt-plan-badge"><Icon name="crown" size={15} />Mais escolhido</span>}
       <div className="mkt-plan-heading"><span className="mkt-plan-icon"><Icon name={PLAN_ICON_NAMES[plan.id]} size={27} /></span><div className="mkt-plan-heading-copy"><h3>{plan.name.replace('EcooMidia ', '')}</h3><p>Até {plan.maxConnections} canais à sua escolha</p></div></div>
+      <p className="mkt-plan-description">{plan.description}</p>
       <p className="mkt-price"><strong>{plan.price}</strong><span>/ {plan.cadence.replace(/^por\s+/i, '')}</span></p>
-      <ul className="mkt-plan-highlights">{planCardHighlights[plan.id].map(highlight => <li key={highlight}><Icon name="check" size={18} />{highlight}</li>)}</ul>
+      <ul className="mkt-plan-highlights">{(plan.features || planCardHighlights[plan.id]).slice(0, 5).map(highlight => <li key={highlight}><Icon name="check" size={18} />{highlight}</li>)}</ul>
+      {(plan.features || []).length > 5 && <details className="mkt-plan-details"><summary><Icon name="bars" size={15} />Ver todos os recursos</summary><ul>{plan.features.slice(5).map(feature => <li key={feature}>{feature}</li>)}</ul></details>}
+      {plan.billingOffer && <p className="mkt-plan-offer-note">{plan.billingOffer}</p>}
       <a className={`mkt-button ${plan.id === 'pro' ? 'mkt-button--primary' : plan.id === 'premium' ? 'mkt-button--premium' : 'mkt-button--outline'}`} href={`/criar-conta?plan=${plan.id}`}>Escolher {plan.name.replace('EcooMidia ', '')}<Icon name="arrow" size={18} /></a>
     </article>)}</div>
   </section>
 }
 
+function FinalCta() {
+  return <section className="mkt-final-cta mkt-container" id="comecar" aria-labelledby="final-cta-title">
+    <div className="mkt-final-cta-inner">
+      <div>
+        <p className="mkt-eyebrow">Sua próxima semana começa aqui</p>
+        <h2 id="final-cta-title">Mais presença nas redes.<br /><em>Menos peso na rotina.</em></h2>
+        <p>Crie um fluxo que cabe no seu dia, reúna as suas redes e publique com a tranquilidade de quem sabe o que vem depois.</p>
+      </div>
+      <div className="mkt-final-cta-actions">
+        <a className="mkt-button mkt-button--primary mkt-button--lg" href="/criar-conta?plan=basico">Começar agora <Icon name="arrow" size={18} /></a>
+        <a className="mkt-button mkt-button--outline" href="#planos">Comparar planos</a>
+      </div>
+    </div>
+  </section>
+}
+
 export function LandingPage() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const [activeSection, setActiveSection] = useState('conteudo')
   useEffect(() => {
     const closeOnEscape = event => { if (event.key === 'Escape') setMenuOpen(false) }
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [])
 
+  useEffect(() => {
+    const updateActiveSection = () => {
+      const activationLine = Math.min(Math.max(window.innerHeight * .32, 180), 360)
+      const sections = navSectionIds.map(id => document.getElementById(id)).filter(Boolean)
+      const positions = sections.map(section => section.getBoundingClientRect())
+      if (!positions.some(rect => rect.height > 0 || rect.width > 0)) return
+
+      let nextSection = 'conteudo'
+      sections.slice(1).forEach((section, index) => {
+        if (positions[index + 1].top <= activationLine) nextSection = section.id
+      })
+      setActiveSection(current => current === nextSection ? current : nextSection)
+    }
+
+    window.addEventListener('scroll', updateActiveSection, { passive: true })
+    window.addEventListener('resize', updateActiveSection)
+    updateActiveSection()
+    return () => {
+      window.removeEventListener('scroll', updateActiveSection)
+      window.removeEventListener('resize', updateActiveSection)
+    }
+  }, [])
+
+  const handleNavClick = sectionId => {
+    setActiveSection(sectionId)
+    setMenuOpen(false)
+  }
+
+  const scrollToHowItWorks = () => {
+    const target = document.getElementById('sobre')
+    if (!target) return
+
+    const header = document.querySelector('.mkt-header')
+    const breathingRoom = Math.min(88, Math.max(38, window.innerHeight * .09))
+    const offset = (header?.getBoundingClientRect().height || 0) + breathingRoom
+    const startY = window.scrollY
+    const finalNudge = window.matchMedia?.('(min-width: 861px)').matches
+      ? Math.min(220, Math.max(140, window.innerHeight * .2))
+      : 48
+    const targetY = Math.max(0, target.getBoundingClientRect().top + startY - offset + finalNudge)
+    const distance = targetY - startY
+    if (Math.abs(distance) < 2) return
+
+    const journey = document.getElementById('recursos')
+    const journeyStartY = journey ? journey.getBoundingClientRect().top + startY : Infinity
+    const crossesJourney = Boolean(journey && startY < journeyStartY && targetY > journeyStartY)
+    const journeyPhases = journey?.querySelectorAll('.mkt-timeline-step').length + 1 || 6
+
+    if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      window.scrollTo(0, targetY)
+      return
+    }
+
+    const duration = crossesJourney
+      ? journeyPhases * JOURNEY_PHASE_DURATION
+      : Math.min(7600, Math.max(3200, Math.abs(distance) * 2.4))
+    const startedAt = performance.now()
+    let frame = 0
+    let cancelled = false
+    const userEvents = ['wheel', 'touchstart', 'pointerdown', 'keydown']
+    const cleanup = () => userEvents.forEach(type => window.removeEventListener(type, cancel))
+    const cancel = () => {
+      cancelled = true
+      cancelAnimationFrame(frame)
+      cleanup()
+    }
+    const tick = now => {
+      if (cancelled) return
+      const progress = Math.min(1, (now - startedAt) / duration)
+      const eased = crossesJourney
+        ? progress
+        : progress < .5
+          ? 4 * progress * progress * progress
+          : 1 - Math.pow(-2 * progress + 2, 3) / 2
+      window.scrollTo(0, startY + distance * eased)
+      if (progress < 1) frame = requestAnimationFrame(tick)
+      else cleanup()
+    }
+    userEvents.forEach(type => window.addEventListener(type, cancel, { once: true, passive: true }))
+    frame = requestAnimationFrame(tick)
+  }
+
   return <div className="marketing-page">
     <a className="mkt-skip" href="#conteudo">Pular para o conteúdo</a>
     <header className="mkt-header"><nav className="mkt-nav mkt-container" aria-label="Navegação principal">
       <Brand />
       <div id="mkt-navigation" className={`mkt-nav-links${menuOpen ? ' is-open' : ''}`}>
-       <a className="is-active" href="#conteudo" onClick={() => setMenuOpen(false)}><Icon name="home" size={18} />Início</a>
-       <a href="#sobre" onClick={() => setMenuOpen(false)}><Icon name="bulb" size={18} />O que você ganha</a>
-       <a href="#recursos" onClick={() => setMenuOpen(false)}><Icon name="help" size={18} />Como funciona</a>
+       <a className={activeSection === 'conteudo' ? 'is-active' : undefined} aria-current={activeSection === 'conteudo' ? 'location' : undefined} href="#conteudo" onClick={() => handleNavClick('conteudo')}><Icon name="home" size={18} />Início</a>
+       <a className={activeSection === 'sobre' ? 'is-active' : undefined} aria-current={activeSection === 'sobre' ? 'location' : undefined} href="#sobre" onClick={() => handleNavClick('sobre')}><Icon name="help" size={18} />Como funciona</a>
+       <a className={activeSection === 'planos' ? 'is-active' : undefined} aria-current={activeSection === 'planos' ? 'location' : undefined} href="#planos" onClick={() => handleNavClick('planos')}><Icon name="tag" size={18} />Planos</a>
       </div>
       <AccountMenu />
       <button className="mkt-menu" type="button" aria-label={menuOpen ? 'Fechar menu' : 'Abrir menu'} aria-expanded={menuOpen} aria-controls="mkt-navigation" onClick={() => setMenuOpen(value => !value)}><Icon name={menuOpen ? 'close' : 'menu'} /></button>
@@ -179,12 +306,12 @@ export function LandingPage() {
     <main id="conteudo">
       <section className="mkt-hero mkt-container" aria-labelledby="hero-title">
         <div className="mkt-hero-copy">
-          <p className="mkt-hero-kicker"><span>Planeje</span><i aria-hidden="true" /><span>Publique</span><i aria-hidden="true" /><span>Acompanhe</span></p>
           <h1 id="hero-title">Sua rotina<br />nas redes,<br /><em>resolvida.</em></h1>
           <p className="mkt-hero-sub">Centralize suas redes sociais, organize publicações, automatize tarefas e acompanhe seus resultados em um só lugar.</p>
           <div className="mkt-hero-actions">
-            <a className="mkt-button mkt-button--outline mkt-button--lg" href="#sobre">Veja como funciona <Icon name="arrow" size={18} /></a>
+            <button type="button" className="mkt-button mkt-button--outline mkt-button--lg" onClick={scrollToHowItWorks}>Veja como funciona <Icon name="arrowDown" size={18} /></button>
           </div>
+          <div className="mkt-hero-network-list" aria-label="Redes sociais integradas">{socials.map(([name, label]) => <span key={name}><BrandGlyph name={name} size={16} />{label}</span>)}</div>
         </div>
         <HeroStage />
       </section>
@@ -196,49 +323,49 @@ export function LandingPage() {
         <div className="mkt-container mkt-about-inner">
           <div className="mkt-about-head">
             <div>
-              <p className="mkt-eyebrow">O que é a Ecoo Mídia?</p>
+              <p className="mkt-eyebrow">Como funciona</p>
               <h2 id="about-title">A central da sua rotina<br /><em>nas redes.</em></h2>
             </div>
-            <div className="mkt-about-lead">
-              <p>A Ecoo Mídia é uma plataforma para planejar, criar, agendar e acompanhar conteúdos para suas redes sociais em um só lugar.</p>
-              <p>Em vez de alternar entre vários aplicativos e planilhas, você organiza cada etapa da operação, publica com mais consistência e entende o que está funcionando.</p>
+          <div className="mkt-about-lead">
+            <p>A Ecoo Mídia reúne planejamento, criação, publicação e análise em um só lugar.</p>
+            <p>Você organiza cada etapa da operação, publica com mais consistência e sabe o que fazer depois.</p>
             </div>
           </div>
-          <div className="mkt-about-flow" aria-label="Como a Ecoo Mídia funciona">
-            <div className="mkt-about-flow-item">
-              <span>01</span>
-              <div><strong>Conecte suas redes</strong><p>Reúna Instagram, Facebook, TikTok e YouTube no mesmo fluxo.</p></div>
-            </div>
-            <div className="mkt-about-flow-item">
-              <span>02</span>
-              <div><strong>Organize o conteúdo</strong><p>Transforme ideias em posts, rascunhos e uma agenda clara.</p></div>
-            </div>
-            <div className="mkt-about-flow-item">
-              <span>03</span>
-              <div><strong>Publique e acompanhe</strong><p>Deixe a rotina programada e veja os resultados em um painel.</p></div>
-            </div>
+          <div className="mkt-about-steps" aria-label="Pilares da operação">
+            {workflowSteps.map(step => <article className="mkt-about-step" key={step.label}>
+              <div className="mkt-about-step-head">
+                <span className="mkt-about-step-icon"><Icon name={step.icon} size={21} /></span>
+                <span className="mkt-about-step-state"><span aria-hidden="true" /> Fluxo integrado</span>
+              </div>
+              <p className="mkt-about-step-label">{step.label}</p>
+              <h3>{step.title}</h3>
+              <p className="mkt-about-step-text">{step.text}</p>
+              <div className="mkt-about-step-footer" aria-hidden="true"><span>Parte da sua operação</span><Icon name="arrow" size={16} /></div>
+            </article>)}
           </div>
         </div>
       </section>
       <Plans />
       <section className="mkt-faq mkt-container" aria-labelledby="faq-title">
         <div className="mkt-faq-inner">
-          <div className="mkt-section-head"><p className="mkt-eyebrow">Perguntas frequentes</p><h2 id="faq-title">Ficou alguma dúvida?</h2><p className="mkt-faq-intro">Respostas rápidas para você começar a organizar suas redes com tranquilidade.</p></div>
+          <div className="mkt-section-head"><p className="mkt-eyebrow">Perguntas frequentes</p><h2 id="faq-title">Ficou alguma dúvida?</h2><p className="mkt-faq-intro">Respostas rápidas para você entender o fluxo, escolher seu plano e começar com mais tranquilidade.</p></div>
           <div className="mkt-faq-list">
           <details><summary>As publicações saem automaticamente?</summary><p>Sim. Depois de revisar o conteúdo, escolher as redes e agendar, o sistema envia a publicação no horário definido. Você acompanha o status pelo painel.</p></details>
-          <details><summary>Preciso criar tudo do zero?</summary><p>Não. Use sugestões do sistema inteligente, reaproveite arquivos da biblioteca e transforme rascunhos em novas publicações.</p></details>
-          <details><summary>Posso revisar antes de publicar?</summary><p>Sim. Você confere os textos e as mídias de cada rede e escolhe quando publicar.</p></details>
-          <details><summary>Quais redes posso conectar?</summary><p>Instagram, TikTok, Facebook e YouTube, sempre pela autorização oficial de cada plataforma. O número de conexões depende do seu plano.</p></details>
-          <details><summary>Preciso de cartão de crédito para testar?</summary><p>Não. A conta gratuita libera o essencial para você experimentar o fluxo completo antes de decidir.</p></details>
+          <details><summary>Preciso criar tudo do zero?</summary><p>Não. Use sugestões do sistema inteligente, reaproveite arquivos da biblioteca e transforme rascunhos em novas publicações sem perder o seu tom.</p></details>
+          <details><summary>Posso revisar antes de publicar?</summary><p>Sim. Você confere os textos e as mídias de cada rede, ajusta o que quiser e escolhe quando publicar.</p></details>
+          <details><summary>Quais redes posso conectar?</summary><p>Instagram, TikTok, Facebook e YouTube, sempre pela autorização oficial de cada plataforma. O limite de conexões depende do plano escolhido: até 2 no Básico, 3 no Pro e 4 no Premium.</p></details>
+          <details><summary>Como funcionam os planos?</summary><p>Todos os planos são mensais e liberam um conjunto de recursos para organizar, publicar e acompanhar sua operação. Você escolhe o nível de conexão e de suporte que faz sentido para o seu momento.</p></details>
+          <details><summary>Posso mudar de plano depois?</summary><p>Sim. Se a sua rotina crescer ou mudar, você pode escolher outro plano para acompanhar a nova necessidade de redes, recursos e volume de trabalho.</p></details>
           </div>
         </div>
       </section>
+      <FinalCta />
     </main>
     <footer className="mkt-footer"><div className="mkt-container">
       <div className="mkt-footer-top">
         <div className="mkt-footer-brand"><Brand /><p>Menos tempo nas tarefas. Mais tempo nas ideias.</p><p className="mkt-footer-networks">{socials.map(([key, label]) => <span key={key}><BrandGlyph name={key} size={16} />{label}</span>)}</p></div>
         <div className="mkt-footer-cols">
-          <nav aria-label="Produto"><strong>Produto</strong><a href="#recursos">Recursos</a><a href="#recursos">Como funciona</a><a href="#planos">Preços</a></nav>
+          <nav aria-label="Produto"><strong>Produto</strong><a href="#sobre">Como funciona</a><a href="#recursos">Sua jornada</a><a href="#planos">Planos</a></nav>
           <nav aria-label="Conta"><strong>Conta</strong><a href="/criar-conta">Criar conta</a><a href="/login.html">Entrar</a></nav>
           <nav aria-label="Suporte"><strong>Suporte</strong><a href="mailto:suporte@meuecoomidia.com.br">Fale com a gente</a><a href="/terms-of-service.html">Termos de uso</a><a href="/privacy-policy.html">Privacidade</a></nav>
         </div>

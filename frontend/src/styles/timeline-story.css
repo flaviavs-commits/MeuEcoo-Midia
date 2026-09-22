@@ -16,7 +16,11 @@ html:has(.mkt-timeline), body:has(.mkt-timeline), #root:has(.mkt-timeline) { ove
 }
 .mkt-timeline-skip:hover { color: var(--mkt-green); border-color: var(--mkt-green); }
 .mkt-timeline :is(a,button):focus-visible { outline: 2px solid var(--mkt-green-soft); outline-offset: 4px; }
-.mkt-timeline-camera { position: relative; transform-origin: 50% 50%; }
+.mkt-timeline-camera {
+  position: relative; transform-origin: 50% 50%;
+  font-kerning: normal; font-variant-ligatures: common-ligatures; text-rendering: geometricPrecision;
+  -webkit-font-smoothing: antialiased;
+}
 .mkt-timeline-step { position: relative; padding: 28px 0 28px 82px; }
 .mkt-timeline-step-copy { position: relative; z-index: 1; }
 .marketing-page .mkt-timeline-step h3 {
@@ -57,7 +61,7 @@ html:has(.mkt-timeline), body:has(.mkt-timeline), #root:has(.mkt-timeline) { ove
   .mkt-timeline[data-motion="full"] .mkt-timeline-stage {
     position: sticky; top: var(--mkt-nav-h, 76px); height: calc(100svh - var(--mkt-nav-h, 76px)); overflow: visible;
   }
-  .mkt-timeline[data-motion="full"] .mkt-timeline-camera { position: absolute; inset: 0; will-change: transform; }
+  .mkt-timeline[data-motion="full"] .mkt-timeline-camera { position: absolute; inset: 0; will-change: auto; }
   .mkt-timeline[data-motion="full"] .mkt-timeline-heading { opacity: var(--timeline-heading-opacity, 1); }
   .mkt-timeline[data-motion="full"] .mkt-timeline-heading h2 { font-size: clamp(26px, 2.7vw, 40px); }
   .mkt-timeline[data-motion="full"] .mkt-timeline-step { position: absolute; left: var(--step-x); top: var(--step-y); width: 0; height: 0; padding: 0; }
@@ -65,9 +69,12 @@ html:has(.mkt-timeline), body:has(.mkt-timeline), #root:has(.mkt-timeline) { ove
   .mkt-timeline[data-motion="full"] .mkt-timeline-step-copy {
     position: absolute; top: 0; right: var(--timeline-copy-gap); width: var(--timeline-copy-width);
     transform: translateY(-50%); text-align: right; opacity: var(--step-presence, 0);
-    filter: blur(calc((1 - var(--step-presence, 0)) * 2px));
+    filter: none;
   }
   .mkt-timeline[data-motion="full"] .mkt-timeline-step--right .mkt-timeline-step-copy { right: auto; left: var(--timeline-copy-gap); text-align: left; }
+  .mkt-timeline[data-motion="full"] .mkt-timeline-letter {
+    display: inline; opacity: 1; transform: none;
+  }
 }
 @media (max-width: 860px), (max-height: 560px), (prefers-reduced-motion: reduce) {
   .mkt-timeline { margin-inline: 0; }
@@ -85,4 +92,17 @@ html:has(.mkt-timeline), body:has(.mkt-timeline), #root:has(.mkt-timeline) { ove
 @media (prefers-reduced-motion: reduce) {
   .mkt-timeline-number, .mkt-timeline-letter { transition: none; }
   .mkt-timeline-letter { opacity: 1; transform: none; }
+}
+
+/* A timeline is the page's long-form explanation, so its copy follows the
+ * enlarged editorial scale used by the rest of the marketing page. */
+.marketing-page .mkt-timeline-heading h2 { font-size: clamp(34px, 3.5vw, 52px); }
+.marketing-page .mkt-timeline-step h3 { font-size: clamp(26px, 2.35vw, 38px); }
+.marketing-page .mkt-timeline-step p { font-size: clamp(16px, 1.2vw, 19px); line-height: 1.58; }
+.mkt-timeline-skip { font-size: 14px; }
+
+@media (max-width: 860px) {
+  .marketing-page .mkt-timeline-heading h2 { font-size: clamp(32px, 8vw, 48px); }
+  .marketing-page .mkt-timeline-step h3 { font-size: clamp(25px, 6vw, 34px); }
+  .marketing-page .mkt-timeline-step p { font-size: 16px; }
 }

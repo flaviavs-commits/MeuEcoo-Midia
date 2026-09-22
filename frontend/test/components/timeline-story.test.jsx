@@ -16,11 +16,11 @@ describe('timeline camera', () => {
     }
   })
 
-  it('pulls back between every pair of steps without discontinuities or reversing the route', () => {
+  it('keeps completed steps visible while moving between milestones', () => {
     expect(timelineFrame(.01).zoom).toBeGreaterThan(1)
     for (let i = 0; i < 4; i++) {
       expect(timelineFrame((i + 1.5) / 6).zoom).toBeLessThan(1.1)
-      expect(timelineStepFrame((i + 1.5) / 6, i).presence).toBe(0)
+      expect(timelineStepFrame((i + 1.5) / 6, i).presence).toBe(1)
       expect(timelineStepFrame((i + 1.5) / 6, i + 1).presence).toBe(0)
     }
     let previous = timelineFrame(0)
@@ -44,7 +44,7 @@ describe('timeline camera', () => {
       expect(writing.title).toBeLessThan(1)
       expect(writing.description).toBe(0)
       expect(reading).toMatchObject({ title: 1, description: 1, presence: 1 })
-      expect(leaving.presence).toBeLessThan(reading.presence)
+      expect(leaving.presence).toBe(reading.presence)
       expect(timelineStepFrame((i + .90) / 6, i)).toEqual(writing)
     }
   })
@@ -97,7 +97,8 @@ describe('timeline scroll and motion preference', () => {
         window.scrollY = (index + 1.2) / 6 * 5200
         fireEvent.scroll(window); settle()
       })
-      const visibleStep = within(region).getByRole('article')
+      const visibleStep = within(region).getAllByRole('article').find(row => row.getAttribute('aria-current') === 'step')
+      expect(visibleStep).toBeDefined()
       expect(visibleStep).toHaveAttribute('aria-current', 'step')
       expect(within(visibleStep).getByRole('heading', { name: TIMELINE_STEPS[index][0] })).toBeInTheDocument()
       expect(visibleStep.style.getPropertyValue('--title-reveal')).toBe('1')
