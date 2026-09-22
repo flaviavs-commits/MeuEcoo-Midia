@@ -362,7 +362,7 @@ export function LandingPage() {
                 </div>}
               </div>
               <div className="mkt-workflow-copy">
-                <p className="mkt-about-step-label"><span>0{index + 1}</span>{step.label}</p>
+                <p className="mkt-about-step-label">{step.label}</p>
                 <h3>{step.title}</h3>
                 <p className="mkt-about-step-text">{step.text}</p>
               </div>
