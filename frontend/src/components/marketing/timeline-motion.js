@@ -47,7 +47,7 @@ export function timelineStepFrame(progress, index) {
   const arrival = smooth(-.42, -.24, local)
   const departure = smooth(.26, .48, local)
   const overviewPresence = smooth(5.65, 6, phase)
-  const presence = Math.max(arrival * (1 - departure), overviewPresence)
+  const presence = Math.max(arrival, overviewPresence)
   return {
     presence,
     title: Math.max(smooth(-.25, 0, local), overviewPresence),

@@ -4,11 +4,11 @@ import '../../styles/timeline-story.css'
 
 export { timelineFrame } from './timeline-motion.js'
 export const TIMELINE_STEPS = [
-  ['Conecte suas redes', 'Todos os seus perfis em um só lugar.'],
-  ['Crie com sistemas inteligentes', 'Ideias e legendas com a sua cara.'],
-  ['Agende tudo de uma vez', 'Sua semana inteira organizada.'],
-  ['Publique automaticamente', 'Sem precisar abrir cada app.'],
-  ['Acompanhe os resultados', 'Tudo em um painel só.'],
+  ['Conecte suas redes', 'Reúna Instagram, Facebook, TikTok e YouTube com autorização oficial.'],
+  ['Crie com sistemas inteligentes', 'Transforme ideias em posts e legendas com sugestões no seu jeito.'],
+  ['Agende tudo de uma vez', 'Monte a semana em uma agenda clara, sem depender da memória.'],
+  ['Publique automaticamente', 'Revise cada destino e deixe o conteúdo sair no horário certo.'],
+  ['Acompanhe os resultados', 'Veja o que aconteceu em um painel e decida o próximo passo.'],
 ]
 const clamp = value => Math.max(0, Math.min(1, value))
 
@@ -55,7 +55,7 @@ export function TimelineStory() {
       displayed = displayed === null ? target : displayed + (target - displayed) * (1 - Math.exp(-dt / 100))
       if (Math.abs(displayed - target) < .00002) displayed = target
       const pose = timelineFrame(displayed)
-      camera.current.style.transform = `translate3d(${-pose.x * width * pose.zoom}px, ${-pose.y * height * pose.zoom}px, 0) scale(${pose.zoom})`
+      camera.current.style.transform = `translate(${-pose.x * width * pose.zoom}px, ${-pose.y * height * pose.zoom}px) scale(${pose.zoom})`
       select(Math.round(pose.focus), pose.strength > .65)
       drawRail(pose.focus / (TIMELINE_STEPS.length - 1))
       root.style.setProperty('--timeline-heading-opacity', clamp(1 - displayed * 18))
@@ -137,7 +137,7 @@ export function TimelineStory() {
 
   return <section ref={section} className="mkt-timeline" aria-label="Sua jornada em cinco passos">
     <div ref={stage} className="mkt-timeline-stage">
-      <header className="mkt-timeline-heading"><p className="mkt-eyebrow">Como funciona</p><h2>Do primeiro rascunho<br />ao <em>resultado.</em></h2></header>
+      <header className="mkt-timeline-heading"><p className="mkt-eyebrow">Sua jornada</p><h2>Do primeiro rascunho<br />ao <em>resultado.</em></h2></header>
       <a className="mkt-timeline-skip" href="#planos">Ir para planos <span aria-hidden="true">↗</span></a>
       <div ref={camera} className="mkt-timeline-camera">
         <svg ref={rail} className="mkt-timeline-rail" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
@@ -151,7 +151,7 @@ export function TimelineStory() {
           className={`mkt-timeline-step mkt-timeline-step--${index % 2 ? 'right' : 'left'}`}
           style={{ '--step-x': `${TIMELINE_POINTS[index].x * 100}%`, '--step-y': `${TIMELINE_POINTS[index].y * 100}%` }}
           aria-current={active === index ? 'step' : undefined}
-          aria-hidden={focused && active !== index ? true : undefined} inert={focused && active !== index ? true : undefined}>
+          aria-hidden={focused && index > active ? true : undefined} inert={focused && index > active ? true : undefined}>
           <span className="mkt-timeline-number" aria-label={`Etapa ${index + 1}`}>{index + 1}</span>
           <div className="mkt-timeline-step-copy">
             <h3 aria-label={title}><LetterText text={title} /></h3>
