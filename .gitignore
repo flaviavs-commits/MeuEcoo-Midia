@@ -9,3 +9,5 @@
 *.log
 .vercel
 /.certs
+/tmp/
+/output/
