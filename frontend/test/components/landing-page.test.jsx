@@ -30,8 +30,10 @@ describe('LandingPage', () => {
     expect(plansRegion.querySelectorAll('.mkt-plan')).toHaveLength(3)
     expect(plansRegion.querySelectorAll('.mkt-plans-network-icons > span')).toHaveLength(4)
     expect(plansRegion.querySelector('.mkt-plan-assurance')).not.toBeInTheDocument()
+    const planLinks = [...plansRegion.querySelectorAll('a.mkt-button')]
+    expect(planLinks).toHaveLength(Object.values(PLANS).length)
+    expect(planLinks.map(link => link.getAttribute('href'))).toEqual(Object.values(PLANS).map(plan => `/login.html?register=1&plan=${plan.id}`))
     for (const plan of Object.values(PLANS)) {
-      expect(container.querySelector(`a[href="/criar-conta?plan=${plan.id}"]`)).toBeInTheDocument()
       expect(screen.getByText(plan.price)).toBeInTheDocument()
     }
     expect(plansRegion.querySelectorAll('.mkt-plan-description')).toHaveLength(3)

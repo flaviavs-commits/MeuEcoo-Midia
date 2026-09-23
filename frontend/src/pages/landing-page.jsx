@@ -111,7 +111,7 @@ function AccountMenu() {
       <span className="mkt-account-title">Sua conta</span>
       <ul>
         <li><a href="/login.html"><span className="mkt-account-ic"><Icon name="login" size={17} /></span><span>Entrar</span></a></li>
-        <li><a className="is-primary" href="/criar-conta"><span className="mkt-account-ic"><Icon name="userPlus" size={17} /></span><span>Começar agora</span><Icon name="arrow" size={15} /></a></li>
+        <li><a className="is-primary" href="/login.html?register=1"><span className="mkt-account-ic"><Icon name="userPlus" size={17} /></span><span>Começar agora</span><Icon name="arrow" size={15} /></a></li>
       </ul>
       <p className="mkt-account-foot">Escolha o plano que combina com a sua rotina.</p>
     </nav>
@@ -177,9 +177,9 @@ function Plans() {
       <p className="mkt-plan-description">{plan.description}</p>
       <p className="mkt-price"><strong>{plan.price}</strong><span>/ {plan.cadence.replace(/^por\s+/i, '')}</span></p>
       <ul className="mkt-plan-highlights">{(plan.features || planCardHighlights[plan.id]).slice(0, 5).map(highlight => <li key={highlight}><Icon name="check" size={18} />{highlight}</li>)}</ul>
-      {(plan.features || []).length > 5 && <details className="mkt-plan-details"><summary><Icon name="bars" size={15} />Ver todos os recursos</summary><ul>{plan.features.slice(5).map(feature => <li key={feature}>{feature}</li>)}</ul></details>}
+      <p className="mkt-plan-extra-note"><strong>Extra grátis:</strong> relatórios, automações e análise de métricas.</p>
       {plan.billingOffer && <p className="mkt-plan-offer-note">{plan.billingOffer}</p>}
-      <a className={`mkt-button ${plan.id === 'pro' ? 'mkt-button--primary' : plan.id === 'premium' ? 'mkt-button--premium' : 'mkt-button--outline'}`} href={`/criar-conta?plan=${plan.id}`}>Escolher {plan.name.replace('EcooMidia ', '')}<Icon name="arrow" size={18} /></a>
+      <a className={`mkt-button ${plan.id === 'pro' ? 'mkt-button--primary' : plan.id === 'premium' ? 'mkt-button--premium' : 'mkt-button--outline'}`} href={`/login.html?register=1&plan=${plan.id}`}>Escolher {plan.name.replace('EcooMidia ', '')}<Icon name="arrow" size={18} /></a>
     </article>)}</div>
   </section>
 }
@@ -193,7 +193,7 @@ function FinalCta() {
         <p>Crie um fluxo que cabe no seu dia, reúna as suas redes e publique com a tranquilidade de quem sabe o que vem depois.</p>
       </div>
       <div className="mkt-final-cta-actions">
-        <a className="mkt-button mkt-button--primary mkt-button--lg" href="/criar-conta?plan=basico">Começar agora <Icon name="arrow" size={18} /></a>
+        <a className="mkt-button mkt-button--primary mkt-button--lg" href="/login.html?register=1&plan=basico">Começar agora <Icon name="arrow" size={18} /></a>
         <a className="mkt-button mkt-button--outline" href="#planos">Comparar planos</a>
       </div>
     </div>
@@ -336,7 +336,6 @@ export function LandingPage() {
             {workflowSteps.map((step, index) => <article className={`mkt-about-step mkt-about-step--${step.icon}`} key={step.label}>
               <div className="mkt-workflow-art" aria-hidden="true">
                 {index === 0 && <div className="mkt-paper-scene">
-                  <span className="mkt-paper-note">espaço para criar</span>
                   <div className="mkt-paper-calendar">
                     <div className="mkt-paper-calendar-title"><span>Sua próxima semana</span><Icon name="sparkle" size={19} /></div>
                     <div className="mkt-paper-days">{['S', 'T', 'Q', 'Q', 'S'].map((day, i) => <span key={i}>{day}</span>)}</div>
@@ -358,7 +357,6 @@ export function LandingPage() {
                     <span>cada passo conta</span>
                   </div>
                   <span className="mkt-growth-star"><Icon name="sparkle" size={34} /></span>
-                  <span className="mkt-growth-note"><Icon name="chart" size={16} /> Aprenda. Ajuste. Cresça.</span>
                 </div>}
               </div>
               <div className="mkt-workflow-copy">
@@ -391,7 +389,7 @@ export function LandingPage() {
         <div className="mkt-footer-brand"><Brand /><p>Menos tempo nas tarefas. Mais tempo nas ideias.</p><p className="mkt-footer-networks">{socials.map(([key, label]) => <span key={key}><BrandGlyph name={key} size={16} />{label}</span>)}</p></div>
         <div className="mkt-footer-cols">
           <nav aria-label="Produto"><strong>Produto</strong><a href="#sobre">Como funciona</a><a href="#recursos">Sua jornada</a><a href="#planos">Planos</a></nav>
-          <nav aria-label="Conta"><strong>Conta</strong><a href="/criar-conta">Criar conta</a><a href="/login.html">Entrar</a></nav>
+          <nav aria-label="Conta"><strong>Conta</strong><a href="/login.html?register=1">Criar conta</a><a href="/login.html">Entrar</a></nav>
           <nav aria-label="Suporte"><strong>Suporte</strong><a href="mailto:suporte@meuecoomidia.com.br">Fale com a gente</a><a href="/terms-of-service.html">Termos de uso</a><a href="/privacy-policy.html">Privacidade</a></nav>
         </div>
       </div>
