@@ -1,17 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import { API_URL, ApiError, apiFetch, publicApiFetch } from '../lib/api.js'
 import { ThemeSelector } from '../components/ui/theme-selector.jsx'
-import { DEFAULT_PLAN, PLANS, getMeuEcooPricing } from '../lib/plans.js'
+import { PLANS } from '../lib/plans.js'
 import { CopyrightNotice } from '../components/ui/copyright-notice.jsx'
-import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const PASSWORD_MIN_LENGTH = 8
 const VALID_PLANS = new Set(Object.keys(PLANS))
-
-function formatPlanPrice(priceCents) {
-  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(priceCents || 0) / 100)
-}
 
 const AUTH_ERROR_MESSAGES = new Set([
   'Login com Google cancelado.',
@@ -19,30 +14,6 @@ const AUTH_ERROR_MESSAGES = new Set([
   'Não foi possível entrar com o Google agora. Tente novamente em alguns minutos.',
   'Não foi possível obter seu e-mail do Google.'
 ])
-
-const ACCOUNT_PLANS = Object.values(PLANS).map(plan => ({
-  id: plan.id,
-  name: plan.name,
-  price: plan.checkoutPrice,
-  priceCents: plan.priceCents,
-  meuEcooAccess: plan.meuEcooAccess || 'none',
-  meuEcooBasePriceCents: plan.meuEcooBasePriceCents || 0,
-  meuEcooDiscountPercent: plan.meuEcooDiscountPercent || 0,
-  meuEcooOffer: plan.meuEcooOffer || 'Sem acesso ao MeuEcoo',
-  cadence: plan.cadence,
-  maxConnections: plan.maxConnections,
-  availablePlatforms: plan.availablePlatforms,
-  description: plan.description,
-  features: plan.features,
-  featured: plan.id === 'pro',
-}))
-
-const PLATFORM_OPTIONS = [
-  { id: 'instagram', label: 'Instagram' },
-  { id: 'youtube', label: 'YouTube' },
-  { id: 'tiktok', label: 'TikTok' },
-  { id: 'facebook', label: 'Facebook' },
-]
 
 // Parâmetros da tela de autenticação são apenas estado de apresentação. Não
 // devem aceitar HTML, URLs de redirecionamento, planos arbitrários ou texto
@@ -288,115 +259,6 @@ export function LoginPage() {
     {flow === 'forgot-email' || flow === 'forgot-2fa' || flow === 'forgot-sent' ? <p className="auth-switch"><button type="button" className="auth-link" onClick={() => { setFlow('login'); setMessage(null) }}>Voltar para o login</button></p> : null}
     <p className="auth-legal"><a href="/privacy-policy">Política de Privacidade</a><a href="/terms-of-service">Termos de Uso</a></p>
   </AuthCard>
-}
-
-export function CreateAccountPage() {
-  const initialPlan = useMemo(() => {
-    const plan = new URLSearchParams(window.location.search).get('plan')
-    return ACCOUNT_PLANS.some(item => item.id === plan) ? plan : DEFAULT_PLAN
-  }, [])
-  const [selectedPlan, setSelectedPlan] = useState(initialPlan)
-  const [meuEcooSelected, setMeuEcooSelected] = useState(false)
-  const [fullName, setFullName] = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [confirmation, setConfirmation] = useState('')
-  const [selectedPlatforms, setSelectedPlatforms] = useState(() => initialPlan === 'premium' ? [...(PLANS.premium.availablePlatforms || PLATFORM_OPTIONS.map(item => item.id))] : [])
-  const [accepted, setAccepted] = useState(false)
-  const [busy, setBusy] = useState(false)
-  const [complete, setComplete] = useState(false)
-  const [message, setMessage] = useState(null)
-  const plan = ACCOUNT_PLANS.find(item => item.id === selectedPlan) || ACCOUNT_PLANS[0]
-  const paidPlan = Number(plan?.priceCents) > 0
-  const connectionLimit = plan.maxConnections || PLATFORM_OPTIONS.length
-  const availablePlatforms = plan.availablePlatforms || PLATFORM_OPTIONS.map(item => item.id)
-  const proDiscountPercent = Number(plan.meuEcooDiscountPercent) || 0
-  const selectedPriceCents = Number(plan.priceCents || 0)
-  const meuEcooPricing = getMeuEcooPricing(plan)
-  const rules = passwordRules(password)
-
-  useEffect(() => {
-    setSelectedPlatforms(current => selectedPlan === 'premium'
-      ? [...availablePlatforms]
-      : current.filter(platform => availablePlatforms.includes(platform)).slice(0, connectionLimit))
-  }, [selectedPlan])
-
-  useEffect(() => {
-    window.history.replaceState({}, '', `/criar-conta?plan=${selectedPlan}`)
-  }, [selectedPlan])
-
-  function choosePlan(id) {
-    setSelectedPlan(id)
-    if (id !== 'pro') setMeuEcooSelected(false)
-    setMessage(null)
-  }
-
-  function togglePlatform(platform) {
-    if (selectedPlan === 'premium') return
-    setSelectedPlatforms(current => current.includes(platform)
-      ? current.filter(item => item !== platform)
-      : current.length < connectionLimit ? [...current, platform] : current)
-    setMessage(null)
-  }
-
-  async function submit(event) {
-    event.preventDefault()
-    if (!fullName.trim()) return setMessage({ type: 'error', text: 'Informe seu nome completo.' })
-    if (!validEmail(email)) return setMessage({ type: 'error', text: 'Informe um e-mail válido.' })
-    if (!Object.values(rules).every(Boolean)) return setMessage({ type: 'error', text: 'A senha precisa ter de 8 a 72 caracteres, uma maiúscula, um número e um caractere especial.' })
-    if (password !== confirmation) return setMessage({ type: 'error', text: 'As senhas não são iguais.' })
-    if (selectedPlatforms.length !== connectionLimit) return setMessage({ type: 'error', text: `Selecione exatamente ${connectionLimit} redes sociais antes de continuar.` })
-    if (!accepted) return setMessage({ type: 'error', text: 'Aceite os termos para continuar.' })
-    setBusy(true)
-    setMessage(null)
-    try {
-      const data = await publicApiFetch('/auth/login/register', { method: 'POST', body: JSON.stringify({ email: email.trim(), password, fullName: fullName.trim(), plan: selectedPlan, selectedPlatforms, meuEcoo: selectedPlan === 'pro' && meuEcooSelected }) })
-      if (data.requiresPayment && data.selectedPlan) {
-        const billing = await apiFetch('/api/billing/plan-change', { method: 'POST', body: JSON.stringify({ plan: data.selectedPlan, meuEcoo: data.selectedPlan === 'pro' && meuEcooSelected }) })
-        if (!billing.checkoutUrl) throw new ApiError('Não foi possível abrir o checkout seguro.')
-        window.location.assign(billing.checkoutUrl)
-        return
-      }
-      setComplete(true)
-    } catch (error) {
-      setMessage({ type: 'error', text: error instanceof ApiError ? error.message : 'Não foi possível criar sua conta agora.' })
-    } finally { setBusy(false) }
-  }
-
-  if (complete) return <main className="checkout-page"><section className="checkout-success"><a className="auth-brand" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a><div className="checkout-success-icon">✓</div><p className="checkout-eyebrow">TUDO PRONTO</p><h1>Conta criada com sucesso</h1><p>Seu cadastro no plano <strong>{plan.name}</strong> foi concluído. Agora você já pode entrar e começar a organizar suas redes.</p><a className="checkout-primary-button" href="/login.html">Entrar na minha conta</a><small>Planos pagos abrem um checkout seguro e só são ativados após a confirmação do gateway.</small><CopyrightNotice /></section></main>
-
-  return <main className="checkout-page">
-    <div className="checkout-shell">
-      <header className="checkout-header"><a className="checkout-logo" href="/" aria-label="Meu Ecoo Mídia - início"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a><div><span>Já tem uma conta?</span> <a href="/login.html">Entrar</a></div></header>
-      <div className="checkout-progress"><span className="is-active">01 <small>Conta</small></span><i /><span className="is-active">02 <small>Plano</small></span><i /><span className="is-active">03 <small>Redes</small></span><i /><span className="is-active">04 <small>Pagamento</small></span></div>
-      <div className="checkout-grid">
-        <section className="checkout-main">
-          <div className="checkout-heading"><p className="checkout-eyebrow">COMECE AGORA</p><h1>Crie sua conta</h1><p>Escolha o plano ideal e tenha tudo para publicar com mais consistência.</p></div>
-          <Message message={message} />
-          <form onSubmit={submit} className="checkout-form">
-            <div className="checkout-section-heading"><span>01</span><div><h2>Seus dados</h2><p>Usaremos essas informações para criar seu acesso.</p></div></div>
-            <div className="checkout-fields checkout-fields--two"><label>Nome completo<input className="auth-input" value={fullName} onChange={event => setFullName(event.target.value)} autoComplete="name" required placeholder="Como devemos chamar você?" /></label><label>E-mail<input className="auth-input" type="email" value={email} onChange={event => setEmail(event.target.value)} autoComplete="email" required placeholder="voce@exemplo.com" /></label></div>
-            <div className="checkout-fields checkout-fields--two"><label>Senha<input className="auth-input" type="password" minLength="8" maxLength="72" value={password} onChange={event => setPassword(event.target.value)} autoComplete="new-password" required placeholder="Crie uma senha segura" /></label><label>Confirmar senha<input className="auth-input" type="password" minLength="8" maxLength="72" value={confirmation} onChange={event => setConfirmation(event.target.value)} autoComplete="new-password" required placeholder="Repita sua senha" /></label></div>
-            <div className="checkout-password-rules">{Object.entries({ length: '8+ caracteres', uppercase: 'Uma maiúscula', number: 'Um número', special: 'Um caractere especial' }).map(([key, label]) => <span key={key} className={rules[key] ? 'is-valid' : ''} data-state={rules[key] ? 'valid' : 'pending'} aria-label={`${label}: ${rules[key] ? 'atendida' : 'pendente'}`}><span aria-hidden="true">{rules[key] ? '✓' : '○'}</span>{label}</span>)}</div>
-            <div className="checkout-section-heading"><span>02</span><div><h2>Escolha seu plano</h2><p>Você pode trocar de plano quando quiser.</p></div></div>
-            <div className="checkout-plan-grid">{ACCOUNT_PLANS.map(item => <button type="button" key={item.id} aria-pressed={selectedPlan === item.id} className={`checkout-plan-option${selectedPlan === item.id ? ' is-selected' : ''}${item.featured ? ' is-featured' : ''}`} onClick={() => choosePlan(item.id)}><span className="checkout-plan-check" aria-hidden="true">{selectedPlan === item.id ? '✓' : ''}</span><strong>{item.name}</strong><em>{item.price}<small>/{item.cadence}</small></em><p>{item.description}</p></button>)}</div>
-            <p className="checkout-plan-meuecoo">MeuEcoo: {plan.meuEcooOffer}</p>
-            {selectedPlan === 'pro' && <fieldset className="checkout-discount-choice"><legend>Benefício opcional do MeuEcoo</legend><label><input type="checkbox" checked={meuEcooSelected} onChange={event => setMeuEcooSelected(event.target.checked)} /><span><b>Adicionar MeuEcoo ao pedido</b><small>De {formatPlanPrice(meuEcooPricing.basePriceCents)} por {formatPlanPrice(meuEcooPricing.finalPriceCents)} por mês · cupom de {proDiscountPercent}% aplicado</small></span></label></fieldset>}
-            <div className="checkout-section-heading"><span>03</span><div><h2>Escolha suas redes</h2><p>{selectedPlan === 'premium' ? 'No Premium, as quatro redes sociais já estão liberadas.' : `Selecione exatamente ${connectionLimit} redes. Você poderá conectar até ${connectionLimit} contas no plano.`}</p></div></div>
-            <div className="checkout-platform-grid" role="group" aria-label="Redes sociais disponíveis">{PLATFORM_OPTIONS.map(item => { const isSelected = selectedPlatforms.includes(item.id); const isAvailable = availablePlatforms.includes(item.id); const isDisabled = !isAvailable || (selectedPlan !== 'premium' && !isSelected && selectedPlatforms.length >= connectionLimit); return <button type="button" key={item.id} className={`checkout-platform-option${isSelected ? ' is-selected' : ''}${isDisabled ? ' is-disabled' : ''}`} onClick={() => togglePlatform(item.id)} disabled={isDisabled} aria-pressed={isSelected}><span className={`checkout-platform-symbol checkout-platform-symbol--${item.id}`}><PlatformIcon platform={item.id} className="checkout-platform-svg" /></span><span><strong>{item.label}</strong><small>{isSelected ? 'Liberada no seu plano' : selectedPlan === 'premium' ? 'Incluída no Premium' : 'Selecionar'}</small></span><b>{isSelected ? '✓' : ''}</b></button> })}</div>
-            <p className="checkout-platform-count">{selectedPlatforms.length} de {connectionLimit} redes selecionadas</p>
-            <div className="checkout-section-heading"><span>04</span><div><h2>Pagamento seguro</h2><p>Você será levado ao checkout hospedado do gateway depois de criar a conta.</p></div></div>
-            <div className="checkout-pix-box"><strong>Checkout protegido</strong><p>Os dados de pagamento são informados diretamente no gateway. O aplicativo não recebe nem armazena número de cartão, validade ou CVV.</p><span>✓ Uma cobrança por usuário no mês</span></div>
-            <label className="checkout-terms"><input type="checkbox" checked={accepted} onChange={event => setAccepted(event.target.checked)} /> <span>Li e aceito a <a href="/privacy-policy" target="_blank" rel="noreferrer">Política de Privacidade</a> e os <a href="/terms-of-service" target="_blank" rel="noreferrer">Termos de Uso</a>.</span></label>
-            <button type="submit" className="checkout-submit" disabled={busy}>{busy ? 'Criando sua conta…' : paidPlan ? 'Criar conta e ir ao pagamento' : 'Continuar'} <span>→</span></button>
-            <p className="checkout-security">⌁ Cadastro protegido · Não armazenamos dados sensíveis do cartão</p>
-          </form>
-        </section>
-        <aside className="checkout-summary"><div className="checkout-summary-top"><p className="checkout-eyebrow">SEU PLANO</p><span className="checkout-summary-badge">{plan.featured ? 'Mais escolhido' : 'Escolha flexível'}</span></div><h2>{plan.name}</h2><p>{plan.description}</p><p className="checkout-plan-meuecoo">{plan.meuEcooOffer}</p><div className="checkout-summary-price"><strong>{formatPlanPrice(selectedPriceCents + (meuEcooSelected ? meuEcooPricing.finalPriceCents : 0))}</strong><span>/{plan.cadence}</span></div>{selectedPlan === 'pro' && <p className="checkout-summary-discount">MeuEcoo: {meuEcooSelected ? `${formatPlanPrice(meuEcooPricing.finalPriceCents)}/mês · ${proDiscountPercent}% de desconto` : 'não incluído'}</p>}<ul>{plan.features.map(feature => <li key={feature}>✓ <span>{feature}</span></li>)}</ul><div className="checkout-summary-note"><span>✦</span><p><strong>Feito para você publicar melhor</strong><br />Comece simples e evolua no seu ritmo.</p></div><a href="#planos" onClick={event => { event.preventDefault(); document.querySelector('.checkout-plan-grid')?.scrollIntoView({ behavior: 'smooth' }) }}>Comparar outros planos</a></aside>
-      </div>
-      <footer className="checkout-footer"><CopyrightNotice /></footer>
-    </div>
-  </main>
 }
 
 export function readResetToken(location = window.location) {

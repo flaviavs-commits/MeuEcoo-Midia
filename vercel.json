@@ -11,7 +11,6 @@
   ],
   "rewrites": [
     { "source": "/como-funciona", "destination": "/react/index.html" },
-    { "source": "/criar-conta", "destination": "/react/index.html" },
     { "source": "/app.html", "destination": "/react/index.html" },
     { "source": "/app/dashboard", "destination": "/react/index.html" },
     { "source": "/app/agendador", "destination": "/react/index.html" },

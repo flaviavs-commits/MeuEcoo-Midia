@@ -1,16 +1,16 @@
 /* Cross-cutting typography refinements that reach across otherwise separate
- * component trees (auth, checkout, dashboard, admin) — the kind of rule that
+ * component trees (auth, dashboard, admin) — the kind of rule that
  * doesn't have one natural home file. Every size below now comes from the
  * shared scale in tokens.css; nothing here is patching an undersized base
  * anymore (that floor is set at the source), these are still the deliberate
  * exceptions the scale defers to: inputs held at --text-md so iOS Safari
  * doesn't zoom on focus, and a couple of spots bumped one step above their
  * component's own token for reading comfort in dense screens. */
-html[data-theme] :is(.app-shell-modern, .auth-page, .checkout-page, .admin-page) {
+html[data-theme] :is(.app-shell-modern, .auth-page, .admin-page) {
   font-family: 'IBM Plex Sans', system-ui, sans-serif;
   font-size: var(--text-md);
 }
-html[data-theme] :is(.page-view, .auth-page, .checkout-page, .admin-page) :is(h1, h2, h3) {
+html[data-theme] :is(.page-view, .auth-page, .admin-page) :is(h1, h2, h3) {
   font-family: 'IBM Plex Sans', system-ui, sans-serif;
   letter-spacing: -.025em;
   line-height: 1.25;
@@ -43,11 +43,11 @@ html[data-theme] .app-shell-modern .dashboard-page .dashboard-platform-card-copy
 html[data-theme] .app-shell-modern .dashboard-page .dashboard-stat-value {
   font-family: inherit;
 }
-html[data-theme] :is(.auth-subtitle, .auth-label, .auth-switch, .auth-input, .auth-button, .checkout-form label, .checkout-heading > p, .checkout-section-heading p) {
+html[data-theme] :is(.auth-subtitle, .auth-label, .auth-switch, .auth-input, .auth-button) {
   font-size: var(--text-md);
   line-height: 1.5;
 }
-html[data-theme] :is(.auth-rules, .checkout-password-rules, .checkout-security, .checkout-terms, .checkout-summary-note, .checkout-plan-option small) {
+html[data-theme] :is(.auth-rules) {
   font-size: var(--text-sm);
   line-height: 1.5;
 }

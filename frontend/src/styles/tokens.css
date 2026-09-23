@@ -416,17 +416,12 @@ a:focus-visible {
 }
 
 .auth-card .copyright-notice,
-.checkout-footer,
 .admin-footer {
   text-align: center;
 }
 
 .auth-card .copyright-notice {
   margin-top: 24px;
-}
-
-.checkout-footer {
-  padding: 20px 0 0;
 }
 
 .admin-footer {
