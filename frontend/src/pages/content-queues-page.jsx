@@ -299,16 +299,17 @@ export function ContentQueuesPage() {
                         <OverflowMenu label={`Mais ações para ${queue.name}`} items={[{ label: 'Excluir', icon: 'trash', danger: true, disabled: busyId !== null, onSelect: () => remove(queue) }]} />
                       </div>
                       <p className="rep-routine__text">{queue.content?.text || 'Conteúdo por plataforma'}</p>
-                      {queue.content?.mediaPath ? <p className="ds-meta rep-routine__media"><Icon name={String(queue.content.mediaType || '').startsWith('video/') ? 'video' : 'image'} size={16} />Mídia anexada{queue.content.mediaName ? ` · ${queue.content.mediaName}` : ''}</p> : null}
+                      {queue.content?.mediaPath ? <p className="ds-meta rep-routine__media" title={queue.content.mediaName || undefined}><Icon name={String(queue.content.mediaType || '').startsWith('video/') ? 'video' : 'image'} size={16} /><span>Mídia anexada{queue.content.mediaName ? ` · ${queue.content.mediaName}` : ''}</span></p> : null}
+                      <dl className="rep-routine__facts">
+                        <div><dt>Horário</dt><dd>{queue.recurrence?.time || '10:00'}</dd></div>
+                        <div><dt>Dias</dt><dd>{formatQueueDays(queue)}</dd></div>
+                        <div><dt>Próxima</dt><dd data-muted={!queue.active || !nextRun || undefined}>{queue.active ? (nextRun || 'A definir') : 'Nenhuma enquanto pausada'}</dd></div>
+                      </dl>
                       <div className="rep-routine__foot">
-                        <p className="rep-routine__when">
-                          <span><Icon name="clock" size={16} /><strong>{queue.recurrence?.time || '10:00'}</strong> · {formatQueueDays(queue)}</span>
-                          <span className="rep-routine__next">{queue.active ? (nextRun ? <>Próxima: <strong>{nextRun}</strong></> : 'Próxima: a definir') : 'Pausada: ative para retomar'}</span>
-                          <span className="rep-routine__nets">
-                            {queuePlatforms.length
-                              ? <><span className="ds-sr-only">Redes: {queuePlatforms.map(platformLabelOf).join(', ')}</span>{queuePlatforms.map(platform => <span key={platform} aria-hidden="true"><NetworkGlyph network={platform} size={18} /></span>)}</>
-                              : <span className="ds-meta">Nenhuma rede</span>}
-                          </span>
+                        <p className="rep-routine__nets">
+                          {queuePlatforms.length
+                            ? <><span className="ds-meta" aria-hidden="true">Publica em</span><span className="ds-sr-only">Redes: {queuePlatforms.map(platformLabelOf).join(', ')}</span>{queuePlatforms.map(platform => <span key={platform} aria-hidden="true" title={platformLabelOf(platform)}><NetworkGlyph network={platform} size={18} /></span>)}</>
+                            : <span className="ds-meta">Nenhuma rede</span>}
                         </p>
                         <button type="button" className={`ds-btn ds-btn--sm ${queue.active ? 'ds-btn--secondary' : 'ds-btn--primary'}`} onClick={() => toggle(queue)} disabled={busyId !== null}>
                           {busy ? <span className="ds-spinner" aria-hidden="true" /> : <Icon name={queue.active ? 'halfCircle' : 'play'} size={16} />}{queue.active ? 'Pausar rotina' : 'Ativar rotina'}

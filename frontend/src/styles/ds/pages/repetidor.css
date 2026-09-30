@@ -52,11 +52,11 @@
   /* no opacity: the count keeps the option's own (AA) text colour */
   .rep-count { margin-left: 2px; font-weight: var(--ds-weight-regular); font-variant-numeric: tabular-nums; }
   .rep-skel { display: block; height: 150px; margin-bottom: 14px; border-radius: var(--ds-radius-xl); }
-  /* One calm card per routine: name, state and menu on top; a short excerpt; one "when" line
-     (time · days · next run · networks) with the main action. No inner columns or labelled blocks. */
+  /* One card per routine, read top to bottom: name, state and menu; the content; the media; when it
+     runs (time, days, next run) as three labelled facts; the networks and the main action. */
   .rep-routines { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
   .rep-routine {
-    display: grid; align-content: start; gap: 10px; min-width: 0; padding: 18px 20px;
+    display: flex; flex-direction: column; gap: 12px; min-width: 0; padding: 18px 20px;
     border-radius: var(--ds-radius-xl); background: var(--ds-surface); border: 1px solid var(--ds-line); box-shadow: var(--ds-shadow-1);
     transition: opacity var(--ds-dur-base) var(--ds-ease-out);
   }
@@ -69,14 +69,21 @@
     font-size: var(--ds-text-sm); line-height: 1.55; color: var(--ds-ink-2); overflow-wrap: anywhere;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   }
-  .rep-routine__media { display: inline-flex; align-items: center; gap: 6px; overflow-wrap: anywhere; }
-  .rep-routine__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding-top: 10px; border-top: 1px solid var(--ds-line); }
-  .rep-routine__when { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; min-width: 0; font-size: var(--ds-text-sm); color: var(--ds-ink-2); }
-  .rep-routine__when > span { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
-  .rep-routine__when strong { font-weight: var(--ds-weight-semibold); color: var(--ds-ink); }
-  .rep-routine__when .ds-icon { color: var(--ds-ink-muted); }
-  .rep-routine__next { color: var(--ds-ink-muted); }
-  .rep-routine__nets { gap: 6px; }
+  .rep-routine__media { display: flex; align-items: center; gap: 6px; min-width: 0; margin-top: -4px; }
+  .rep-routine__media > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rep-routine__media .ds-icon { flex: none; }
+  /* when it runs: pushed to the bottom so cards side by side line up */
+  .rep-routine__facts {
+    display: grid; grid-template-columns: minmax(64px, auto) minmax(0, 1fr) minmax(0, 1.3fr); gap: 4px 20px;
+    margin: auto 0 0; padding: 10px 14px; border-radius: var(--ds-radius-md); background: var(--ds-tint);
+  }
+  .rep-routine__facts > div { display: grid; align-content: start; gap: 2px; min-width: 0; }
+  .rep-routine__facts dt { font-size: var(--ds-text-xs); color: var(--ds-ink-muted); }
+  .rep-routine__facts dd { margin: 0; font: var(--ds-weight-semibold) var(--ds-text-sm)/1.4 var(--ds-font-sans); color: var(--ds-ink); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .rep-routine__facts dd[data-muted] { font-weight: var(--ds-weight-regular); color: var(--ds-ink-muted); }
+  .rep-routine__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+  .rep-routine__nets { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .rep-routine__nets > .ds-meta:first-child { margin-right: 2px; }
   .rep-empty { margin-top: 4px; }
 
   @media (max-width: 1199px) {
@@ -92,7 +99,7 @@
     .rep-list__tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
     .rep-list__search { max-width: none; }
     .rep-routine { padding: 14px 16px; }
-    .rep-routine__when { display: grid; gap: 4px; }
+    .rep-routine__facts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 12px; padding: 10px 12px; }
     .rep-routine__foot > .ds-btn { width: 100%; }
     .rep-days { gap: 4px; }
     .rep-day { height: 44px; font-size: var(--ds-text-xs); }
