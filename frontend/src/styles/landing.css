@@ -763,7 +763,7 @@ html[data-theme="dark"] .mkt-hero-render {
 .mkt-plan--premium .mkt-extra { color: var(--mkt-text); border-color: rgba(224,165,46,.26); background: linear-gradient(135deg, #fff6dc, #f8ecd3); }
 .mkt-plan .mkt-price { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; margin-block: 34px 0; padding-bottom: 20px; border-bottom: 1px solid rgba(117,93,42,.16); }
 .mkt-price strong { font-size: clamp(36px, 2.9vw, 42px); line-height: 1.1; font-weight: 700; letter-spacing: -.045em; }
-.mkt-price > span { color: var(--mkt-muted); font-size: 15px; letter-spacing: .01em; opacity: .82; }
+.mkt-price > span { color: var(--mkt-muted); font-size: 15px; letter-spacing: .01em; }
 .mkt-plan-platforms { display: flex; align-items: center; min-height: 42px; padding-top: 14px; }
 .mkt-plan-platform-copy { display: grid; gap: 1px; }
 .mkt-plan-platform-copy strong { color: var(--mkt-text); font-size: 14.5px; line-height: 1.25; }
@@ -1091,7 +1091,8 @@ html[data-theme="dark"] .mkt-faq details[open] { background: var(--mkt-surface);
   --mkt-gold: var(--brand-gold);
   --mkt-green: var(--brand-gold-strong);
   --mkt-green-deep: var(--accent-strong);
-  --mkt-green-soft: var(--brand-gold-strong);
+  /* small uppercase labels (eyebrows, footer column titles): the strong gold gave 4.04:1 on the paper */
+  --mkt-green-soft: #7c6120;
   --mkt-h1: var(--brand-ink);
   --mkt-h1-accent: var(--brand-gold-strong);
 }
