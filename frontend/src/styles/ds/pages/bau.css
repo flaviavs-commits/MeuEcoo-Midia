@@ -1,31 +1,35 @@
 /* Baú de Ideias page parts. Prefix bau-. */
 @layer ds {
-  .bau-status { padding: 22px 0 24px; border-block: 1px solid var(--ds-line-strong); }
-  .bau-status .ds-stat__value { font-size: 40px; }
+  /* the three numbers are one quiet line under the lede, not three dashboards */
+  .bau-counts { display: flex; flex-wrap: wrap; align-items: center; min-height: 22px; margin-top: 10px; font-size: var(--ds-text-sm); color: var(--ds-ink-2); }
+  .bau-counts > span + span::before { content: '·'; margin: 0 10px; color: var(--ds-ink-subtle); }
+  .bau-counts strong { font-weight: var(--ds-weight-semibold); color: var(--ds-ink); }
+  .bau-counts__skel { width: 240px; }
 
-  .bau-body {
-    display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 0 56px;
-    align-items: start; margin-top: var(--ds-rhythm-block);
-  }
+  /* composer: in the flow at the top, never sticky; the theme field grows while typing */
   .bau-compose {
-    position: sticky; top: calc(var(--ds-top-h) + 24px);
-    display: grid; gap: 18px; padding: 24px; border-radius: var(--ds-radius-xl);
-    background: var(--ds-surface); box-shadow: var(--ds-shadow-2); border: 1px solid var(--ds-line);
+    display: grid; gap: 12px; margin-top: 8px; padding: 20px 22px; border-radius: var(--ds-radius-xl);
+    background: var(--ds-surface); border: 1px solid var(--ds-line); box-shadow: var(--ds-shadow-1);
   }
-  .bau-compose .ds-head__title { font-size: var(--ds-text-xl); }
-  .bau-compose__form { display: grid; gap: 18px; }
-  .bau-compose__textarea { min-height: 168px; }
+  .bau-compose__title { font: var(--ds-weight-semibold) var(--ds-text-lg)/1.3 var(--ds-font-sans); letter-spacing: var(--ds-track-heading); color: var(--ds-ink); }
+  .bau-compose__form { display: grid; }
+  .bau-compose__row { display: flex; align-items: flex-end; gap: 12px; }
+  .bau-compose__textarea { flex: 1; min-width: 0; min-height: 88px; resize: none; }
+  .bau-compose__go { flex: none; }
 
-  .bau-list { min-width: 0; }
+  .bau-list { margin-top: var(--ds-rhythm-block); min-width: 0; }
   .bau-list__filters { margin-bottom: 8px; }
   .bau-list__search { flex: 1 1 240px; max-width: 360px; }
   .bau-list__error { margin: 12px 0; }
 
-  .bau-ideas { display: grid; }
-  .bau-idea { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 18px; padding: 22px 0; }
-  .bau-idea + .bau-idea { border-top: 1px solid var(--ds-line); }
+  /* ideas are cards: two columns on wide screens, one below 1200px; the foot sits at the bottom of each card */
+  .bau-ideas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 12px; }
+  .bau-idea {
+    display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 16px; min-width: 0; padding: 18px;
+    border-radius: var(--ds-radius-xl); background: var(--ds-surface); border: 1px solid var(--ds-line); box-shadow: var(--ds-shadow-1);
+  }
   .bau-thumb {
-    position: relative; display: grid; place-items: center; width: 72px; height: 72px; overflow: hidden;
+    position: relative; display: grid; place-items: center; width: 64px; height: 64px; overflow: hidden;
     border-radius: 12px; background: var(--ds-tint); color: var(--ds-ink-muted);
     box-shadow: inset 0 0 0 1px var(--ds-line);
   }
@@ -35,35 +39,39 @@
     position: absolute; right: 4px; bottom: 4px; padding: 1px 6px; border-radius: 999px;
     font: var(--ds-weight-semibold) 11px/1.4 var(--ds-font-sans); background: rgb(0 0 0 / 0.62); color: #fff;
   }
-  .bau-idea__body { display: grid; gap: 6px; min-width: 0; }
-  .bau-idea__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
-  .bau-idea__title { font: var(--ds-weight-semibold) var(--ds-text-lg)/1.3 var(--ds-font-sans); letter-spacing: var(--ds-track-heading); color: var(--ds-ink); }
+  .bau-idea__body { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .bau-idea__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 32px; }
+  .bau-idea__menu { margin-left: auto; }
+  /* long links and UTM strings wrap, so an open idea never pushes "Criar post" off the screen */
+  .bau-idea__title { font: var(--ds-weight-semibold) var(--ds-text-lg)/1.3 var(--ds-font-sans); letter-spacing: var(--ds-track-heading); color: var(--ds-ink); overflow-wrap: anywhere; }
   .bau-idea__text {
-    font-size: var(--ds-text-sm); line-height: 1.6; color: var(--ds-ink-2); white-space: pre-line; max-width: 72ch;
+    font-size: var(--ds-text-sm); line-height: 1.6; color: var(--ds-ink-2); white-space: pre-line; max-width: 72ch; overflow-wrap: anywhere;
     display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
   }
   .bau-idea__text[data-expanded='true'] { display: block; -webkit-line-clamp: unset; overflow: visible; }
-  .bau-idea__more { justify-self: start; padding: 0; border: 0; background: none; cursor: pointer; font-size: var(--ds-text-sm); }
-  .bau-idea__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: 6px; }
+  .bau-idea__more { align-self: flex-start; padding: 0; border: 0; background: none; cursor: pointer; font-size: var(--ds-text-sm); }
+  .bau-idea__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; margin-top: auto; padding-top: 6px; }
   .bau-idea__nets { display: inline-flex; align-items: center; gap: 8px; color: var(--ds-ink-2); }
-  .bau-idea__actions { display: inline-flex; align-items: center; gap: 4px; }
-  .bau-skel { display: flex; gap: 18px; padding: 22px 0; }
+  .bau-skel { display: flex; gap: 18px; padding: 20px 0; }
   .bau-skel + .bau-skel { border-top: 1px solid var(--ds-line); }
+  .bau-skel__thumb { width: 64px; height: 64px; flex: none; border-radius: 12px; }
   .bau-empty { margin-top: 16px; }
 
-  @media (max-width: 1023px) {
-    .bau-body { grid-template-columns: minmax(0, 1fr); gap: var(--ds-rhythm-block); }
-    .bau-compose { position: static; }
+  @media (max-width: 1199px) {
+    .bau-ideas { grid-template-columns: minmax(0, 1fr); gap: 12px; }
   }
 
   @media (max-width: 767px) {
-    .bau-status { padding: 18px 0; }
-    .bau-status .ds-stat__value { font-size: var(--ds-text-3xl); }
-    .bau-status .ds-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    .bau-status .ds-stats > .ds-stat + .ds-stat { border-left: 1px solid var(--ds-line); padding-left: 12px; border-top: 0; padding-top: 0; }
-    .bau-compose { padding: 18px; }
-    .bau-list__search { max-width: none; flex-basis: 100%; }
-    .bau-idea { grid-template-columns: 56px minmax(0, 1fr); gap: 14px; }
-    .bau-thumb { width: 56px; height: 56px; }
+    .bau-compose { padding: 16px; }
+    .bau-compose__row { flex-direction: column; align-items: stretch; }
+    .bau-compose__go { width: 100%; }
+    .bau-list__search { max-width: none; }
+    .bau-idea { grid-template-columns: 48px minmax(0, 1fr); gap: 12px; padding: 14px; }
+    .bau-thumb, .bau-skel__thumb { width: 48px; height: 48px; border-radius: 10px; }
+    .bau-thumb .ds-icon { width: 18px; height: 18px; }
+    .bau-idea__title { font-size: var(--ds-text-md); }
+    /* phones: type + menu on one line; the date is secondary (still on larger screens) */
+    .bau-idea__date { display: none; }
+    .bau-idea__more { display: inline-flex; align-items: center; min-height: 44px; }
   }
 }
