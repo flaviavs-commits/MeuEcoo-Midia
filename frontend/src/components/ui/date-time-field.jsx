@@ -111,7 +111,10 @@ function CalendarPanel({ value, onChange, onDone, disablePast, required, timeZon
 
   const weeks = Array.from({ length: 6 }, (_, row) => days.slice(row * 7, row * 7 + 7))
 
+  // Calendário e horário são dois blocos: empilhados na folha do celular, lado a lado no
+  // painel do desktop (assim ele cabe acima ou abaixo de um campo dentro de um diálogo).
   return <div className="ds-dtp">
+    <div className="ds-dtp__cal">
     <div className="ds-dtp__head">
       <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-btn--sm" aria-label="Mês anterior" onClick={() => shiftMonth(-1)}><Icon name="chevronLeft" size={18} /></button>
       <p className="ds-dtp__month" id={titleId} aria-live="polite">{monthLabel}</p>
@@ -143,6 +146,8 @@ function CalendarPanel({ value, onChange, onDone, disablePast, required, timeZon
         })}
       </div>)}
     </div>
+    </div>
+    <div className="ds-dtp__side">
     <div className="ds-dtp__time">
       <p className="ds-label" id={`${titleId}-time`}>Horário</p>
       <div className="ds-dtp__timefields" role="group" aria-labelledby={`${titleId}-time`}>
@@ -170,6 +175,7 @@ function CalendarPanel({ value, onChange, onDone, disablePast, required, timeZon
         {!required && value && <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm" onClick={() => onChange('')}>Limpar</button>}
         <button type="button" className="ds-btn ds-btn--primary ds-btn--sm" onClick={onDone}>Concluir</button>
       </span>
+    </div>
     </div>
   </div>
 }
