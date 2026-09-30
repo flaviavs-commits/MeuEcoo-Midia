@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AdminPage } from '../../src/pages/admin-page.jsx'
 import * as api from '../../src/lib/api.js'
@@ -356,5 +356,81 @@ describe('AdminPage — dashboard de métricas agregadas', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Atualizar' }))
 
     await waitFor(() => expect(apiFetch).toHaveBeenCalledWith('/api/admin/dashboard'))
+  })
+})
+
+describe('AdminPage — estados de falha e de permissão', () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+    window.history.pushState({}, '', '/admin.html')
+  })
+
+  it('não diz que não há pagamento pendente quando a conciliação falha ao carregar', async () => {
+    let falhar = true
+    const apiFetch = vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/me') return Promise.resolve(ME)
+      if (path === '/api/admin/users') return Promise.resolve({ data: [ADMIN_ROW] })
+      if (path.startsWith('/api/admin/billing/reconciliation')) {
+        return falhar ? Promise.reject(new api.ApiError('Não foi possível carregar o relatório de conciliação agora.', 502)) : Promise.resolve(EMPTY_REPORT)
+      }
+      return Promise.reject(new Error(`rota não mockada: ${path}`))
+    })
+    window.history.pushState({}, '', '/admin.html?tab=conciliacao')
+    render(<AdminPage />)
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível carregar o relatório de conciliação agora.'))
+    expect(screen.queryByText(/Nenhum pagamento sem conciliação/)).not.toBeInTheDocument()
+
+    falhar = false
+    await userEvent.click(screen.getByRole('button', { name: 'Tentar de novo' }))
+
+    await waitFor(() => expect(screen.getByText(/Nenhum pagamento sem conciliação/)).toBeInTheDocument())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(apiFetch.mock.calls.filter(([path]) => path.startsWith('/api/admin/billing/reconciliation'))).toHaveLength(2)
+  })
+
+  it('não diz que o histórico está vazio quando ele falha ao carregar', async () => {
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/me') return Promise.resolve(ME)
+      if (path === '/api/admin/users') return Promise.resolve({ data: [ADMIN_ROW] })
+      if (path === '/api/logs?limit=200') return Promise.reject(new api.ApiError('Não foi possível carregar o histórico.', 500))
+      return Promise.reject(new Error(`rota não mockada: ${path}`))
+    })
+    window.history.pushState({}, '', '/admin.html?tab=historico')
+    render(<AdminPage />)
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível carregar o histórico.'))
+    expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument()
+    expect(screen.queryByText('Nenhuma ação administrativa registrada ainda.')).not.toBeInTheDocument()
+  })
+
+  it('mantém a mensagem de sucesso de uma ação depois de recarregar a lista', async () => {
+    const apiFetch = vi.spyOn(api, 'apiFetch').mockImplementation((path, options) => {
+      if (path === '/api/me') return Promise.resolve({ ...ME, role: 'super_admin' })
+      if (path === '/api/admin/users') return Promise.resolve({ data: [ADMIN_ROW] })
+      if (path === '/api/admin/users/1/role' && options?.method === 'POST') return Promise.resolve({ user: { id: 1, role: 'user' } })
+      return Promise.reject(new Error(`rota não mockada: ${path}`))
+    })
+    render(<AdminPage />)
+    await waitFor(() => expect(screen.getByRole('cell', { name: 'admin@allowed.test' })).toBeInTheDocument())
+
+    await userEvent.click(screen.getByRole('button', { name: 'Tornar usuário' }))
+
+    await waitFor(() => expect(apiFetch.mock.calls.filter(([path]) => path === '/api/admin/users')).toHaveLength(2))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Tornar usuário' })).not.toBeDisabled())
+    expect(screen.getByRole('status')).toHaveTextContent('Papel atualizado.')
+  })
+
+  it('mostra que a área é só de administradores quando a API recusa o acesso', async () => {
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/me') return Promise.resolve({ ...ME, role: 'user' })
+      if (path === '/api/admin/users') return Promise.reject(new api.ApiError('Você não tem permissão para acessar esta área.', 403))
+      return Promise.reject(new Error(`rota não mockada: ${path}`))
+    })
+    render(<AdminPage />)
+
+    const aviso = await screen.findByRole('region', { name: 'Esta área é só para administradores' })
+    expect(screen.queryByRole('navigation', { name: 'Seções do painel admin' })).not.toBeInTheDocument()
+    expect(within(aviso).getByRole('link', { name: 'Voltar ao painel' })).toHaveAttribute('href', '/app.html')
   })
 })
