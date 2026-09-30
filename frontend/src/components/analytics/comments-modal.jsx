@@ -118,7 +118,8 @@ function PostPreview({ post }) {
   const isYoutube = platform === 'youtube'
 
   const media = items.length > 0
-    ? <div className="cm-media" aria-label={`${items.length} mídia${items.length > 1 ? 's' : ''} da publicação`}>
+    // Várias mídias rolam na horizontal: o grupo recebe foco para rolar pelo teclado (setas).
+    ? <div className="cm-media" role="group" aria-label={`${items.length} mídia${items.length > 1 ? 's' : ''} da publicação`} tabIndex={items.length > 1 ? 0 : undefined}>
         {items.map((item, index) => <SafeMedia key={`${item.url || item.path || index}-${index}`} item={item} index={index} />)}
       </div>
     : <p className="cm-media__none">Esta publicação não tem mídia disponível para visualização.</p>
