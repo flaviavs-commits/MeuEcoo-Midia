@@ -1,0 +1,92 @@
+/* Biblioteca (media library) page parts. Prefix lib-. */
+@layer ds {
+  .lib-head { padding-bottom: 28px; }
+  .lib-upload { flex-wrap: nowrap; }
+  .lib-upload__dest { width: 220px; }
+  .lib-upload__input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+  .lib-shelf { display: grid; gap: 16px; }
+  .lib-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; }
+  .lib-tools__search { flex: 1 1 280px; max-width: 480px; }
+  .lib-tools__folder { display: none; width: 220px; }
+  .lib-tools__newfolder { margin-left: auto; }
+  .lib-folders { flex-wrap: wrap; }
+  .lib-folders__count { font-weight: var(--ds-weight-regular); font-variant-numeric: tabular-nums; opacity: 0.72; }
+  .lib-newfolder {
+    display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 12px; padding: 16px; border-radius: var(--ds-radius-lg);
+    background: color-mix(in srgb, var(--ds-tint) 45%, var(--ds-surface)); box-shadow: inset 0 0 0 1px var(--ds-line);
+  }
+  .lib-newfolder__field { flex: 1 1 280px; }
+
+  .lib-assets { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; transition: opacity var(--ds-dur-base) var(--ds-ease-out); }
+  .lib-assets[aria-busy='true'] { opacity: 0.6; }
+  .lib-asset {
+    display: grid; grid-template-rows: auto 1fr auto; min-width: 0;
+    border-radius: var(--ds-radius-lg); background: var(--ds-surface); border: 1px solid var(--ds-line); box-shadow: var(--ds-shadow-1);
+  }
+  .lib-asset__skel { display: block; aspect-ratio: 4 / 3; border-radius: var(--ds-radius-lg) var(--ds-radius-lg) 0 0; }
+  .lib-asset > .ds-skel--text { margin: 14px; }
+  .lib-asset__media { position: relative; aspect-ratio: 4 / 3; overflow: hidden; border-radius: var(--ds-radius-lg) var(--ds-radius-lg) 0 0; background: var(--ds-invert-bg); }
+  .lib-asset__media > img, .lib-asset__media > video { width: 100%; height: 100%; object-fit: cover; }
+  .lib-asset__body { display: grid; align-content: start; gap: 4px; padding: 12px 14px 4px; min-width: 0; }
+  .lib-asset__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: var(--ds-weight-semibold) var(--ds-text-sm)/1.35 var(--ds-font-sans); color: var(--ds-ink); }
+  .lib-asset__tags { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: var(--ds-text-xs); color: var(--ds-accent-text); }
+  .lib-asset__actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 10px 12px 14px; }
+  .lib-more { display: flex; justify-content: center; }
+  .lib-empty { margin-top: 4px; }
+
+  /* --- ideas assistant (secondary, below the shelf) */
+  .lib-ideas__form {
+    display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(160px, 0.7fr) auto; align-items: end; gap: 16px 20px;
+    padding: 20px; border-radius: var(--ds-radius-xl);
+    background: color-mix(in srgb, var(--ds-accent-soft) 35%, var(--ds-surface)); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-accent-graphic) 22%, transparent);
+  }
+  .lib-ideas__nets { grid-column: 1 / 3; }
+  .lib-ideas__nets .ds-netswitch { flex-wrap: wrap; }
+  .lib-ideas__go { grid-column: 3; grid-row: 1 / span 2; align-self: end; }
+  .lib-ideas__insights { display: grid; gap: 10px; margin-top: 20px; }
+  .lib-ideas__facts { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: var(--ds-text-sm); color: var(--ds-ink-muted); }
+  .lib-ideas__facts strong { font-weight: var(--ds-weight-semibold); color: var(--ds-ink); margin-right: 4px; }
+  .lib-ideas__summary { max-width: 80ch; font-size: var(--ds-text-base); line-height: 1.6; color: var(--ds-ink-2); }
+  .lib-ideas__tips { display: grid; gap: 6px; padding-left: 20px; list-style: decimal; font-size: var(--ds-text-sm); color: var(--ds-ink-2); max-width: 80ch; }
+  .lib-ideas__loading { margin-top: 20px; }
+  .lib-ideas__loading .ds-spinner { color: var(--ds-info); }
+  .lib-ideas__list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; margin-top: 24px; }
+  .lib-idea {
+    position: relative; display: grid; align-content: start; gap: 10px; padding: 20px; min-width: 0;
+    border-radius: var(--ds-radius-xl); background: var(--ds-surface); border: 1px solid var(--ds-line); box-shadow: var(--ds-shadow-1);
+  }
+  .lib-idea__num { font: var(--ds-weight-medium) 30px/1 var(--ds-font-serif); color: var(--ds-accent-graphic); }
+  .lib-idea__title { font: var(--ds-weight-semibold) var(--ds-text-md)/1.35 var(--ds-font-sans); color: var(--ds-ink); }
+  .lib-idea__text { font-size: var(--ds-text-sm); line-height: 1.6; color: var(--ds-ink-2); white-space: pre-line; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 7; -webkit-box-orient: vertical; overflow: hidden; }
+  .lib-idea__why { display: grid; gap: 2px; padding: 10px 12px; border-radius: 10px; background: var(--ds-tint); font-size: var(--ds-text-xs); line-height: 1.5; color: var(--ds-ink-2); }
+  .lib-idea__whylabel { font-weight: var(--ds-weight-semibold); color: var(--ds-ink); }
+  .lib-idea__foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin-top: 4px; }
+  .lib-idea__nets { display: inline-flex; flex-wrap: wrap; gap: 4px 10px; font-size: var(--ds-text-xs); color: var(--ds-ink-muted); }
+  .lib-idea__nets > span { display: inline-flex; align-items: center; gap: 4px; }
+  .lib-ideas__empty { margin-top: 12px; }
+
+  @media (max-width: 1199px) {
+    .lib-ideas__list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 1023px) {
+    .lib-ideas__form { grid-template-columns: minmax(0, 1fr); }
+    .lib-ideas__nets, .lib-ideas__go { grid-column: auto; grid-row: auto; }
+  }
+  @media (max-width: 767px) {
+    .lib-upload { flex-wrap: wrap; justify-content: stretch; }
+    .lib-upload > * { flex: 1 1 100%; width: 100%; }
+    .lib-tools__search { flex-basis: 100%; max-width: none; }
+    .lib-tools__folder { display: block; flex: 1 1 auto; width: auto; }
+    .lib-tools__newfolder { margin-left: 0; }
+    .lib-folders { display: none; }
+    .lib-assets { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .lib-asset__actions { flex-wrap: wrap; padding: 8px 8px 10px 10px; }
+    .lib-asset__actions .ds-btn--secondary { flex: 1 1 auto; }
+    .lib-ideas__form { padding: 16px; }
+    .lib-ideas__list { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 419px) {
+    .lib-assets { grid-template-columns: minmax(0, 1fr); }
+  }
+}

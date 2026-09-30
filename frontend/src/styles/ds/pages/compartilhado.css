@@ -1,0 +1,91 @@
+/* Shared pieces used on every page: assistant widget (aiw-), plan gate (gate-),
+   loading state and page skeleton. */
+@layer ds {
+  /* ========== loading */
+  .ds-loading { display: inline-flex; align-items: center; gap: 10px; font-size: var(--ds-text-sm); color: var(--ds-ink-muted); }
+  .ds-pageskel { display: grid; gap: 14px; }
+  .ds-pageskel > .ds-skel { display: block; border-radius: 8px; }
+  .ds-pageskel__eyebrow { width: 120px; height: 12px; }
+  .ds-pageskel__title { width: min(360px, 70%); height: 44px; }
+  .ds-pageskel__lede { width: min(560px, 90%); height: 16px; margin-bottom: 18px; }
+  .ds-pageskel__blocks { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+  .ds-pageskel__blocks > .ds-skel { display: block; height: 180px; border-radius: var(--ds-radius-xl); }
+
+  /* ========== plan gate */
+  .gate { display: grid; place-items: center; min-height: calc(100vh - var(--ds-top-h) - 160px); }
+  .gate-well {
+    display: grid; justify-items: center; gap: 14px; max-width: 560px; padding: 48px 40px; text-align: center;
+    border-radius: var(--ds-radius-xl); background: var(--ds-surface); border: 1px solid var(--ds-line); box-shadow: var(--ds-shadow-2);
+  }
+  .gate-icon {
+    display: grid; place-items: center; width: 64px; height: 64px; margin-bottom: 4px; border-radius: 20px;
+    background: var(--ds-accent-soft); color: var(--ds-accent-text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ds-accent-graphic) 30%, transparent);
+  }
+  .gate-title { font: var(--ds-weight-medium) var(--ds-text-3xl)/1.15 var(--ds-font-serif); letter-spacing: var(--ds-track-title); color: var(--ds-ink); }
+  .gate-text { max-width: 46ch; font-size: var(--ds-text-md); line-height: 1.6; color: var(--ds-ink-2); margin-bottom: 8px; }
+
+  /* ========== assistant widget */
+  .aiw {
+    position: fixed; right: 24px; bottom: 24px; z-index: var(--ds-z-fab); background: transparent;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
+  }
+  .aiw-toggle {
+    display: grid; place-items: center; width: 56px; height: 56px; padding: 0; border: 0; border-radius: 18px; cursor: pointer;
+    background: var(--ds-accent); color: var(--ds-accent-ink);
+    box-shadow: 0 10px 28px -8px color-mix(in srgb, var(--ds-accent-graphic) 70%, transparent), var(--ds-shadow-2);
+    transition: transform var(--ds-dur-fast) var(--ds-ease-out), border-radius var(--ds-dur-base) var(--ds-ease-out);
+  }
+  .aiw-toggle:hover { transform: translateY(-2px); }
+  .aiw-toggle[data-open='true'] { border-radius: 50%; }
+  .aiw-toggle:focus-visible { outline: var(--ds-focus-w) solid var(--ds-focus); outline-offset: 3px; }
+
+  .aiw-avatar { display: inline-grid; place-items: center; flex: none; overflow: hidden; border-radius: 12px; background: var(--ds-invert-bg); }
+  .aiw-avatar > img { width: 78%; height: 78%; object-fit: contain; }
+  .aiw-avatar--small { width: 34px; height: 34px; border-radius: 10px; }
+  .aiw-avatar--large { width: 44px; height: 44px; }
+
+  .aiw-panel {
+    display: flex; flex-direction: column; width: min(400px, calc(100vw - 48px)); height: min(560px, calc(100dvh - 140px)); overflow: hidden;
+    border-radius: var(--ds-radius-xl); background: var(--ds-surface); border: 1px solid var(--ds-line); box-shadow: var(--ds-shadow-3);
+    animation: ds-toast-in var(--ds-dur-slow) var(--ds-ease-out);
+  }
+  .aiw-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 12px 12px 16px; border-bottom: 1px solid var(--ds-line); }
+  .aiw-head__id { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .aiw-head__title { font: var(--ds-weight-semibold) var(--ds-text-sm)/1.3 var(--ds-font-sans); color: var(--ds-ink); }
+  .aiw-head__sub { font-size: var(--ds-text-xs); color: var(--ds-ink-muted); }
+
+  .aiw-log { flex: 1; display: flex; flex-direction: column; gap: 10px; padding: 16px; overflow-y: auto; overscroll-behavior: contain; background: color-mix(in srgb, var(--ds-tint) 45%, var(--ds-surface)); }
+  .aiw-hello { display: grid; justify-items: center; gap: 12px; margin: auto 0; padding: 12px; text-align: center; font-size: var(--ds-text-sm); line-height: 1.55; color: var(--ds-ink-2); }
+  .aiw-msg {
+    display: grid; gap: 8px; max-width: 88%; padding: 10px 12px; border-radius: 14px 14px 14px 4px;
+    background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); font-size: var(--ds-text-sm); line-height: 1.5; color: var(--ds-ink);
+  }
+  .aiw-msg[data-role='user'] { align-self: flex-end; border-radius: 14px 14px 4px 14px; background: var(--ds-accent-soft); box-shadow: none; }
+  .aiw-msg--wait { display: flex; align-items: center; gap: 10px; color: var(--ds-ink-muted); }
+  .aiw-msg__text { white-space: pre-line; overflow-wrap: anywhere; }
+  .aiw-msg__editor { min-height: 96px; }
+  .aiw-msg__image { width: 100%; max-height: 288px; border-radius: 10px; object-fit: contain; background: var(--ds-tint); }
+  .aiw-msg__data { margin: 0; padding-top: 8px; border-top: 1px solid var(--ds-line); white-space: pre-wrap; font: var(--ds-weight-regular) var(--ds-text-xs)/1.5 var(--ds-font-sans); color: var(--ds-ink-2); }
+  .aiw-msg__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+  .aiw-link { padding: 0; border: 0; background: none; cursor: pointer; font: var(--ds-weight-semibold) var(--ds-text-xs)/1.3 var(--ds-font-sans); color: var(--ds-accent-text); }
+  .aiw-link:hover { text-decoration: underline; }
+  .aiw-error { display: flex; align-items: flex-start; gap: 6px; font-size: var(--ds-text-sm); line-height: 1.45; color: var(--ds-danger); }
+  .aiw-error > .ds-icon { flex: none; margin-top: 2px; }
+
+  .aiw-compose { display: flex; gap: 8px; padding: 12px; border-top: 1px solid var(--ds-line); background: var(--ds-surface); }
+  .aiw-compose__input { flex: 1; min-width: 0; }
+  .aiw-compose__send { flex: none; }
+
+  @media (max-width: 1023px) {
+    .ds-pageskel__blocks { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-width: 767px) {
+    .aiw { right: 12px; bottom: calc(var(--ds-bottomnav-h) + env(safe-area-inset-bottom) + 12px); }
+    .aiw-toggle { width: 52px; height: 52px; }
+    .aiw-panel { width: calc(100vw - 24px); height: min(520px, max(320px, calc(100dvh - 180px))); }
+    .aiw-compose__input { font-size: 16px; }
+    .gate { min-height: 0; }
+    .gate-well { padding: 32px 20px; }
+    .gate-title { font-size: var(--ds-text-2xl); }
+  }
+}
