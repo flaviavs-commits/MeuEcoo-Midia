@@ -4,10 +4,16 @@ import { useApiResource } from '../hooks/use-api-resource.js'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { CommentsModal } from '../components/analytics/comments-modal.jsx'
 import { FilterGroup, FilterOption, FilterSheet, FiltersButton } from '../components/ui/filters.jsx'
+import { Select } from '../components/ui/select.jsx'
 import { useIsCompact, useIsPhone } from '../lib/breakpoints.js'
 
 const INBOX_FILTERS_KEY = 'meu-ecoo:inbox-filters'
 const INBOX_REFRESH_INTERVAL_MS = 60_000
+const REPLY_STATUS_FILTERS = [
+  { value: 'all', label: 'Todos os status' },
+  { value: 'unanswered', label: 'Não respondidos' },
+  { value: 'answered', label: 'Sem pendências' },
+]
 const inboxPlatforms = [
   { id: 'all', label: 'Todas as redes' },
   { id: 'instagram', label: 'Instagram' },
@@ -220,14 +226,7 @@ export function InboxPage() {
               <Icon name="search" />
               <input className="ds-input" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar pelo texto da publicação..." aria-label="Buscar publicação no Inbox" />
             </label>
-            <span className="ds-select inx-filters__status">
-              <select className="ds-select__control" value={statusFilter} onChange={event => setStatusFilter(event.target.value)} aria-label="Filtrar status de resposta">
-                <option value="all">Todos os status</option>
-                <option value="unanswered">Não respondidos</option>
-                <option value="answered">Sem pendências</option>
-              </select>
-              <Icon name="chevronDown" className="ds-select__chev" />
-            </span>
+            <Select className="inx-filters__status" value={statusFilter} onChange={setStatusFilter} aria-label="Filtrar status de resposta" options={REPLY_STATUS_FILTERS} />
           </div>
         </div>}
 

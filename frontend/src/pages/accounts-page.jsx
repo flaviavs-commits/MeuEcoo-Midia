@@ -3,6 +3,8 @@ import { apiFetch, ApiError } from '../lib/api.js'
 import { useApiResource } from '../hooks/use-api-resource.js'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { useToast } from '../components/ui/toast.jsx'
+import { Select } from '../components/ui/select.jsx'
+import { useConfirm } from '../components/ui/confirm-dialog.jsx'
 import { FilterGroup, FilterOption, FilterSheet, FiltersButton } from '../components/ui/filters.jsx'
 import { useIsPhone } from '../lib/breakpoints.js'
 import { getPlan } from '../lib/plans.js'
@@ -117,6 +119,7 @@ export function AccountsPage({ onNavigate, user }) {
   const [healthFailed, setHealthFailed] = useState(false)
   const accountInputRef = useRef(null)
   const notify = useToast()
+  const { confirm, confirmDialog } = useConfirm()
   const plan = getPlan(user?.plan)
   const connectionLimit = user?.planUnrestricted ? Infinity : (plan.maxConnections || providers.length)
   const allowedPlatforms = new Set(user?.planUnrestricted || !Array.isArray(user?.allowedPlatforms) || !user.allowedPlatforms.length
@@ -256,8 +259,15 @@ export function AccountsPage({ onNavigate, user }) {
     })
   }
 
-  async function remove(id) {
-    if (!window.confirm('Deseja realmente desconectar esta conta?')) return
+  async function remove(id, name) {
+    const ok = await confirm({
+      title: `Desconectar ${name}?`,
+      description: 'Para voltar a publicar nesta conta, será preciso conectá-la de novo.',
+      confirmLabel: 'Desconectar',
+      tone: 'danger',
+      icon: 'plug',
+    })
+    if (!ok) return
     setDisconnectingId(id)
     setActionError('')
     try { await apiFetch(`/api/accounts/${id}`, { method: 'DELETE' }); await reload(); await loadHealth(); notify('Conta desconectada.') }
@@ -316,12 +326,7 @@ export function AccountsPage({ onNavigate, user }) {
                 <Icon name="search" />
                 <input className="ds-input" type="search" value={accountSearch} onChange={event => setAccountSearch(event.target.value)} placeholder="Buscar por nome ou rede..." aria-label="Buscar conta" />
               </label>
-              <span className="ds-select acc-filters__status">
-                <select className="ds-select__control" value={accountStatusFilter} onChange={event => setAccountStatusFilter(event.target.value)} aria-label="Filtrar status das contas">
-                  {STATUS_FILTERS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                </select>
-                <Icon name="chevronDown" className="ds-select__chev" />
-              </span>
+              <Select className="acc-filters__status" value={accountStatusFilter} onChange={setAccountStatusFilter} aria-label="Filtrar status das contas" options={STATUS_FILTERS.map(([value, label]) => ({ value, label }))} />
             </div>)}
       </div>
 
@@ -401,7 +406,7 @@ export function AccountsPage({ onNavigate, user }) {
                     <span className="ds-status" data-status={TOKEN_TONES[status] || 'muted'}><Icon name={TOKEN_ICONS[status] || 'help'} />{TOKEN_STATUS_LABELS[status] || TOKEN_STATUS_LABELS.missing}</span>
                     {detail && <span className="ds-meta">{detail}</span>}
                   </div>
-                  <button type="button" className="ds-btn ds-btn--danger ds-btn--sm acc-acct__drop" disabled={busy} onClick={() => remove(account.id)} aria-label={`Desconectar ${shownName}`}>
+                  <button type="button" className="ds-btn ds-btn--danger ds-btn--sm acc-acct__drop" disabled={busy} onClick={() => remove(account.id, shownName)} aria-label={`Desconectar ${shownName}`}>
                     {busy ? <><span className="ds-spinner" aria-hidden="true" />Desconectando…</> : 'Desconectar'}
                   </button>
                 </li>
@@ -432,12 +437,7 @@ export function AccountsPage({ onNavigate, user }) {
         <div className="acc-connect__fields">
           <div className="ds-field">
             <label className="ds-label" htmlFor="acc-platform">Plataforma</label>
-            <span className="ds-select">
-              <select id="acc-platform" className="ds-select__control" value={platform} onChange={event => setPlatform(event.target.value)}>
-                {providers.filter(item => allowedPlatforms.has(item.platform)).map(item => <option key={item.platform} value={item.platform}>{item.label}</option>)}
-              </select>
-              <Icon name="chevronDown" className="ds-select__chev" />
-            </span>
+            <Select id="acc-platform" value={platform} onChange={setPlatform} sheetTitle="Plataforma" options={providers.filter(item => allowedPlatforms.has(item.platform)).map(item => ({ value: item.platform, label: item.label, icon: <NetworkGlyph network={item.platform} size={16} /> }))} />
           </div>
           <div className="ds-field acc-connect__link">
             <label className="ds-label" htmlFor="acc-link">Link da Página</label>
@@ -466,5 +466,6 @@ export function AccountsPage({ onNavigate, user }) {
         {STATUS_FILTERS.map(([value, label]) => <FilterOption key={value} selected={draft.status === value} onSelect={() => setDraft({ ...draft, status: value })}>{label}</FilterOption>)}
       </FilterGroup>}
     </FilterSheet>}
+    {confirmDialog}
   </div>
 }

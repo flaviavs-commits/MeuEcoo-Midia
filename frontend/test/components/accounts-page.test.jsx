@@ -38,11 +38,12 @@ describe('AccountsPage', () => {
       }
       return Promise.resolve({})
     })
-    vi.stubGlobal('confirm', vi.fn(() => true))
 
     render(<ToastProvider><AccountsPage user={{ planUnrestricted: true }} /></ToastProvider>)
     const disconnect = await screen.findByRole('button', { name: 'Desconectar @meuecoomidia' })
     disconnect.click()
+    const dialog = await screen.findByRole('dialog', { name: 'Desconectar @meuecoomidia?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Desconectar' }))
 
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith('/api/accounts/113', { method: 'DELETE' }))
     await waitFor(() => expect(screen.queryByText('@meuecoomidia')).not.toBeInTheDocument())
@@ -61,7 +62,8 @@ describe('AccountsPage', () => {
 
     expect(screen.getByText('Adicionar ou remover conta')).toBeInTheDocument()
     expect(screen.queryByRole('tab')).not.toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Plataforma'), { target: { value: 'instagram' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'Plataforma' }))
+    fireEvent.click(screen.getByRole('option', { name: 'Instagram' }))
     fireEvent.change(screen.getByLabelText('Link da Página'), { target: { value: 'https://instagram.com/meuecoomidia' } })
     fireEvent.click(screen.getAllByRole('button', { name: 'Conectar' }).at(-1))
 
@@ -215,7 +217,24 @@ describe('AccountsPage', () => {
     fireEvent.change(await screen.findByLabelText('Link da Página'), { target: { value: 'https://www.tiktok.com/@minhaconta' } })
     fireEvent.click(screen.getByRole('button', { name: 'Usar TikTok' }))
 
-    expect(screen.getByLabelText('Plataforma')).toHaveValue('tiktok')
+    expect(screen.getByRole('combobox', { name: 'Plataforma' })).toHaveTextContent('TikTok')
     expect(screen.queryByRole('button', { name: 'Usar TikTok' })).not.toBeInTheDocument()
+  })
+
+  it('keeps the account when the disconnection is cancelled', async () => {
+    const apiFetchMock = vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/accounts') return Promise.resolve({ data: [{ id: 113, platform: 'instagram', handle: '@meuecoomidia', tokens: [{ status: 'valid' }] }] })
+      if (path === '/api/platform-health') return Promise.resolve({ platforms: {} })
+      return Promise.resolve({})
+    })
+
+    render(<ToastProvider><AccountsPage user={{ planUnrestricted: true }} /></ToastProvider>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Desconectar @meuecoomidia' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Desconectar @meuecoomidia?' })
+    fireEvent.keyDown(dialog, { key: 'Escape' })
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(apiFetchMock.mock.calls.some(([, options]) => options?.method === 'DELETE')).toBe(false)
+    expect(screen.getByRole('button', { name: 'Desconectar @meuecoomidia' })).toBeInTheDocument()
   })
 })

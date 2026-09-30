@@ -3,6 +3,7 @@ import { apiFetch } from '../lib/api.js'
 import { OnboardingChecklist } from '../components/ui/onboarding-checklist.jsx'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
+import { useConfirm } from '../components/ui/confirm-dialog.jsx'
 import { ColumnChart } from '../components/ui/column-chart.jsx'
 
 const STATUS_LABELS = { scheduled: 'Agendada', agendado: 'Agendada', published: 'Publicada', publicado: 'Publicado', failed: 'Falhou', erro: 'Falhou', error: 'Falhou', partial: 'Parcial', processing: 'Processando' }
@@ -217,6 +218,7 @@ export function DashboardPage({ onNavigate }) {
   const [activitySearch, setActivitySearch] = useState('')
   const [deletingPostId, setDeletingPostId] = useState(null)
   const [alertError, setAlertError] = useState('')
+  const { confirm, confirmDialog } = useConfirm()
   // Depois de excluir um alerta, o foco vai para o alerta seguinte (ou o anterior, ou o próximo título),
   // em vez de cair no início da página junto com o botão que sumiu.
   const [focusAfterRemoval, setFocusAfterRemoval] = useState(null)
@@ -397,7 +399,13 @@ export function DashboardPage({ onNavigate }) {
 
   async function deleteFailure(post) {
     const label = postTitle(post)
-    if (!window.confirm(`Excluir esta publicação com falha?\n\n${label}\n\nEla será excluída de vez e não poderá ser reenviada.`)) return
+    const ok = await confirm({
+      title: 'Excluir esta publicação com falha?',
+      description: 'Ela será excluída de vez e não poderá ser reenviada.',
+      details: label,
+      confirmLabel: 'Excluir',
+    })
+    if (!ok) return
     const index = reviewAlerts.findIndex(item => item.post.id === post.id)
     setDeletingPostId(post.id)
     setAlertError('')
@@ -768,5 +776,6 @@ export function DashboardPage({ onNavigate }) {
           </section>
         </div>
       </>}
+    {confirmDialog}
   </div>
 }

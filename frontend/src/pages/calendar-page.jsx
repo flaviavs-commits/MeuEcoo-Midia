@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { useApiResource } from '../hooks/use-api-resource.js'
 import { useToast } from '../components/ui/toast.jsx'
+import { useConfirm } from '../components/ui/confirm-dialog.jsx'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { Sheet } from '../components/ui/floating.jsx'
@@ -290,8 +291,9 @@ function CalendarListEntry({ post, onEdit, onCopy, onDelete, onRetry, onReview, 
           : null
   const menuItems = [
     scheduled && { label: 'Copiar', icon: 'copy', onSelect: onCopy },
+    retryableError && { label: 'Reagendar', icon: 'clock', onSelect: onEdit },
+    // the destructive action stays last, below the divider
     scheduled && { label: 'Excluir', icon: 'trash', danger: true, onSelect: onDelete },
-    retryableError && { label: 'Reagendar', icon: 'clock', onSelect: onEdit }
   ].filter(Boolean)
   return <li className="cal-entry">
     <time className="cal-entry__time ds-num">{time}</time>
@@ -352,6 +354,7 @@ export function CalendarPage({ onNavigate }) {
   const submittingRef = useRef(null)
   const phone = useIsPhone()
   const notify = useToast()
+  const { confirm, confirmDialog } = useConfirm()
   const [message, setMessage] = useState('')
   const previousStatuses = useRef(null)
   const load = useCallback(async () => {
@@ -451,7 +454,14 @@ export function CalendarPage({ onNavigate }) {
   }
 
   async function retryPost(post) {
-    if (!window.confirm('O processamento foi interrompido sem confirmação. Confira primeiro se a publicação não apareceu na rede social; se ela já tiver sido publicada, uma nova tentativa pode gerar duplicidade. Deseja tentar novamente em aproximadamente 1 minuto?')) return
+    const ok = await confirm({
+      title: 'Tentar publicar de novo?',
+      description: 'O processamento foi interrompido sem confirmação. Confira primeiro se a publicação não apareceu na rede social; se ela já tiver sido publicada, uma nova tentativa pode gerar duplicidade.',
+      details: 'A nova tentativa sai em aproximadamente 1 minuto.',
+      confirmLabel: 'Tentar de novo',
+      tone: 'warning',
+    })
+    if (!ok) return
     const retryAt = new Date(Date.now() + 60 * 1000)
     try {
       await apiFetch(`/api/posts/${post.id}`, { method: 'PATCH', body: JSON.stringify({ scheduledAt: retryAt.toISOString() }) })
@@ -513,7 +523,13 @@ export function CalendarPage({ onNavigate }) {
 
   async function deletePublished(post) {
     const label = postText(post)
-    if (!window.confirm(`Excluir “${label}” do calendário?\n\nO registro será removido do Meu Ecoo, mas a publicação original continuará nas redes sociais.`)) return
+    const ok = await confirm({
+      title: 'Excluir do calendário?',
+      description: 'O registro será removido do Meu Ecoo, mas a publicação original continuará nas redes sociais.',
+      details: `“${label}”`,
+      confirmLabel: 'Excluir',
+    })
+    if (!ok) return
     try {
       await apiFetch(`/api/posts/${post.id}`, { method: 'DELETE' })
       setSelectedDay(null)
@@ -525,7 +541,13 @@ export function CalendarPage({ onNavigate }) {
 
   async function deleteScheduled(post) {
     const label = postText(post)
-    if (!window.confirm(`Excluir o agendamento “${label}”?\n\nEle será removido do calendário e não será publicado.`)) return
+    const ok = await confirm({
+      title: 'Excluir o agendamento?',
+      description: 'Ele será removido do calendário e não será publicado.',
+      details: `“${label}”`,
+      confirmLabel: 'Excluir agendamento',
+    })
+    if (!ok) return
     try {
       await apiFetch(`/api/posts/${post.id}`, { method: 'DELETE' })
       setSelectedDay(null)
@@ -888,6 +910,7 @@ export function CalendarPage({ onNavigate }) {
           </div>
         </form>
       </Sheet>}
+      {confirmDialog}
     </div>
   )
 }

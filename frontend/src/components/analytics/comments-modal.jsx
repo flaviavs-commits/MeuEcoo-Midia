@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../../lib/api.js'
 import { Icon, NetworkGlyph } from '../ui/icon.jsx'
 import { Sheet } from '../ui/floating.jsx'
+import { Select } from '../ui/select.jsx'
 
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', linkedin: 'LinkedIn', threads: 'Threads', reddit: 'Reddit', bluesky: 'Bluesky', x: 'X', twitter: 'X', tiktok: 'TikTok' }
 const COMMENTS_REFRESH_INTERVAL_MS = 60_000
@@ -214,7 +215,19 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
           <div className="cm-reply__tools">
             <span className="cm-reply__as">Respondendo como <strong>@{String(viewerName).replace(/^@/, '')}</strong> · será publicada no {PLATFORM_LABELS[platform] || platform || 'rede social'}</span>
             <span className="cm-reply__actions">
-              {savedTexts.length > 0 && <span className="ds-select cm-reply__saved"><select className="ds-select__control" aria-label="Usar resposta salva" value="" onChange={event => setReplyText(event.target.value)}><option value="">Usar resposta salva…</option>{savedTexts.map(item => <option value={item.body} key={item.id}>{item.title && item.title !== 'Resposta salva' ? item.title : item.body.slice(0, 50)}</option>)}</select><Icon name="chevronDown" className="ds-select__chev" /></span>}
+              {savedTexts.length > 0 && <Select
+                size="sm"
+                className="cm-reply__saved"
+                aria-label="Usar resposta salva"
+                placeholder="Usar resposta salva…"
+                sheetTitle="Respostas salvas"
+                value=""
+                onChange={id => setReplyText(savedTexts.find(item => String(item.id) === String(id))?.body || '')}
+                options={savedTexts.map(item => {
+                  const titled = item.title && item.title !== 'Resposta salva'
+                  return { value: item.id, label: titled ? item.title : item.body.slice(0, 50), hint: titled ? item.body.slice(0, 60) : undefined }
+                })}
+              />}
               <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm" onClick={saveReply}><Icon name="bookmark" size={16} />Salvar texto atual</button>
             </span>
           </div>

@@ -185,12 +185,12 @@ describe('DashboardPage', () => {
       if (path === '/api/accounts') return Promise.resolve({ accounts: [] })
       return Promise.resolve({ metrics: [] })
     })
-    vi.stubGlobal('confirm', vi.fn(() => true))
 
     render(<DashboardPage onNavigate={() => {}} />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Mais ações para “Primeira falha”' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Excluir alerta' }))
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Excluir esta publicação com falha?' })).getByRole('button', { name: 'Excluir' }))
 
     await waitFor(() => expect(screen.queryByText('Primeira falha')).not.toBeInTheDocument())
     const [nextTitle] = screen.getAllByText('Segunda falha')

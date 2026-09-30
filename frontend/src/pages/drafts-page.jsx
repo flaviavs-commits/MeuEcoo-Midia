@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { apiFetch } from '../lib/api.js'
 import { useApiResource } from '../hooks/use-api-resource.js'
 import { useToast } from '../components/ui/toast.jsx'
+import { useConfirm } from '../components/ui/confirm-dialog.jsx'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { FilterGroup, FilterOption, FilterSheet, FiltersButton } from '../components/ui/filters.jsx'
@@ -102,6 +103,7 @@ export function DraftsPage({ onNavigate }) {
   // `error` é só da lista; excluir e esvaziar mostram o próprio aviso.
   const { value: drafts, loading, error, reload } = useApiResource(load, [])
   const notify = useToast()
+  const { confirm, confirmDialog } = useConfirm()
 
   useEffect(() => { if (!loading) setHasLoaded(true) }, [loading])
   const firstLoad = loading && !hasLoaded
@@ -170,7 +172,12 @@ export function DraftsPage({ onNavigate }) {
   }
 
   async function remove(draft) {
-    if (!window.confirm('Excluir esta ideia?')) return
+    const ok = await confirm({
+      title: 'Excluir esta ideia?',
+      description: 'Ela sai do Baú de Ideias e não pode ser recuperada.',
+      confirmLabel: 'Excluir',
+    })
+    if (!ok) return
     const index = visibleDrafts.findIndex(item => item.id === draft.id)
     setActionError('')
     try { await apiFetch(`/api/drafts/${draft.id}`, { method: 'DELETE' }) }
@@ -181,7 +188,13 @@ export function DraftsPage({ onNavigate }) {
   }
 
   async function clearIdeas() {
-    if (!drafts.length || !window.confirm('Esvaziar o Baú de Ideias? Todas as ideias salvas serão excluídas.')) return
+    if (!drafts.length) return
+    const ok = await confirm({
+      title: 'Esvaziar o Baú de Ideias?',
+      description: drafts.length === 1 ? 'A ideia salva será excluída. Não dá para desfazer.' : `Todas as ${drafts.length} ideias salvas serão excluídas. Não dá para desfazer.`,
+      confirmLabel: 'Esvaziar',
+    })
+    if (!ok) return
     setActionError('')
     try { await apiFetch('/api/drafts', { method: 'DELETE' }) }
     catch (caught) { setActionError(caught.message); notify(caught.message, 'error'); return }
@@ -365,5 +378,6 @@ export function DraftsPage({ onNavigate }) {
         {IDEA_FILTERS.map(([value, label]) => <FilterOption key={value} selected={pending.filter === value} onSelect={() => setPending({ ...pending, filter: value })}>{label}</FilterOption>)}
       </FilterGroup>}
     </FilterSheet>}
+    {confirmDialog}
   </div>
 }

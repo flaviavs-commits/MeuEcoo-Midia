@@ -131,7 +131,7 @@
   /* compact controls only where there is a fine pointer and room; phones keep the DS 44px/16px */
   @media (min-width: 768px) {
     .cm-reply__form .ds-input { min-height: 36px; padding-block: 7px; font-size: var(--ds-text-sm); }
-    .cm-reply__saved .ds-select__control { min-height: 32px; padding-block: 5px; font-size: var(--ds-text-xs); }
+    .cm-reply__saved.ds-selectx { min-height: 32px; font-size: var(--ds-text-xs); }
   }
 
   /* compact screens: the list, then the conversation on its own screen (never both squeezed) */

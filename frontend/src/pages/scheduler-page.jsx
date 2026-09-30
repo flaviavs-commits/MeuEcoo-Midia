@@ -5,6 +5,7 @@ import { buildValidationIssues, INSTAGRAM_CAROUSEL_MAX_ITEMS, TIKTOK_PHOTO_MAX_I
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { Sheet } from '../components/ui/floating.jsx'
+import { Select } from '../components/ui/select.jsx'
 import { DateTimeField, localTimeZoneName } from '../components/ui/date-time-field.jsx'
 import { useIsCompact, useIsPhone } from '../lib/breakpoints.js'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
@@ -50,15 +51,17 @@ function scheduleChipLabel(value) {
   return Number.isNaN(parsed.getTime()) ? 'Agendamento' : `Agendar · ${parsed.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
 }
 
+const IG_PREVIEW_ASPECT_CHOICES = [
+  { value: 'auto', label: 'Automático · detectar' },
+  { value: 'square', label: 'Foto · 1:1 · 1080 × 1080' },
+  { value: 'portrait', label: 'Foto · 4:5 · 1080 × 1350' },
+  { value: 'instagramWide', label: 'Foto · 1,91:1 · 1080 × 566' },
+]
+
 function SelectField({ id, label, value, onChange, options, required = false }) {
   return <div className="ds-field">
     <label className="ds-label" htmlFor={id}>{label}{required && <span className="ds-label__req">obrigatório</span>}</label>
-    <span className="ds-select">
-      <select id={id} className="ds-select__control" value={value} onChange={event => onChange(event.target.value)}>
-        {options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}
-      </select>
-      <Icon name="chevronDown" className="ds-select__chev" />
-    </span>
+    <Select id={id} value={value} onChange={onChange} options={options.map(([optionValue, optionLabel]) => ({ value: optionValue, label: optionLabel }))} sheetTitle={label} />
   </div>
 }
 
@@ -853,12 +856,7 @@ function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesBy
       </div>
       {activePlatform === 'instagram' && igFormat === 'post' && onIgAspectChange && <div className="ds-field mp-preview__aspect">
         <label className="ds-label" htmlFor="mp-pv-aspect">Proporção da prévia</label>
-        <span className="ds-select"><select id="mp-pv-aspect" className="ds-select__control" value={igAspect} onChange={event => onIgAspectChange(event.target.value)}>
-          <option value="auto">Automático · detectar</option>
-          <option value="square">Foto · 1:1 · 1080 × 1080</option>
-          <option value="portrait">Foto · 4:5 · 1080 × 1350</option>
-          <option value="instagramWide">Foto · 1,91:1 · 1080 × 566</option>
-        </select><Icon name="chevronDown" className="ds-select__chev" /></span>
+        <Select id="mp-pv-aspect" value={igAspect} onChange={onIgAspectChange} options={IG_PREVIEW_ASPECT_CHOICES} sheetTitle="Proporção da prévia" />
       </div>}
       <div className={`social-preview-card social-preview-card-${activePlatform}${isFullBleedCard ? ' is-fullbleed' : ''}`}>
       {activePlatform === 'instagram' ? (

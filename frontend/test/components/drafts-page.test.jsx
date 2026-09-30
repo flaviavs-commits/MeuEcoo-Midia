@@ -107,11 +107,11 @@ describe('DraftsPage', () => {
       if (path === '/api/drafts') return Promise.resolve({ drafts })
       return Promise.resolve({})
     })
-    vi.stubGlobal('confirm', vi.fn(() => true))
 
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: 'Mais ações para “Primeira ideia”' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Excluir' }))
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Excluir esta ideia?' })).getByRole('button', { name: 'Excluir' }))
 
     await waitFor(() => expect(screen.queryByRole('heading', { name: 'Primeira ideia' })).not.toBeInTheDocument())
     const next = within(screen.getByRole('heading', { name: 'Segunda ideia' }).closest('li')).getByRole('button', { name: 'Criar post' })
@@ -124,11 +124,11 @@ describe('DraftsPage', () => {
       if (path === '/api/drafts') return Promise.resolve({ drafts: [{ id: 1, title: 'Primeira ideia', text: 'Um', platforms: ['instagram'] }] })
       return Promise.resolve({})
     })
-    vi.stubGlobal('confirm', vi.fn(() => true))
 
     renderPage()
     fireEvent.click(await screen.findByRole('button', { name: 'Mais ações para “Primeira ideia”' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: 'Excluir' }))
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Excluir esta ideia?' })).getByRole('button', { name: 'Excluir' }))
 
     const alerts = await screen.findAllByRole('alert')
     expect(alerts.some(alert => alert.textContent.includes('Não foi possível excluir a ideia agora.'))).toBe(true)
@@ -163,5 +163,25 @@ describe('DraftsPage', () => {
 
     expect(onNavigate).toHaveBeenCalledWith('agendador')
     expect(JSON.parse(localStorage.getItem('meu-ecoo:scheduler-autosave'))).toMatchObject({ text: 'Qual formato vocês preferem?', selected: ['instagram', 'facebook'], publishNow: false })
+  })
+
+  it('empties the chest only after the DS confirmation', async () => {
+    const apiFetchMock = vi.spyOn(api, 'apiFetch').mockImplementation((path, options = {}) => {
+      if (path === '/api/drafts' && options.method === 'DELETE') return Promise.resolve({ ok: true })
+      if (path === '/api/drafts') return Promise.resolve({ drafts: [{ id: 1, title: 'Primeira ideia', text: 'Um', platforms: ['instagram'] }, { id: 2, title: 'Segunda ideia', text: 'Dois', platforms: ['facebook'] }] })
+      return Promise.resolve({})
+    })
+
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Mais ações do Baú de Ideias' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Esvaziar Baú' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Esvaziar o Baú de Ideias?' })
+    expect(dialog).toHaveTextContent('Todas as 2 ideias salvas serão excluídas. Não dá para desfazer.')
+    expect(within(dialog).getByRole('button', { name: 'Cancelar' })).toHaveFocus()
+    expect(apiFetchMock.mock.calls.some(([, options]) => options?.method === 'DELETE')).toBe(false)
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Esvaziar' }))
+
+    await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith('/api/drafts', { method: 'DELETE' }))
+    expect(await screen.findByText('Baú de Ideias esvaziado.')).toBeInTheDocument()
   })
 })

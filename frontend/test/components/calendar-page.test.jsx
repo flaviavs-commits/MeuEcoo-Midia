@@ -105,4 +105,31 @@ describe('CalendarPage — ações e status', () => {
     expect(await screen.findByText('Aguardando confirmação')).toBeInTheDocument()
     expect(screen.queryByText('Agendado')).not.toBeInTheDocument()
   })
+
+  it('asks in a DS dialog before deleting a scheduled post and keeps it when cancelled', async () => {
+    const deletes = []
+    vi.spyOn(api, 'apiFetch').mockImplementation((path, options = {}) => {
+      if (options.method === 'DELETE') { deletes.push(path); return Promise.resolve({ ok: true }) }
+      return Promise.resolve({ posts: deletes.length ? [] : [{ id: 21, text: 'Lançamento da coleção', platforms: ['instagram'], status: 'scheduled', scheduledAt: '2026-09-10T13:00:00.000Z' }] })
+    })
+    render(<ToastProvider><CalendarPage onNavigate={vi.fn()} /></ToastProvider>)
+
+    fireEvent.click(screen.getByRole('button', { name: /Lista/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Mais ações para Lançamento da coleção/ }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Excluir' }))
+    let dialog = await screen.findByRole('dialog', { name: 'Excluir o agendamento?' })
+    expect(dialog).toHaveTextContent('Ele será removido do calendário e não será publicado.')
+    expect(dialog).toHaveTextContent('“Lançamento da coleção”')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancelar' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(deletes).toEqual([])
+
+    fireEvent.click(screen.getByRole('button', { name: /Mais ações para Lançamento da coleção/ }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Excluir' }))
+    dialog = await screen.findByRole('dialog', { name: 'Excluir o agendamento?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Excluir agendamento' }))
+
+    await waitFor(() => expect(deletes).toEqual(['/api/posts/21']))
+    expect(await screen.findAllByText('Agendamento excluído.')).not.toHaveLength(0)
+  })
 })
