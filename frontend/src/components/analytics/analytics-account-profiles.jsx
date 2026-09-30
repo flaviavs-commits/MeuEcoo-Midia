@@ -1,4 +1,4 @@
-import { PlatformIcon } from '../ui/platform-icon.jsx'
+import { Icon, NetworkGlyph } from '../ui/icon.jsx'
 import { latestOf, NETWORK_ORDER, PLAT_LABELS, fmtNum } from '../../lib/analytics-format.js'
 
 function metricValue(profile, name) {
@@ -11,6 +11,14 @@ function metricValue(profile, name) {
 function sumMetrics(profile, names) {
   const values = names.map(name => metricValue(profile, name)).filter(value => value != null)
   return values.length ? values.reduce((total, value) => total + value, 0) : null
+}
+
+function firstMetric(profile, names) {
+  for (const name of names) {
+    const value = metricValue(profile, name)
+    if (value != null) return value
+  }
+  return null
 }
 
 function tiktokMetricTotal(tiktokVideos, accountId, names) {
@@ -46,14 +54,17 @@ function audienceFor(data, account, profile, accountCount) {
 
 function reachFor(account, profile, tiktokVideos) {
   if (account.platform === 'facebook') return sumMetrics(profile, ['page_media_view', 'page_video_views'])
-  if (account.platform === 'instagram') return sumMetrics(profile, ['reach', 'views'])
+  // Alcance (pessoas únicas) e visualizações (reproduções) não podem ser somados.
+  if (account.platform === 'instagram') return firstMetric(profile, ['reach', 'views'])
   if (account.platform === 'youtube') return metricValue(profile, 'views')
   return tiktokMetricTotal(tiktokVideos, account.id, ['viewCount']) ?? metricValue(profile, 'views')
 }
 
 function interactionsFor(account, profile, tiktokVideos) {
   if (account.platform === 'facebook') return metricValue(profile, 'page_post_engagements')
-  if (account.platform === 'instagram') return sumMetrics(profile, ['total_interactions', 'likes', 'comments', 'shares', 'saves'])
+  // total_interactions já inclui curtidas, comentários, compartilhamentos e
+  // salvamentos; a soma dos itens só entra quando a rede não informa o total.
+  if (account.platform === 'instagram') return metricValue(profile, 'total_interactions') ?? sumMetrics(profile, ['likes', 'comments', 'shares', 'saves'])
   if (account.platform === 'youtube') return sumMetrics(profile, ['likes', 'comments', 'shares'])
   return tiktokMetricTotal(tiktokVideos, account.id, ['likeCount', 'commentCount', 'shareCount']) ?? metricValue(profile, 'likes_count')
 }
@@ -76,37 +87,40 @@ export function AnalyticsAccountProfiles({ accounts, data, tiktokVideos, periodD
   const orderedAccounts = [...scopedAccounts].sort((a, b) => NETWORK_ORDER.indexOf(a.platform) - NETWORK_ORDER.indexOf(b.platform))
   if (!orderedAccounts.length) return null
 
-  return <section className="analytics-profiles-section" aria-labelledby="analytics-profiles-title">
-    <div className="analytics-profiles-heading">
-      <div>
-        <p className="analytics-kicker">PERFIS CONECTADOS</p>
-        <h3 id="analytics-profiles-title">{activeNet ? `Perfil conectado do ${PLAT_LABELS[activeNet]}` : 'Sua operação em cada rede'}</h3>
-        <p>{activeNet ? 'Identidade, saúde da conexão e resultados somente desta rede.' : 'Identidade, saúde da conexão e os principais resultados por conta.'}</p>
+  return <section className="ds-block rel-profiles" aria-labelledby="analytics-profiles-title">
+    <div className="ds-head">
+      <div className="ds-head__text">
+        <p className="ds-eyebrow">Perfis conectados</p>
+        <h2 className="ds-head__title" id="analytics-profiles-title">{activeNet ? `Perfil conectado do ${PLAT_LABELS[activeNet]}` : 'Sua operação em cada rede'}</h2>
+        <p className="ds-head__desc">{activeNet ? 'Identidade, saúde da conexão e resultados somente desta rede.' : 'Identidade, saúde da conexão e os principais resultados por conta.'}</p>
       </div>
-      <span className="analytics-profiles-period">Últimos {periodDays} dias</span>
+      <span className="ds-badge" data-tone="outline">Últimos {periodDays} dias</span>
     </div>
-    <div className="analytics-profiles-grid">
+    <ul className="rel-profiles__list">
       {orderedAccounts.map(account => {
         const profile = profileFor(data, account)
         const status = accountStatus(account, profile)
         const audienceLabel = account.platform === 'youtube' ? 'Inscritos' : 'Seguidores'
         const accountCount = orderedAccounts.filter(item => item.platform === account.platform).length
-        return <article className={`analytics-profile-card analytics-profile-card-${account.platform}`} key={account.id}>
-          <div className="analytics-profile-card-header">
-            <div className="analytics-profile-identity">
-              <span className="analytics-profile-avatar">{account.avatarUrl ? <img src={account.avatarUrl} alt=""/> : <PlatformIcon platform={account.platform} className="h-5 w-5"/>}</span>
-              <div><strong>{profileName(account)}</strong><span>{account.handle ? (account.handle.startsWith('@') ? account.handle : `@${account.handle}`) : PLAT_LABELS[account.platform]}</span></div>
+        const name = profileName(account)
+        const ready = status.className === 'is-ready'
+        return <li className="rel-profile" key={account.id}>
+          <div className="rel-profile__id">
+            <span className="rel-profile__avatar">{account.avatarUrl ? <img src={account.avatarUrl} alt="" /> : <NetworkGlyph network={account.platform} size={20} />}</span>
+            <div className="rel-profile__name">
+              <p className="rel-profile__title">{name}</p>
+              <p className="ds-meta rel-profile__handle"><NetworkGlyph network={account.platform} size={14} />{account.handle ? (account.handle.startsWith('@') ? account.handle : `@${account.handle}`) : PLAT_LABELS[account.platform]}</p>
             </div>
-            <span className={`analytics-profile-status ${status.className}`}><i aria-hidden="true"/>{status.label}</span>
           </div>
-          <div className="analytics-profile-network"><span className={`analytics-profile-network-icon analytics-profile-network-icon-${account.platform}`}><PlatformIcon platform={account.platform} className="h-4 w-4"/></span><span>{PLAT_LABELS[account.platform]}</span><button type="button" onClick={() => onSelectNetwork(account.platform, account.id)}>Ver relatório <span aria-hidden="true">→</span></button></div>
-          <div className="analytics-profile-metrics">
-            <div><span>{audienceLabel}</span><strong>{fmtNum(audienceFor(data, account, profile, accountCount))}</strong></div>
-            <div><span>Alcance / views</span><strong>{fmtNum(reachFor(account, profile, tiktokVideos))}</strong></div>
-            <div><span>Interações</span><strong>{fmtNum(interactionsFor(account, profile, tiktokVideos))}</strong></div>
-          </div>
-        </article>
+          <span className="ds-status" data-status={ready ? 'ok' : 'warning'}><Icon name={ready ? 'checkCircle' : 'alertTriangle'} />{status.label}</span>
+          <dl className="rel-profile__metrics">
+            <div><dt>{audienceLabel}</dt><dd>{fmtNum(audienceFor(data, account, profile, accountCount))}</dd></div>
+            <div><dt>Alcance / views</dt><dd>{fmtNum(reachFor(account, profile, tiktokVideos))}</dd></div>
+            <div><dt>Interações</dt><dd>{fmtNum(interactionsFor(account, profile, tiktokVideos))}</dd></div>
+          </dl>
+          <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm rel-profile__go" onClick={() => onSelectNetwork(account.platform, account.id)} aria-label={`Ver relatório de ${name}`}>Ver relatório<Icon name="arrow" size={16} /></button>
+        </li>
       })}
-    </div>
+    </ul>
   </section>
 }

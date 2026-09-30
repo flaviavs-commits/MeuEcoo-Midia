@@ -1,7 +1,7 @@
 import '../lib/chart-setup.js'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAnalytics } from '../hooks/use-analytics.js'
-import { AnalyticsSummary } from '../components/analytics/analytics-summary.jsx'
+import { AnalyticsPeriodControl, AnalyticsSummary } from '../components/analytics/analytics-summary.jsx'
 import { AnalyticsSidebar } from '../components/analytics/analytics-sidebar.jsx'
 import { AnalyticsPanel } from '../components/analytics/analytics-panel.jsx'
 import { filterByPeriod, filterTikTokVideosByPeriod, PLAT_LABELS, fmtNum } from '../lib/analytics-format.js'
@@ -11,6 +11,7 @@ import { AnalyticsExecutiveOverview } from '../components/analytics/analytics-ex
 import { buildPerformanceReport, performanceReportActions, performanceReportConclusion } from '../components/analytics/analytics-performance-report.jsx'
 import { ReportSchedulePanel } from '../components/analytics/report-schedule-panel.jsx'
 import { AnalyticsDataVerification } from '../components/analytics/analytics-data-verification.jsx'
+import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 
 function csvValue(value) {
   return `"${String(value ?? '').replaceAll('"', '""')}"`
@@ -66,14 +67,40 @@ function htmlValue(value) {
   return String(value ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;')
 }
 
-export function AnalyticsPage() {
+export function AnalyticsPage({ onNavigate } = {}) {
   const [comparePeriod, setComparePeriod] = useState(false)
   const [reportAccountId, setReportAccountId] = useState(null)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [hasLoaded, setHasLoaded] = useState(false)
+  const scheduleCloseRef = useRef(null)
   const {
     data, accounts, tiktokVideos, networks, activeNet, activeTab, periodDays,
-    loading, error, sourceErrors, lastUpdated, setActiveTab, setPeriodDays, selectNetwork,
+    loading, error, sourceErrors, lastUpdated, setActiveTab, setPeriodDays, selectNetwork, reload,
   } = useAnalytics({ comparePeriod })
   const notify = useToast()
+  // Só a primeira carga troca o conteúdo por esqueletos. Nas atualizações
+  // seguintes (período, comparação, ciclo de 15 min) os dados continuam na
+  // tela, com um aviso de atualização, para não fechar detalhes nem modais.
+  const firstLoad = loading && !hasLoaded
+
+  useEffect(() => { if (!loading) setHasLoaded(true) }, [loading])
+  useEffect(() => {
+    if (!scheduleOpen) return undefined
+    scheduleCloseRef.current?.focus()
+    const onKey = event => { if (event.key === 'Escape') setScheduleOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [scheduleOpen])
+
+  function chooseNetwork(net) {
+    setReportAccountId(null)
+    selectNetwork(net)
+  }
+
+  function selectPeriod(days) {
+    setPeriodDays(days)
+    if (days > 30) setComparePeriod(false)
+  }
   const selectedPlatform = activeNet === 'all' ? null : activeNet
   const selectedRows = reportRows(data, periodDays, selectedPlatform)
   const selectedTikTokVideos = filterTikTokVideosByPeriod(tiktokVideos, periodDays)
@@ -154,78 +181,121 @@ export function AnalyticsPage() {
     setTimeout(() => { target.print() }, 250)
   }
 
-  return <section className="page-view analytics-page">
-    <header className="analytics-page-intro">
-      <p className="eyebrow">DESEMPENHO</p>
-      <h2>Entenda o desempenho das suas redes</h2>
-      <p>Veja o que chamou atenção, quais publicações performaram melhor e como sua audiência está evoluindo.</p>
-      <div className="analytics-page-intro-actions"><div className="analytics-export-actions"><button type="button" className="secondary-button" onClick={exportReport} disabled={loading || !networks.length}>Exportar CSV</button><button type="button" className="secondary-button" onClick={printReport} disabled={loading || !networks.length}>Imprimir / PDF</button></div><span className="analytics-export-context">Dados do período e da rede selecionados · suas escolhas ficam salvas neste dispositivo</span></div>
+  const exportDisabled = loading || !networks.length
+  const networkSection = activeNet === 'all'
+    ? <section className="ds-block rel-pick" aria-labelledby="analytics-all-network-title">
+        <div className="ds-empty rel-pick__inner">
+          <h2 className="ds-empty__title ds-empty__title--sm" id="analytics-all-network-title">Escolha uma rede para ver o relatório detalhado</h2>
+          <p className="ds-empty__text">Gráficos, publicações e crescimento aparecem para uma rede por vez.</p>
+          <div className="ds-empty__actions">{networks.map(net => <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" key={net} onClick={() => chooseNetwork(net)}><NetworkGlyph network={net} size={16} />{PLAT_LABELS[net] || net}</button>)}</div>
+        </div>
+      </section>
+    : networks.includes(activeNet)
+      ? <AnalyticsPanel
+          net={activeNet}
+          tab={activeTab}
+          onSelectTab={setActiveTab}
+          data={data}
+          tiktokVideos={tiktokVideos}
+          periodDays={periodDays}
+          lastUpdated={lastUpdated}
+          reportAccountId={reportAccountId}
+        />
+      : <section className="ds-block rel-pick" aria-labelledby="analytics-no-network-title">
+          <div className="ds-empty rel-pick__inner">
+            <h2 className="ds-empty__title ds-empty__title--sm" id="analytics-no-network-title">Nenhuma rede conectada</h2>
+            <p className="ds-empty__text">{PLAT_LABELS[activeNet] || 'Esta rede'} ainda não tem conta conectada. Conecte uma conta para liberar o relatório desta rede.</p>
+            <div className="ds-empty__actions">
+              <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => chooseNetwork('all')}>Ver todas as redes</button>
+              {onNavigate && <button type="button" className="ds-go" onClick={() => onNavigate('integracoes')}>Conectar conta<Icon name="arrow" /></button>}
+            </div>
+          </div>
+        </section>
+
+  return <div className="ds-page rel" data-ds-root>
+    <header className="ds-pagehead rel-head">
+      <div className="ds-pagehead__text">
+        <p className="ds-eyebrow">Desempenho</p>
+        <h1 className="ds-pagehead__title">Relatórios</h1>
+        <p className="ds-pagehead__lede">Veja o que chamou atenção, quais publicações performaram melhor e como sua audiência está evoluindo.</p>
+      </div>
+      <div className="ds-pagehead__actions">
+        <button type="button" className="ds-btn ds-btn--secondary" onClick={() => setScheduleOpen(true)}><Icon name="mail" />Relatórios por e-mail</button>
+        <button type="button" className="ds-btn ds-btn--secondary" onClick={exportReport} disabled={exportDisabled}><Icon name="download" />Exportar CSV</button>
+        <button type="button" className="ds-btn ds-btn--secondary" onClick={printReport} disabled={exportDisabled}><Icon name="printer" />Imprimir / PDF</button>
+      </div>
     </header>
 
-    <div className="analytics-network-selector-top">
-      <AnalyticsSidebar networks={networks} activeNet={activeNet} onSelect={net => { setReportAccountId(null); selectNetwork(net) }}/>
-    </div>
-
-    <section className="analytics-report-snapshot" aria-label="Resumo do relatório filtrado">
-      <div><span>Conteúdos no recorte</span><strong>{loading ? '—' : selectedContentRows.length}</strong></div>
-      <div><span>Visualizações</span><strong>{loading ? '—' : fmtNum(selectedViews)}</strong></div>
-      <div><span>Interações</span><strong>{loading ? '—' : fmtNum(selectedEngagement)}</strong></div>
-      <div><span>Rede analisada</span><strong>{loading ? '—' : selectedPlatform ? PLAT_LABELS[selectedPlatform] || selectedPlatform : 'Todas'}</strong></div>
+    <section className="rel-filters" aria-label="Filtros do relatório">
+      <AnalyticsSidebar networks={networks} activeNet={activeNet} onSelect={chooseNetwork} />
+      <div className="rel-filters__line">
+        <AnalyticsPeriodControl periodDays={periodDays} comparePeriod={comparePeriod} onSelectPeriod={selectPeriod} onToggleCompare={setComparePeriod} />
+        <div className="rel-filters__status">
+          <span className="rel-sync" aria-live="polite">
+            {loading
+              ? <><span className="ds-spinner" aria-hidden="true" />{firstLoad ? 'Carregando métricas...' : 'Atualizando…'}</>
+              : lastUpdated && `Atualizado às ${lastUpdated.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}`}
+          </span>
+          <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm" onClick={() => reload()} disabled={loading}><Icon name="refresh" size={16} />Atualizar</button>
+        </div>
+      </div>
+      <div className="rel-snapshot" role="group" aria-label="Resumo do relatório filtrado">
+        <span className="rel-snapshot__lead">No recorte</span>
+        <span><strong>{firstLoad ? '—' : selectedContentRows.length}</strong> {selectedContentRows.length === 1 ? 'conteúdo' : 'conteúdos'}</span>
+        <span><strong>{firstLoad ? '—' : fmtNum(selectedViews)}</strong> visualizações</span>
+        <span><strong>{firstLoad ? '—' : fmtNum(selectedEngagement)}</strong> interações</span>
+        <span className="ds-meta rel-snapshot__note">Base do CSV e do PDF · suas escolhas ficam salvas neste dispositivo</span>
+      </div>
     </section>
-    <ReportSchedulePanel />
 
-    {error && <p className="error-message" role="alert">{error}</p>}
-    {loading && !error && <p className="empty-state" aria-live="polite">Carregando métricas...</p>}
-    {!loading && accounts.length > 0 && <AnalyticsAccountProfiles accounts={accounts} data={data} tiktokVideos={tiktokVideos} periodDays={periodDays} activeNet={selectedPlatform} onSelectNetwork={openAccountReport}/>}
-    {!loading && <AnalyticsExecutiveOverview data={data} tiktokVideos={tiktokVideos} periodDays={periodDays} activeNet={selectedPlatform} recommendedActions={performanceReportActions(performanceReport)}/>}
-    {!loading && networks.length > 0 && <AnalyticsSummary
-      data={data}
-      tiktokVideos={tiktokVideos}
-      periodDays={periodDays}
-      activeNet={selectedPlatform}
-      onSelectPeriod={days => { setPeriodDays(days); if (days > 30) setComparePeriod(false) }}
-      comparePeriod={comparePeriod}
-      onToggleCompare={setComparePeriod}
-    />}
-    {!loading && <AnalyticsDataVerification verification={data.verification} activeNet={selectedPlatform} sourceErrors={sourceErrors} tiktokVideos={tiktokVideos} periodDays={periodDays}/>}
-    {!loading && !networks.length && <section className="analytics-empty-state" aria-labelledby="analytics-empty-title">
-      <span className="analytics-empty-icon" aria-hidden="true">📊</span>
-      <h3 id="analytics-empty-title">Ainda não há métricas para mostrar</h3>
-      <p>Conecte uma rede social e publique conteúdo para começar a acompanhar visualizações, interações e crescimento.</p>
-      <p className="analytics-empty-note">As plataformas aparecem ao lado mesmo antes da primeira conexão.</p>
-    </section>}
+    {error && <div className="ds-alert rel-alert" data-tone="danger" role="alert">
+      <Icon name="alertCircle" className="ds-alert__icon" />
+      <p className="ds-alert__text">{error}</p>
+      <div className="ds-alert__actions"><button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => reload()} disabled={loading}><Icon name="refresh" size={16} />Tentar novamente</button></div>
+    </div>}
 
-    <div className="analytics-layout">
-      {loading
-        ? <section className="analytics-no-network-panel"><span className="analytics-empty-icon" aria-hidden="true">…</span><h3>Carregando redes</h3><p>Verificando conexões e métricas disponíveis.</p></section>
-        : activeNet === 'all'
-          ? networks.length
-            ? <section className="analytics-no-network-panel analytics-all-network-prompt" aria-labelledby="analytics-all-network-title">
-                <span className="analytics-empty-icon" aria-hidden="true">◎</span>
-                <h3 id="analytics-all-network-title">Escolha uma rede para ver o relatório detalhado</h3>
-                <p>O resumo consolidado acima reúne todas as redes. Use os botões de seleção para abrir gráficos, publicações e crescimento de uma plataforma por vez.</p>
-              </section>
-            : <section className="analytics-no-network-panel" aria-labelledby="analytics-no-network-title">
-                <span className="analytics-empty-icon" aria-hidden="true">◎</span>
-                <h3 id="analytics-no-network-title">Nenhuma rede conectada</h3>
-                <p>Conecte uma conta para liberar os relatórios das redes.</p>
-              </section>
-          : networks.includes(activeNet)
-          ? <AnalyticsPanel
-              net={activeNet}
-              tab={activeTab}
-              onSelectTab={setActiveTab}
+    {firstLoad
+      ? <div className="rel-skeleton" aria-hidden="true">
+          <div className="ds-stats" style={{ '--cols': 4 }}>{[1, 2, 3, 4].map(item => <div className="ds-stat" key={item}><span className="ds-skel ds-skel--text" style={{ width: '55%' }} /><span className="ds-skel ds-skel--figure" /></div>)}</div>
+          <span className="ds-skel ds-skel--block" />
+          <span className="ds-skel ds-skel--block" />
+        </div>
+      : !networks.length
+        ? <div className="ds-empty ds-empty--center rel-nodata">
+            <span className="ds-icontile ds-icontile--lg" aria-hidden="true"><Icon name="chart" /></span>
+            <h2 className="ds-empty__title" id="analytics-empty-title">Ainda não há métricas para mostrar</h2>
+            <p className="ds-empty__text">Conecte uma rede social e publique conteúdo para começar a acompanhar visualizações, interações e crescimento.</p>
+            {onNavigate && <div className="ds-empty__actions"><button type="button" className="ds-btn ds-btn--primary" onClick={() => onNavigate('integracoes')}><Icon name="plug" />Conectar conta</button></div>}
+          </div>
+        : <div className="rel-content" aria-busy={loading}>
+            <AnalyticsSummary
               data={data}
               tiktokVideos={tiktokVideos}
               periodDays={periodDays}
-              lastUpdated={lastUpdated}
-              reportAccountId={reportAccountId}
+              activeNet={selectedPlatform}
+              onSelectPeriod={selectPeriod}
+              comparePeriod={comparePeriod}
+              onToggleCompare={setComparePeriod}
+              showPeriodControl={false}
             />
-          : <section className="analytics-no-network-panel" aria-labelledby="analytics-no-network-title">
-              <span className="analytics-empty-icon" aria-hidden="true">◎</span>
-              <h3 id="analytics-no-network-title">Nenhuma rede conectada</h3>
-              <p>As logos acima mostram as plataformas disponíveis. Conecte uma conta para liberar os relatórios desta rede.</p>
-            </section>}
-    </div>
-  </section>
+            {selectedPlatform && networkSection}
+            <AnalyticsExecutiveOverview data={data} tiktokVideos={tiktokVideos} periodDays={periodDays} activeNet={selectedPlatform} recommendedActions={performanceReportActions(performanceReport)} onSelectNetwork={chooseNetwork} />
+            {accounts.length > 0 && <AnalyticsAccountProfiles accounts={accounts} data={data} tiktokVideos={tiktokVideos} periodDays={periodDays} activeNet={selectedPlatform} onSelectNetwork={openAccountReport} />}
+            <AnalyticsDataVerification verification={data.verification} activeNet={selectedPlatform} sourceErrors={sourceErrors} tiktokVideos={tiktokVideos} periodDays={periodDays} />
+            {!selectedPlatform && networkSection}
+          </div>}
+
+    {scheduleOpen && <div className="ds-scrim ds-scrim--drawer" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setScheduleOpen(false) }}>
+      <section className="ds-drawer rel-drawer" role="dialog" aria-modal="true" aria-labelledby="rel-mail-title">
+        <header className="ds-drawer__head">
+          <div className="ds-modal__heading">
+            <p className="ds-eyebrow">Automação</p>
+            <h2 className="ds-modal__title" id="rel-mail-title">Relatórios por e-mail</h2>
+          </div>
+          <button ref={scheduleCloseRef} type="button" className="ds-btn ds-btn--quiet ds-btn--icon" onClick={() => setScheduleOpen(false)} aria-label="Fechar"><Icon name="close" /></button>
+        </header>
+        <div className="ds-drawer__body"><ReportSchedulePanel /></div>
+      </section>
+    </div>}
+  </div>
 }

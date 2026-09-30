@@ -2,9 +2,9 @@ import { Line, Bar } from 'react-chartjs-2'
 import { EngagementTypeBar } from './engagement-type-bar.jsx'
 import {
   filterByPeriod, filterByPeriodOffset, filterTikTokVideosByPeriod, filterTikTokVideosByPeriodOffset, tiktokVideoToMetric, latestOf, fmtNum, formatDiaBR, baseChartOptions, PLAT_LABELS, PLAT_COLORS, NETWORK_ORDER, ANALYTICS_PERIODS,
-  accountAnalyticsPlatformTotals,
+  accountAnalyticsPlatformTotals, vizColors,
 } from '../../lib/analytics-format.js'
-import { PlatformIcon } from '../ui/platform-icon.jsx'
+import { Icon, NetworkGlyph } from '../ui/icon.jsx'
 import { useTheme } from '../ui/theme-selector.jsx'
 
 function buildTrend(metrics) {
@@ -68,7 +68,37 @@ function comparisonLabel(current, previous, enabled) {
   return `${change >= 0 ? '+' : ''}${change.toFixed(1)}% vs. período anterior`
 }
 
-export function AnalyticsSummary({ data, tiktokVideos, periodDays, activeNet = null, onSelectPeriod = () => {}, comparePeriod = false, onToggleCompare = () => {} }) {
+function comparisonTrend(current, previous) {
+  if (current == null || previous == null || previous === 0) return undefined
+  return current >= previous ? 'up' : 'down'
+}
+
+function withAlpha(color, alpha) {
+  const match = /^#([0-9a-f]{6})$/i.exec(String(color || '').trim())
+  if (!match) return color
+  const value = parseInt(match[1], 16)
+  return `rgba(${(value >> 16) & 255}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`
+}
+
+// Período e comparação valem para a página toda. A página usa este controle na
+// barra de filtros; o resumo também pode exibi-lo (padrão, usado nos testes).
+export function AnalyticsPeriodControl({ periodDays, comparePeriod = false, onSelectPeriod = () => {}, onToggleCompare = () => {} }) {
+  const compareUnavailable = periodDays > 30
+  return <div className="rel-period" role="group" aria-label="Período das métricas">
+    <span className="rel-period__label">Período</span>
+    <div className="ds-seg">
+      {ANALYTICS_PERIODS.map(days => (
+        <button key={days} type="button" className="ds-seg__opt" aria-pressed={days === periodDays} onClick={() => onSelectPeriod(days)}>{days} dias</button>
+      ))}
+    </div>
+    <label className="ds-check rel-period__compare">
+      <input type="checkbox" className="ds-switch" checked={comparePeriod} disabled={compareUnavailable} onChange={event => onToggleCompare(event.target.checked)} aria-describedby={compareUnavailable ? 'rel-compare-note' : undefined} />
+      <span className="ds-check__text"><span>Comparar período anterior</span>{compareUnavailable && <span className="ds-check__hint" id="rel-compare-note">Disponível para períodos de até 30 dias.</span>}</span>
+    </label>
+  </div>
+}
+
+export function AnalyticsSummary({ data, tiktokVideos, periodDays, activeNet = null, onSelectPeriod = () => {}, comparePeriod = false, onToggleCompare = () => {}, showPeriodControl = true }) {
   useTheme()
   const scopeNetworks = activeNet ? [activeNet] : NETWORK_ORDER
   const metrics = filterByPeriod(data.metrics, periodDays).filter(item => scopeNetworks.includes(item.platform))
@@ -153,133 +183,116 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays, activeNet = n
     }
   }).filter(item => metrics.some(metric => metric.platform === item.platform) || (item.platform === 'tiktok' && videos.length) || accountTotals[item.platform])
 
+  const figures = [
+    { label: 'Visualizações', value: fmtNum(totalViews), current: totalViews, previous: previousViews },
+    { label: 'Interações', value: fmtNum(totalEngagement), current: totalEngagement, previous: previousEngagement },
+    { label: audienceLabel, value: fmtNum(totalFollowers), current: totalFollowers, previous: previousFollowers },
+    { label: 'Taxa de interação', value: engagementRate == null ? '—' : `${engagementRate.toFixed(1)}%`, current: engagementRate, previous: previousEngagementRate },
+  ]
+  const colors = vizColors()
+
   return <>
-    <section className="an-summary-section an-summary-overview" aria-labelledby="analytics-overview-title">
-      <div className="an-summary-heading">
-        <div>
-          <p className="analytics-kicker">RESUMO DO PERÍODO</p>
-          <h3 id="analytics-overview-title">Visão geral</h3>
-          <p>Um panorama rápido para você saber se o conteúdo está sendo visto e provocando reações.</p>
+    <section className="ds-block rel-glance" aria-labelledby="analytics-overview-title">
+      <div className="ds-head">
+        <div className="ds-head__text">
+          <p className="ds-eyebrow">Resumo do período</p>
+          <h2 className="ds-head__title" id="analytics-overview-title">Visão geral</h2>
+          <p className="ds-head__desc">Um panorama rápido para você saber se o conteúdo está sendo visto e provocando reações.</p>
         </div>
-        <div className="analytics-period-control" role="group" aria-label="Período das métricas">
-          <span>Período</span>
-          <div className="analytics-period-btns">
-            {ANALYTICS_PERIODS.map(days => (
-              <button
-                key={days}
-                type="button"
-                className={`analytics-period-btn${days === periodDays ? ' active' : ''}`}
-                aria-pressed={days === periodDays}
-                onClick={() => onSelectPeriod(days)}
-              >{days} dias</button>
-            ))}
-          </div>
-          <label className={`analytics-compare-toggle${periodDays > 30 ? ' is-disabled' : ''}`} title={periodDays > 30 ? 'A comparação está disponível para períodos de até 30 dias.' : undefined}><input type="checkbox" checked={comparePeriod} disabled={periodDays > 30} onChange={event => onToggleCompare(event.target.checked)}/> Comparar período anterior</label>
-        </div>
+        {showPeriodControl && <AnalyticsPeriodControl periodDays={periodDays} comparePeriod={comparePeriod} onSelectPeriod={onSelectPeriod} onToggleCompare={onToggleCompare} />}
       </div>
 
-      <div className="an-summary-stats">
-        <div className="an-summary-card">
-          <div className="an-summary-icon" style={{ background: '#3b8ff0' }} aria-hidden="true">👁</div>
-          <div className="an-summary-val">{fmtNum(totalViews)}</div>
-          <div className="an-summary-label">Visualizações</div>
-          <p>Quantidade de vezes que o conteúdo foi visto. A mesma pessoa pode gerar mais de uma visualização.</p>
-          {comparisonLabel(totalViews, previousViews, comparePeriod) && <span className="analytics-comparison">{comparisonLabel(totalViews, previousViews, comparePeriod)}</span>}
-        </div>
-        <div className="an-summary-card">
-          <div className="an-summary-icon" style={{ background: '#e94f8a' }} aria-hidden="true">♥</div>
-          <div className="an-summary-val">{fmtNum(totalEngagement)}</div>
-          <div className="an-summary-label">Interações</div>
-          <p>Soma das reações confirmadas: curtidas, comentários e compartilhamentos.</p>
-          {comparisonLabel(totalEngagement, previousEngagement, comparePeriod) && <span className="analytics-comparison">{comparisonLabel(totalEngagement, previousEngagement, comparePeriod)}</span>}
-        </div>
-        <div className="an-summary-card">
-          <div className="an-summary-icon" style={{ background: 'var(--accent)' }} aria-hidden="true">👥</div>
-          <div className="an-summary-val">{fmtNum(totalFollowers)}</div>
-          <div className="an-summary-label">{audienceLabel}</div>
-          <p>{audienceHelp}</p>
-          {comparisonLabel(totalFollowers, previousFollowers, comparePeriod) && <span className="analytics-comparison">{comparisonLabel(totalFollowers, previousFollowers, comparePeriod)}</span>}
-        </div>
-        <div className="an-summary-card">
-          <div className="an-summary-icon" style={{ background: '#4ade80' }} aria-hidden="true">📈</div>
-          <div className="an-summary-val">{engagementRate == null ? '—' : `${engagementRate.toFixed(1)}%`}</div>
-          <div className="an-summary-label">Taxa de interação</div>
-          <p>Interações divididas pelas visualizações confirmadas no período.</p>
-          {comparisonLabel(engagementRate, previousEngagementRate, comparePeriod) && <span className="analytics-comparison">{comparisonLabel(engagementRate, previousEngagementRate, comparePeriod)}</span>}
-        </div>
-      </div>
-      <section className="analytics-summary-explanation" aria-label="Explicação dos indicadores">
-        <div className="analytics-summary-explanation-heading"><strong>Como interpretar este resumo</strong><span>Período: últimos {periodDays} dias · Escopo: {scopeLabel}</span></div>
-        <div className="analytics-summary-explanation-grid">
-          <div><strong>Visualizações</strong><p>Reproduções do conteúdo. Não são necessariamente pessoas diferentes.</p></div>
-          <div><strong>Interações</strong><p>Reações que mostram participação: curtidas, comentários e compartilhamentos.</p></div>
-          <div><strong>Taxa de interação</strong><p>Mostra a proporção de interações em relação às visualizações. Uma taxa maior indica maior reação proporcional ao conteúdo visto.</p></div>
-          <div><strong>{audienceLabel}</strong><p>{audienceHelp}</p></div>
-        </div>
-      </section>
-      {topPlatform && <div className="analytics-report-insight">
-        <span className="analytics-report-insight-mark" aria-hidden="true">✦</span>
-        <p><strong>Leitura rápida:</strong> {PLAT_LABELS[topPlatform[0]] || topPlatform[0]} concentrou mais publicações no período, com {topPlatform[1]} {topPlatform[1] === 1 ? 'conteúdo publicado' : 'conteúdos publicados'}.</p>
-      </div>}
-      <div className="analytics-next-action"><span aria-hidden="true">→</span><p><strong>Próxima ação:</strong> {recommendation}</p></div>
-    </section>
-
-    <section className="an-summary-section" aria-labelledby="analytics-trend-title">
-      <div className="analytics-section-heading">
-        <div>
-          <h3 id="analytics-trend-title">Evolução recente</h3>
-          <p>Compare visualizações e interações dia a dia no período selecionado.</p>
-        </div>
-        <span className="analytics-chart-legend-hint">Passe o mouse no gráfico para ver os valores</span>
-      </div>
-      <div className="analytics-chart-canvas-wrap">
-        {trend.length
-          ? <Line
-              data={{
-                labels: trend.map(t => formatDiaBR(t.dia)),
-                datasets: [
-                  { label: 'Visualizações', data: trend.map(t => t.reach), borderColor: '#d1993e', backgroundColor: 'rgba(209,153,62,0.1)', fill: true, tension: 0.35, pointRadius: 4 },
-                  { label: 'Interações', data: trend.map(t => t.engagement), borderColor: '#e94f8a', backgroundColor: 'rgba(233,79,138,0.08)', fill: true, tension: 0.35, pointRadius: 4 },
-                ],
-              }}
-              options={baseChartOptions()}
-            />
-          : <p className="empty-state" style={{ textAlign: 'center', padding: '3rem 1rem' }}>Sem dados suficientes.</p>}
-      </div>
-    </section>
-
-    <div className="an-summary-row">
-      <div className="an-summary-section">
-        <div className="an-summary-section-title">Posts por Plataforma</div>
-        <div className="analytics-chart-canvas-wrap">
-          {platformCounts.length
-            ? <Bar
-                data={{
-                  labels: platformCounts.map(([p]) => PLAT_LABELS[p] || p),
-                  datasets: [{ data: platformCounts.map(([, count]) => count), backgroundColor: platformCounts.map(([p]) => PLAT_COLORS[p] || '#d1993e'), borderRadius: 6, maxBarThickness: 56 }],
-                }}
-                options={{ ...baseChartOptions(), plugins: { ...baseChartOptions().plugins, legend: { display: false } } }}
-              />
-            : <p className="empty-state" style={{ textAlign: 'center', padding: '3rem 1rem' }}>Nenhum post publicado no período.</p>}
-        </div>
-      </div>
-      <div className="an-summary-section">
-        <div className="an-summary-section-title">Tipo de Engajamento</div>
-        {platformEngagement.map(item => {
-          const max = Math.max(item.likes, item.comments, item.shares, 1)
-          return <div key={item.platform} style={{ marginBottom: 16 }}>
-            <div className="analytics-engagement-platform">
-              <span className={`analytics-engagement-platform-icon analytics-engagement-platform-icon-${item.platform}`} aria-hidden="true">
-                <PlatformIcon platform={item.platform} className="h-3.5 w-3.5" />
-              </span>
-              <span>{PLAT_LABELS[item.platform]}</span>
-            </div>
-            <EngagementTypeBar icon="♥" label="Curtidas" value={item.likes} max={max}/>
-            <EngagementTypeBar icon="💬" label="Comentários" value={item.comments} max={max}/>
-            <EngagementTypeBar icon="↗" label="Compartilhamentos" value={item.shares} max={max}/>
+      <div className="ds-stats rel-figures" style={{ '--cols': 4 }}>
+        {figures.map(figure => {
+          const comparison = comparisonLabel(figure.current, figure.previous, comparePeriod)
+          const trend = comparisonTrend(figure.current, figure.previous)
+          return <div className="ds-stat" key={figure.label}>
+            <p className="ds-stat__label">{figure.label}</p>
+            <p className="ds-stat__value" data-state={figure.value === '—' ? 'unavailable' : undefined}>{figure.value}</p>
+            {comparison && <p className="ds-delta" data-trend={comparison === 'Sem base anterior' ? undefined : trend}>
+              {comparison !== 'Sem base anterior' && <Icon name={trend === 'down' ? 'chevronDown' : 'chevronUp'} />}{comparison}
+            </p>}
           </div>
         })}
       </div>
-    </div>
+
+      <div className="rel-notes">
+        {topPlatform && <p className="rel-note"><Icon name="sparkle" size={16} /><span><strong>Leitura rápida:</strong> {PLAT_LABELS[topPlatform[0]] || topPlatform[0]} concentrou mais publicações no período, com {topPlatform[1]} {topPlatform[1] === 1 ? 'conteúdo publicado' : 'conteúdos publicados'}.</span></p>}
+        <p className="rel-note"><Icon name="arrow" size={16} /><span><strong>Próxima ação:</strong> {recommendation}</span></p>
+      </div>
+
+      <details className="ds-disclosure rel-explain">
+        <summary>Como interpretar este resumo<Icon name="chevronDown" className="ds-disclosure__chev" /></summary>
+        <div className="ds-disclosure__body rel-explain__body">
+          <p className="ds-meta">Período: últimos {periodDays} dias · Escopo: {scopeLabel}</p>
+          <dl className="rel-explain__list" aria-label="Explicação dos indicadores">
+            <div><dt>Visualizações</dt><dd>Reproduções do conteúdo. Não são necessariamente pessoas diferentes.</dd></div>
+            <div><dt>Interações</dt><dd>Reações que mostram participação: curtidas, comentários e compartilhamentos.</dd></div>
+            <div><dt>Taxa de interação</dt><dd>Mostra a proporção de interações em relação às visualizações. Uma taxa maior indica maior reação proporcional ao conteúdo visto.</dd></div>
+            <div><dt>{audienceLabel}</dt><dd>{audienceHelp}</dd></div>
+          </dl>
+        </div>
+      </details>
+    </section>
+
+    <section className="ds-block rel-charts" aria-labelledby="analytics-trend-title">
+      <div className="rel-charts__grid">
+        <figure className="rel-chart rel-chart--wide">
+          <figcaption className="rel-chart__head">
+            <h3 className="rel-chart__title" id="analytics-trend-title">Resultados por dia de publicação</h3>
+            <p className="ds-hint">Visualizações e interações somadas nos últimos 7 dias em que houve publicação.</p>
+          </figcaption>
+          <div className="rel-canvas">
+            {trend.length
+              ? <Line
+                  data={{
+                    labels: trend.map(t => formatDiaBR(t.dia)),
+                    datasets: [
+                      { label: 'Visualizações', data: trend.map(t => t.reach), borderColor: colors.primary, backgroundColor: withAlpha(colors.primary, 0.12), fill: true, tension: 0.35, pointRadius: 3 },
+                      { label: 'Interações', data: trend.map(t => t.engagement), borderColor: colors.tertiary, backgroundColor: withAlpha(colors.tertiary, 0.08), fill: true, tension: 0.35, pointRadius: 3 },
+                    ],
+                  }}
+                  options={baseChartOptions()}
+                />
+              : <p className="rel-empty">Sem dados suficientes.</p>}
+          </div>
+        </figure>
+        <figure className="rel-chart">
+          <figcaption className="rel-chart__head"><h3 className="rel-chart__title">Posts por plataforma</h3></figcaption>
+          <div className="rel-canvas rel-canvas--sm">
+            {platformCounts.length
+              ? <Bar
+                  data={{
+                    labels: platformCounts.map(([p]) => PLAT_LABELS[p] || p),
+                    datasets: [{ data: platformCounts.map(([, count]) => count), backgroundColor: colors.primary, borderRadius: 6, maxBarThickness: 48 }],
+                  }}
+                  options={{ ...baseChartOptions(), plugins: { ...baseChartOptions().plugins, legend: { display: false } } }}
+                />
+              : <p className="rel-empty">Nenhum post publicado no período.</p>}
+          </div>
+        </figure>
+        <figure className="rel-chart">
+          <figcaption className="rel-chart__head">
+            <h3 className="rel-chart__title">Tipo de engajamento</h3>
+            <p className="ds-hint">As barras comparam os tipos dentro de cada rede.</p>
+          </figcaption>
+          {platformEngagement.length
+            ? <div className="rel-engage">
+              {platformEngagement.map(item => {
+                const max = Math.max(item.likes, item.comments, item.shares, 1)
+                return <div className="rel-engage__net" key={item.platform}>
+                  <p className="rel-engage__name"><NetworkGlyph network={item.platform} size={16} />{PLAT_LABELS[item.platform]}</p>
+                  <div className="ds-hbars">
+                    <EngagementTypeBar icon="heart" label="Curtidas" value={item.likes} max={max} />
+                    <EngagementTypeBar icon="comment" label="Comentários" value={item.comments} max={max} />
+                    <EngagementTypeBar icon="share" label="Compartilhamentos" value={item.shares} max={max} />
+                  </div>
+                </div>
+              })}
+            </div>
+            : <p className="rel-empty">Nenhuma rede com interações no período.</p>}
+        </figure>
+      </div>
+    </section>
   </>
 }

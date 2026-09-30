@@ -1,35 +1,33 @@
-import { useState } from 'react'
-import { filterByPeriod, filterTikTokVideosByPeriod, fmtNum, PLAT_LABELS } from '../../lib/analytics-format.js'
+import { useCallback, useState } from 'react'
+import { filterByPeriod, filterTikTokVideosByPeriod, fmtNum, fmtWatchTime, PLAT_LABELS } from '../../lib/analytics-format.js'
 import { CommentsModal } from './comments-modal.jsx'
-import { PlatformIcon } from '../ui/platform-icon.jsx'
+import { Icon, NetworkGlyph } from '../ui/icon.jsx'
 
 function TiktokPostsList({ tiktokVideos }) {
-  if (!tiktokVideos.length) return <p className="empty-state">Nenhum vídeo publicado.</p>
+  if (!tiktokVideos.length) return <p className="rel-empty">Nenhum vídeo publicado.</p>
   return (
-    <div className="analytics-posts-list">
+    <ul className="rel-posts__list">
       {tiktokVideos.map((v, index) => {
         const timestamp = Number(v.createTime)
         const publishedAt = v.publishedAt || (Number.isFinite(timestamp) ? new Date(timestamp * 1000).toISOString() : null)
-        const content = <>
+        return <li key={v.id || v.shareUrl || index} className="rel-post">
           {v.coverImageUrl
-            ? <img className="analytics-post-thumb" src={v.coverImageUrl} alt=""/>
-            : <div className="analytics-post-thumb analytics-post-thumb-fallback"><PlatformIcon platform="tiktok" className="h-5 w-5" /></div>}
-          <div className="analytics-post-body">
-            <div className="analytics-post-date">{publishedAt ? new Date(publishedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : 'Data não informada'}</div>
-            <div className="analytics-post-text">{v.title ? (v.title.length > 70 ? v.title.slice(0, 70) + '…' : v.title) : <span className="empty-state">Sem título</span>}</div>
+            ? <img className="rel-post__thumb" src={v.coverImageUrl} alt="" />
+            : <span className="rel-post__thumb" aria-hidden="true"><NetworkGlyph network="tiktok" size={20} /></span>}
+          <div className="rel-post__body">
+            <p className="ds-meta">{publishedAt ? new Date(publishedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : 'Data não informada'}</p>
+            <p className="rel-post__text">{v.title ? (v.title.length > 70 ? v.title.slice(0, 70) + '…' : v.title) : <span className="ds-meta">Sem título</span>}</p>
+            <ul className="rel-post__nums">
+              <li><Icon name="eye" size={16} /><span className="ds-sr-only">Visualizações:</span>{fmtNum(v.viewCount)}</li>
+              <li><Icon name="heart" size={16} /><span className="ds-sr-only">Curtidas:</span>{fmtNum(v.likeCount)}</li>
+              <li><Icon name="comment" size={16} /><span className="ds-sr-only">Comentários:</span>{fmtNum(v.commentCount)}</li>
+              <li><Icon name="share" size={16} /><span className="ds-sr-only">Compartilhamentos:</span>{fmtNum(v.shareCount)}</li>
+            </ul>
           </div>
-          <div className="analytics-post-metrics">
-            <span title="Visualizações">👁 {fmtNum(v.viewCount)}</span>
-            <span title="Curtidas">❤ {fmtNum(v.likeCount)}</span>
-            <span title="Comentários">💬 {fmtNum(v.commentCount)}</span>
-            <span title="Compartilhamentos">🔁 {fmtNum(v.shareCount)}</span>
-          </div>
-        </>
-        return v.shareUrl
-          ? <a key={v.id || v.shareUrl || index} href={v.shareUrl} target="_blank" rel="noopener noreferrer" className="analytics-post-item">{content}</a>
-          : <div key={v.id || index} className="analytics-post-item">{content}</div>
+          {v.shareUrl && <a className="ds-btn ds-btn--quiet ds-btn--sm rel-post__open" href={v.shareUrl} target="_blank" rel="noopener noreferrer">Abrir no TikTok<Icon name="external" size={16} /><span className="ds-sr-only"> (abre em nova aba)</span></a>}
+        </li>
       })}
-    </div>
+    </ul>
   )
 }
 
@@ -45,30 +43,30 @@ function groupByPost(metrics) {
 
 function PostThumb({ post }) {
   const itens = post.mediaItems?.length ? post.mediaItems : (post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType }] : [])
-  if (!itens.length) return <div className="analytics-post-thumb analytics-post-thumb-fallback">📝</div>
+  if (!itens.length) return <span className="rel-post__thumb" aria-hidden="true"><Icon name="compose" /></span>
   const item = itens[0]
   return item.type === 'video'
-    ? <video className="analytics-post-thumb" src={item.path}/>
-    : <img className="analytics-post-thumb" src={item.path} alt=""/>
+    ? <video className="rel-post__thumb" src={item.path} muted playsInline preload="metadata" />
+    : <img className="rel-post__thumb" src={item.path} alt="" />
 }
 
 const METRIC_FIELDS = [
-  { key: 'views', label: 'Visualizações', icon: '👁' },
-  { key: 'reach', label: 'Alcance', icon: '◎' },
-  { key: 'impressions', label: 'Impressões', icon: '◌' },
-  { key: 'likes', label: 'Curtidas', icon: '❤' },
-  { key: 'comments', label: 'Comentários', icon: '💬' },
-  { key: 'shares', label: 'Compartilhamentos', icon: '↗' },
-  { key: 'saves', label: 'Salvamentos', icon: '🔖' },
-  { key: 'clicks', label: 'Cliques', icon: '⌁' },
-  { key: 'follows', label: 'Seguidores ganhos', icon: '+' },
-  { key: 'engagedViews', label: 'Visualizações engajadas', icon: '◉' },
-  { key: 'estimatedMinutesWatched', label: 'Minutos assistidos', icon: '◷' },
-  { key: 'averageViewDuration', label: 'Duração média', icon: '◷' },
-  { key: 'averageViewPercentage', label: 'Retenção média', icon: '%' },
-  { key: 'dislikes', label: 'Não gostei', icon: '−' },
-  { key: 'subscribersGained', label: 'Inscritos ganhos', icon: '+' },
-  { key: 'subscribersLost', label: 'Inscritos perdidos', icon: '−' }
+  { key: 'views', label: 'Visualizações' },
+  { key: 'reach', label: 'Alcance' },
+  { key: 'impressions', label: 'Impressões' },
+  { key: 'likes', label: 'Curtidas' },
+  { key: 'comments', label: 'Comentários' },
+  { key: 'shares', label: 'Compartilhamentos' },
+  { key: 'saves', label: 'Salvamentos' },
+  { key: 'clicks', label: 'Cliques' },
+  { key: 'follows', label: 'Seguidores ganhos' },
+  { key: 'engagedViews', label: 'Visualizações engajadas' },
+  { key: 'estimatedMinutesWatched', label: 'Minutos assistidos' },
+  { key: 'averageViewDuration', label: 'Duração média' },
+  { key: 'averageViewPercentage', label: 'Retenção média' },
+  { key: 'dislikes', label: 'Não gostei' },
+  { key: 'subscribersGained', label: 'Inscritos ganhos' },
+  { key: 'subscribersLost', label: 'Inscritos perdidos' }
 ]
 
 function metricIsAvailable(value) {
@@ -79,6 +77,8 @@ function formatMetricValue(key, value) {
   if (key === 'averageViewPercentage' || key === 'engagementRate') {
     return `${Number(value).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}%`
   }
+  // A duração média chega em segundos; exibida como m:ss, igual ao cartão de tempo assistido.
+  if (key === 'averageViewDuration') return fmtWatchTime(Number(value))
   return fmtNum(value)
 }
 
@@ -91,90 +91,73 @@ function formatUpdatedAt(value) {
 
 function PostNetworkMetrics({ platform, metrics, metricsStatus, postId, onOpenComments }) {
   const fields = METRIC_FIELDS.filter(field => metricIsAvailable(metrics?.[field.key]))
-  const engagementRate = metricIsAvailable(metrics?.engagementRate)
-    ? { key: 'engagementRate', label: 'Taxa de engajamento', icon: '%' }
-    : null
-  if (engagementRate) fields.push(engagementRate)
+  if (metricIsAvailable(metrics?.engagementRate)) fields.push({ key: 'engagementRate', label: 'Taxa de engajamento' })
 
   return (
-    <div className={`analytics-post-network analytics-post-network-${platform}`}>
-      <div className="analytics-post-network-heading">
-        <span className={`analytics-post-platform-icon analytics-post-platform-icon-${platform}`} aria-label={platform}>
-          <PlatformIcon platform={platform} className="h-3.5 w-3.5" />
-        </span>
-        <strong>{PLAT_LABELS[platform] || platform}</strong>
-        <span className="analytics-post-sync-status">{formatUpdatedAt(metrics?.lastUpdated)}</span>
-      </div>
+    <div className="rel-postnet">
+      <p className="rel-postnet__head"><NetworkGlyph network={platform} size={16} /><strong>{PLAT_LABELS[platform] || platform}</strong><span className="ds-meta">{formatUpdatedAt(metrics?.lastUpdated)}</span></p>
       {metrics
         ? <>
-            <div className="analytics-post-metric-grid">
-              {fields.length
-                ? fields.map(field => (
-                    <span key={field.key} className="analytics-post-metric" title={field.label}>
-                      <span className="analytics-post-metric-icon" aria-hidden="true">{field.icon}</span>
-                      <span className="analytics-post-metric-label">{field.label}</span>
-                      <strong>{formatMetricValue(field.key, metrics[field.key])}</strong>
-                    </span>
-                  ))
-                : <span className="empty-state">A rede ainda não retornou métricas para este post.</span>}
-            </div>
+            {fields.length
+              ? <dl className="rel-postnet__figures">
+                  {fields.map(field => <div key={field.key}><dt title={field.label}>{field.label}</dt><dd>{formatMetricValue(field.key, metrics[field.key])}</dd></div>)}
+                </dl>
+              : <p className="ds-hint">A rede ainda não retornou métricas para este post.</p>}
             {metrics.reactionBreakdown && (
-              <div className="analytics-post-reactions">
-                Reações: {Object.entries(metrics.reactionBreakdown).map(([type, value]) => `${type} ${fmtNum(value)}`).join(' · ')}
-              </div>
+              <p className="ds-meta">Reações: {Object.entries(metrics.reactionBreakdown).map(([type, value]) => `${type} ${fmtNum(value)}`).join(' · ')}</p>
             )}
-            <div className="analytics-post-network-actions">
+            {(metrics.platformUrl || (platform === 'instagram' && postId)) && <div className="rel-postnet__actions">
               {metrics.platformUrl && (
-                <a href={metrics.platformUrl} target="_blank" rel="noopener noreferrer" className="link-button">Abrir na rede</a>
+                <a href={metrics.platformUrl} target="_blank" rel="noopener noreferrer" className="ds-btn ds-btn--quiet ds-btn--sm">Abrir na rede<Icon name="external" size={16} /><span className="ds-sr-only"> (abre em nova aba)</span></a>
               )}
               {platform === 'instagram' && postId && (
-                <button type="button" className="link-button" onClick={() => onOpenComments(postId)}>Ver comentários</button>
+                <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => onOpenComments(postId)}><Icon name="comment" size={16} />Ver comentários</button>
               )}
-            </div>
+            </div>}
           </>
-        : <div className="analytics-post-no-metrics">
+        : <p className="ds-hint">
             {metricsStatus === 'missing_external_id'
               ? 'Sem ID externo: reconecte a conta ou publique novamente para sincronizar os dados.'
               : 'Não foi possível sincronizar os dados deste post agora.'}
-          </div>}
+          </p>}
     </div>
   )
 }
 
-function NetworkPostsList({ net, metrics, onOpenComments }) {
+function NetworkPostsList({ metrics, onOpenComments }) {
   const posts = groupByPost(metrics).sort((a, b) => new Date(b.publishedAt) - new Date(a.publishedAt))
-  if (!posts.length) return <p className="empty-state">Nenhum post no período.</p>
+  if (!posts.length) return <p className="rel-empty">Nenhum post no período.</p>
 
   return (
-    <div className="analytics-posts-list">
+    <ul className="rel-posts__list">
       {posts.map((post, i) => (
-        <div key={post.postId || i} className="analytics-post-item">
-          <PostThumb post={post}/>
-          <div className="analytics-post-body">
-            <div className="analytics-post-date">{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—'}</div>
-            <div className="analytics-post-text">{post.text || post.youtubeTitle ? (post.text || post.youtubeTitle).slice(0, 70) : <span className="empty-state">Sem texto</span>}</div>
-          </div>
-          <div className="analytics-post-platforms">
+        <li key={post.postId || i} className="rel-post rel-post--full">
+          <PostThumb post={post} />
+          <div className="rel-post__body">
+            <p className="ds-meta">{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : '—'}</p>
+            <p className="rel-post__text">{post.text || post.youtubeTitle ? (post.text || post.youtubeTitle).slice(0, 70) : <span className="ds-meta">Sem texto</span>}</p>
             {post.plataformas.map((pl, j) => (
-              <PostNetworkMetrics key={`${pl.platform}-${j}`} platform={pl.platform} metrics={pl.metrics} metricsStatus={pl.metricsStatus} postId={pl.postId} onOpenComments={onOpenComments}/>
+              <PostNetworkMetrics key={`${pl.platform}-${j}`} platform={pl.platform} metrics={pl.metrics} metricsStatus={pl.metricsStatus} postId={pl.postId} onOpenComments={onOpenComments} />
             ))}
           </div>
-        </div>
+        </li>
       ))}
-    </div>
+    </ul>
   )
 }
 
 export function AnalyticsPostsList({ net, tab, data, tiktokVideos, periodDays }) {
   const [commentsPostId, setCommentsPostId] = useState(null)
+  // Função estável: o modal recarrega os comentários quando onClose muda.
+  const closeComments = useCallback(() => setCommentsPostId(null), [])
   if (tab !== 'posts' && tab !== 'videos') return null
 
-  if (net === 'tiktok') return <TiktokPostsList tiktokVideos={filterTikTokVideosByPeriod(tiktokVideos, periodDays)}/>
+  if (net === 'tiktok') return <TiktokPostsList tiktokVideos={filterTikTokVideosByPeriod(tiktokVideos, periodDays)} />
 
   const metrics = filterByPeriod(data.metrics, periodDays).filter(m => m.platform === net)
   return <>
-    <div className="analytics-posts-live-note">Dados reais por publicação e rede. A lista é atualizada automaticamente.</div>
-    <NetworkPostsList net={net} metrics={metrics} onOpenComments={setCommentsPostId}/>
-    {commentsPostId != null && <CommentsModal postId={commentsPostId} onClose={() => setCommentsPostId(null)}/>}
+    <p className="ds-hint">Dados reais por publicação e rede. A lista é atualizada automaticamente.</p>
+    <NetworkPostsList metrics={metrics} onOpenComments={setCommentsPostId} />
+    {commentsPostId != null && <CommentsModal postId={commentsPostId} onClose={closeComments} />}
   </>
 }

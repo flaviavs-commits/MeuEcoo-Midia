@@ -1,5 +1,5 @@
 import { Bar, Doughnut } from 'react-chartjs-2'
-import { topN, baseChartOptions, chartThemeColors, DEMO_COLORS, GENDER_COLORS, fmtNum } from '../../lib/analytics-format.js'
+import { topN, baseChartOptions, chartThemeColors, DEMO_COLORS, GENDER_COLORS, fmtNum, vizColors, PLAT_LABELS } from '../../lib/analytics-format.js'
 import { useTheme } from '../ui/theme-selector.jsx'
 
 const AGE_ORDER = ['13-17', '18-24', '25-34', '35-44', '45-54', '55-64', '65+']
@@ -122,11 +122,13 @@ export function AnalyticsDemographics({ net, tab, data }) {
   const rows = rowsFromSource(source?.demo)
 
   if (!source || (!rows.ageGender.length && !rows.age.length && !rows.gender.length && !rows.country.length)) {
-    if (!['instagram', 'youtube'].includes(net)) return <section className="analytics-demographics-unavailable" aria-label="Demografia da audiência">
-      <div className="an-summary-section-title">Perfil da audiência</div>
-      <p>A API oficial do {net === 'tiktok' ? 'TikTok' : 'Facebook'} conectada ao app não fornece sexo e faixa etária para esta conta.</p>
+    const text = ['instagram', 'youtube'].includes(net)
+      ? `O ${PLAT_LABELS[net] || net} não informou idade, gênero ou país desta audiência até agora.`
+      : `A API oficial do ${net === 'tiktok' ? 'TikTok' : 'Facebook'} conectada ao app não fornece sexo e faixa etária para esta conta.`
+    return <section className="rel-demo rel-demo--none" aria-label="Demografia da audiência">
+      <h3 className="rel-subhead__title">Perfil da audiência</h3>
+      <p className="ds-hint">{text}</p>
     </section>
-    return null
   }
 
   const ageGenderTitle = net === 'instagram' ? 'Seguidores por idade e gênero' : 'Espectadores por idade e gênero'
@@ -138,38 +140,43 @@ export function AnalyticsDemographics({ net, tab, data }) {
   const genderSummary = summarize(genderRows, 'gender', genderLabel)
   const ageSummary = summarize(ageRows, 'age', ageLabel)
   const geoTop = topN(rows.country.map(item => ({ label: item.country, value: item.value })), 8)
+  const primary = vizColors().primary
 
-  return <section className="analytics-demographics" aria-label="Perfil da audiência">
-    <div className="analytics-demographics-heading">
+  return <section className="rel-demo" aria-label="Perfil da audiência">
+    <div className="rel-subhead">
       <div>
-        <div className="an-summary-section-title">Perfil da audiência</div>
-        <p className="analytics-section-description">Dados reais de {source.audience.toLowerCase()} · fonte: {source.source}.</p>
+        <h3 className="rel-subhead__title">Perfil da audiência</h3>
+        <p className="ds-hint">Dados reais de {source.audience.toLowerCase()} · fonte: {source.source}.</p>
       </div>
-      <span className="analytics-demographics-badge">Não identifica pessoas individualmente</span>
+      <span className="ds-badge" data-tone="outline">Não identifica pessoas individualmente</span>
     </div>
-    <div className="analytics-demographics-summary-grid">
-      <div className="analytics-demographics-summary-card"><strong>Gênero</strong>{genderSummary.length ? genderSummary.map(item => <span key={item.label}><b>{item.label}</b><em>{fmtNum(item.value)}</em></span>) : <small>Sem dados disponíveis.</small>}</div>
-      <div className="analytics-demographics-summary-card"><strong>Faixa etária</strong>{ageSummary.length ? ageSummary.map(item => <span key={item.label}><b>{item.label}</b><em>{fmtNum(item.value)}</em></span>) : <small>Sem dados disponíveis.</small>}</div>
+    <div className="rel-demo__sums">
+      <div className="rel-demo__sum"><p className="rel-demo__label">Gênero</p>{genderSummary.length ? <ul>{genderSummary.map(item => <li key={item.label}><span>{item.label}</span><strong>{fmtNum(item.value)}</strong></li>)}</ul> : <p className="ds-hint">Sem dados disponíveis.</p>}</div>
+      <div className="rel-demo__sum"><p className="rel-demo__label">Faixa etária</p>{ageSummary.length ? <ul>{ageSummary.map(item => <li key={item.label}><span>{item.label}</span><strong>{fmtNum(item.value)}</strong></li>)}</ul> : <p className="ds-hint">Sem dados disponíveis.</p>}</div>
     </div>
-    <div className="analytics-demo-grid">
-      <div className="an-summary-section">
-        <div className="an-summary-section-title">{ageGenderTitle}</div>
-        <p className="analytics-section-description">A rede agrupa a audiência em faixas; não mostra nomes ou perfis individuais.</p>
-        <div className="analytics-chart-canvas-wrap">
+    <div className="rel-demo__charts">
+      <figure className="rel-chart">
+        <figcaption className="rel-chart__head">
+          <h4 className="rel-chart__title">{ageGenderTitle}</h4>
+          <p className="ds-hint">A rede agrupa a audiência em faixas; não mostra nomes ou perfis individuais.</p>
+        </figcaption>
+        <div className="rel-canvas">
           {ageRows.length
-            ? <Bar data={{ labels: faixas.map(ageLabel), datasets: ageGenderRows.length ? generos.map(gender => ({ label: gender, data: faixas.map(age => ageGenderRows.filter(item => ageKey(item.age) === age && genderLabel(item.gender) === gender).reduce((total, item) => total + Number(item.value), 0)), backgroundColor: GENDER_COLORS[gender] || '#d1993e', borderRadius: 4 })) : [{ label: 'Audiência', data: faixas.map(age => ageRows.filter(item => ageKey(item.age) === age).reduce((total, item) => total + Number(item.value), 0)), backgroundColor: '#d1993e', borderRadius: 4 }] }} options={baseChartOptions()}/>
-            : <p className="empty-state" style={{ textAlign: 'center', padding: '3rem 1rem' }}>Sem dados disponíveis.</p>}
+            ? <Bar data={{ labels: faixas.map(ageLabel), datasets: ageGenderRows.length ? generos.map(gender => ({ label: gender, data: faixas.map(age => ageGenderRows.filter(item => ageKey(item.age) === age && genderLabel(item.gender) === gender).reduce((total, item) => total + Number(item.value), 0)), backgroundColor: GENDER_COLORS[gender] || primary, borderRadius: 4 })) : [{ label: 'Audiência', data: faixas.map(age => ageRows.filter(item => ageKey(item.age) === age).reduce((total, item) => total + Number(item.value), 0)), backgroundColor: primary, borderRadius: 4 }] }} options={baseChartOptions()}/>
+            : <p className="rel-empty">Sem dados disponíveis.</p>}
         </div>
-      </div>
-      <div className="an-summary-section">
-        <div className="an-summary-section-title">{net === 'instagram' ? 'Seguidores por país' : 'Espectadores por país'}</div>
-        <p className="analytics-section-description">Veja de onde vêm as pessoas da audiência informada pela rede.</p>
-        <div className="analytics-chart-canvas-wrap">
+      </figure>
+      <figure className="rel-chart">
+        <figcaption className="rel-chart__head">
+          <h4 className="rel-chart__title">{net === 'instagram' ? 'Seguidores por país' : 'Espectadores por país'}</h4>
+          <p className="ds-hint">Veja de onde vêm as pessoas da audiência informada pela rede.</p>
+        </figcaption>
+        <div className="rel-canvas">
           {geoTop.length
             ? <Doughnut data={{ labels: geoTop.map(item => item.label), datasets: [{ data: geoTop.map(item => item.value), backgroundColor: DEMO_COLORS }] }} options={{ responsive: true, maintainAspectRatio: false, color: chartColors.tick, plugins: { legend: { position: 'right', labels: { color: chartColors.tick, boxWidth: 12, font: { size: 11 } } }, tooltip: { backgroundColor: chartColors.tooltipBackground, titleColor: chartColors.tooltipText, bodyColor: chartColors.tooltipText, borderColor: chartColors.tooltipBorder, borderWidth: 1 } } }}/>
-            : <p className="empty-state" style={{ textAlign: 'center', padding: '3rem 1rem' }}>Sem dados disponíveis.</p>}
+            : <p className="rel-empty">Sem dados disponíveis.</p>}
         </div>
-      </div>
+      </figure>
     </div>
   </section>
 }

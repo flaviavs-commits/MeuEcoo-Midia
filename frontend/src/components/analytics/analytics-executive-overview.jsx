@@ -1,5 +1,5 @@
-import { filterByPeriod, filterTikTokVideosByPeriod, fmtNum, NETWORK_ORDER, PLAT_COLORS, PLAT_LABELS } from '../../lib/analytics-format.js'
-import { PlatformIcon } from '../ui/platform-icon.jsx'
+import { filterByPeriod, filterTikTokVideosByPeriod, fmtNum, NETWORK_ORDER, PLAT_LABELS } from '../../lib/analytics-format.js'
+import { Icon, NetworkGlyph } from '../ui/icon.jsx'
 
 function metricNumber(metrics, name) {
   const value = metrics?.[name]
@@ -90,11 +90,11 @@ function buildNetworkStats(data, tiktokVideos, periodDays, activeNet = null) {
   }).filter(item => item.content || item.reach != null || item.audience != null)
 }
 
-function Kpi({ label, value, help, accent = '' }) {
-  return <div className={`analytics-executive-kpi ${accent}`}>
-    <span>{label}</span>
-    <strong>{value}</strong>
-    <small>{help}</small>
+function Kpi({ label, value, help }) {
+  return <div className="ds-stat">
+    <p className="ds-stat__label">{label}</p>
+    <p className="ds-stat__value ds-stat__value--sm" data-state={value === '—' ? 'unavailable' : undefined}>{value}</p>
+    <p className="ds-stat__caption">{help}</p>
   </div>
 }
 
@@ -109,7 +109,7 @@ function interactionBreakdown(item) {
   }, {})
 }
 
-export function AnalyticsExecutiveOverview({ data, tiktokVideos, periodDays, activeNet = null, recommendedActions = [] }) {
+export function AnalyticsExecutiveOverview({ data, tiktokVideos, periodDays, activeNet = null, recommendedActions = [], onSelectNetwork = null }) {
   const stats = buildNetworkStats(data, tiktokVideos, periodDays, activeNet)
   if (!stats.length) return null
 
@@ -131,67 +131,92 @@ export function AnalyticsExecutiveOverview({ data, tiktokVideos, periodDays, act
       return score(b) - score(a)
     })[0]
 
-  return <section className="analytics-executive-overview" aria-labelledby="analytics-executive-title">
-    <div className="analytics-executive-heading">
-      <div>
-        <p className="analytics-kicker">PAINEL EXECUTIVO</p>
-        <h3 id="analytics-executive-title">{activeNet ? `Performance do ${PLAT_LABELS[activeNet]}` : 'Performance consolidada'}</h3>
-        <p>{activeNet ? `Uma leitura dos resultados reais somente do ${PLAT_LABELS[activeNet]} no período selecionado.` : 'Uma leitura profissional dos resultados reais de todas as contas no período selecionado.'}</p>
+  const bestNetworkNote = bestNetwork && (() => {
+    const breakdown = bestContent && bestContent.platform === bestNetwork.platform
+      ? contentRows
+        .filter(row => row.platform === bestNetwork.platform && hasMetricData(row))
+        .reduce((total, row) => {
+          const rowBreakdown = interactionBreakdown(row)
+          return Object.fromEntries(Object.keys(rowBreakdown).map(name => [
+            name,
+            rowBreakdown[name] == null ? total[name] : (total[name] == null ? rowBreakdown[name] : total[name] + rowBreakdown[name])
+          ]))
+        }, { likes: null, comments: null, shares: null, saves: null })
+      : null
+    const detail = breakdown
+      ? ` (${fmtNum(breakdown.likes)} curtidas + ${fmtNum(breakdown.comments)} comentários + ${fmtNum(breakdown.shares)} compartilhamentos + ${fmtNum(breakdown.saves)} salvamentos)`
+      : ''
+    return <p className="rel-standout__note"><b>{activeNet ? 'Rede analisada:' : 'Melhor rede:'}</b> {PLAT_LABELS[bestNetwork.platform]} concentrou {fmtNum(bestNetwork.interactions)} interações no recorte{detail}.</p>
+  })()
+
+  return <section className="ds-block rel-exec" aria-labelledby="analytics-executive-title">
+    <div className="ds-head">
+      <div className="ds-head__text">
+        <p className="ds-eyebrow">Painel executivo</p>
+        <h2 className="ds-head__title" id="analytics-executive-title">{activeNet ? `Performance do ${PLAT_LABELS[activeNet]}` : 'Performance consolidada'}</h2>
+        <p className="ds-head__desc">{activeNet ? `Resultados somente do ${PLAT_LABELS[activeNet]} no período selecionado.` : 'Resultados de todas as contas no período selecionado, rede a rede.'}</p>
       </div>
-      <span className="analytics-executive-source"><i aria-hidden="true"/>Dados das integrações conectadas</span>
+      <span className="ds-badge" data-tone="outline">Dados das integrações conectadas</span>
     </div>
 
-    <div className="analytics-executive-kpis">
-      <Kpi label="Alcance / visualizações" value={totalReach == null ? '—' : fmtNum(totalReach)} help="Soma do alcance ou das visualizações disponíveis." accent="is-gold"/>
-      <Kpi label="Impressões" value={totalImpressions == null ? '—' : fmtNum(totalImpressions)} help="Exibido quando a rede fornece esse dado." accent="is-blue"/>
-      <Kpi label="Interações" value={totalInteractions == null ? '—' : fmtNum(totalInteractions)} help="Curtidas, comentários, compartilhamentos e salvamentos." accent="is-pink"/>
-      <Kpi label="Média por conteúdo" value={avgInteractions == null ? '—' : fmtNum(Math.round(avgInteractions))} help="Interações médias por conteúdo analisado." accent="is-green"/>
-      <Kpi label="Salvamentos" value={totalSaves == null ? '—' : fmtNum(totalSaves)} help="Conteúdos salvos pela audiência." accent="is-purple"/>
-      <Kpi label="Crescimento da audiência" value={totalGrowth == null ? '—' : `${totalGrowth >= 0 ? '+' : ''}${fmtNum(totalGrowth)}`} help="Variação de seguidores ou inscritos." accent="is-cyan"/>
+    <div className="ds-stats rel-exec__figures" style={{ '--cols': 3 }}>
+      <Kpi label="Alcance / visualizações" value={totalReach == null ? '—' : fmtNum(totalReach)} help="Soma do alcance ou das visualizações disponíveis." />
+      <Kpi label="Interações" value={totalInteractions == null ? '—' : fmtNum(totalInteractions)} help="Curtidas, comentários, compartilhamentos e salvamentos." />
+      <Kpi label="Média por conteúdo" value={avgInteractions == null ? '—' : fmtNum(Math.round(avgInteractions))} help="Interações médias por conteúdo analisado." />
+      <Kpi label="Impressões" value={totalImpressions == null ? '—' : fmtNum(totalImpressions)} help="Exibido quando a rede fornece esse dado." />
+      <Kpi label="Salvamentos" value={totalSaves == null ? '—' : fmtNum(totalSaves)} help="Conteúdos salvos pela audiência." />
+      <Kpi label="Crescimento da audiência" value={totalGrowth == null ? '—' : `${totalGrowth >= 0 ? '+' : ''}${fmtNum(totalGrowth)}`} help="Variação de seguidores ou inscritos no histórico disponível." />
     </div>
 
-    <div className="analytics-executive-grid">
-      <div className="analytics-executive-table-wrap">
-          <div className="analytics-executive-section-heading"><div><strong>{activeNet ? `Resultado do ${PLAT_LABELS[activeNet]}` : 'Comparativo por rede'}</strong><span>{activeNet ? 'Alcance, audiência e eficiência desta rede.' : 'Alcance, audiência e eficiência do conteúdo.'}</span></div><b>{totalContent} conteúdos</b></div>
-        <div className="analytics-executive-table-scroll"><table>
-          <thead><tr><th>Rede</th><th>Conteúdos</th><th>Alcance</th><th>Audiência</th><th>Interações</th><th>Taxa</th></tr></thead>
+    <div className="rel-exec__body">
+      <div className="rel-exec__compare">
+        <div className="rel-subhead">
+          <div>
+            <h3 className="rel-subhead__title">{activeNet ? `Resultado do ${PLAT_LABELS[activeNet]}` : 'Comparativo por rede'}</h3>
+            <p className="ds-hint">{activeNet ? 'Alcance, audiência e eficiência desta rede.' : 'Alcance, audiência e eficiência do conteúdo.'}</p>
+          </div>
+          <span className="ds-badge" data-tone="outline">{totalContent} conteúdos</span>
+        </div>
+        <div className="ds-scrollx"><table className="ds-datatable rel-exec__table">
+          <thead><tr>
+            <th scope="col">Rede</th><th scope="col" className="ds-cellnum">Conteúdos</th><th scope="col" className="ds-cellnum">Alcance</th><th scope="col" className="ds-cellnum">Audiência</th><th scope="col" className="ds-cellnum">Interações</th><th scope="col" className="ds-cellnum">Taxa</th>
+            {onSelectNetwork && !activeNet && <th scope="col"><span className="ds-sr-only">Abrir rede</span></th>}
+          </tr></thead>
           <tbody>{stats.map(item => <tr key={item.platform}>
-            <td><span className="analytics-executive-network"><i style={{ background: PLAT_COLORS[item.platform] }}><PlatformIcon platform={item.platform} className="h-3 w-3"/></i>{PLAT_LABELS[item.platform]}</span></td>
-            <td>{item.content || '—'}</td><td>{item.reach == null ? '—' : fmtNum(item.reach)}</td><td>{item.audience == null ? '—' : fmtNum(item.audience)}</td><td>{item.interactions == null ? '—' : fmtNum(item.interactions)}</td><td>{formatRate(item.rate)}</td>
+            <th scope="row"><span className="ds-cellname"><NetworkGlyph network={item.platform} size={16} />{PLAT_LABELS[item.platform]}</span></th>
+            <td className="ds-cellnum">{item.content || '—'}</td>
+            <td className="ds-cellnum">{item.reach == null ? '—' : fmtNum(item.reach)}</td>
+            <td className="ds-cellnum">{item.audience == null ? '—' : fmtNum(item.audience)}</td>
+            <td className="ds-cellnum">{item.interactions == null ? '—' : fmtNum(item.interactions)}</td>
+            <td className="ds-cellnum">{formatRate(item.rate)}</td>
+            {onSelectNetwork && !activeNet && <td className="rel-exec__go"><button type="button" className="ds-go" onClick={() => onSelectNetwork(item.platform)}>Ver rede<Icon name="arrow" size={16} /></button></td>}
           </tr>)}</tbody>
         </table></div>
       </div>
 
-      <div className="analytics-executive-highlight">
-        <p className="analytics-kicker">DESTAQUE DO PERÍODO</p>
+      <div className="rel-standout">
+        <p className="ds-eyebrow">Destaque do período</p>
         {bestContent
           ? <>
-              <div className="analytics-executive-highlight-network"><span style={{ background: PLAT_COLORS[bestContent.platform] }}><PlatformIcon platform={bestContent.platform} className="h-3.5 w-3.5"/></span>{PLAT_LABELS[bestContent.platform]}</div>
-              <strong>{bestContent.text || bestContent.title || 'Conteúdo sem descrição'}</strong>
-              <small>{bestContent.publishedAt ? new Date(bestContent.publishedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : 'Data não informada'}</small>
-              <div className="analytics-executive-highlight-metrics"><span>♥ {fmtNum(metricNumber(bestContent.metrics, 'likes'))}</span><span>💬 {fmtNum(metricNumber(bestContent.metrics, 'comments'))}</span><span>↗ {fmtNum(metricNumber(bestContent.metrics, 'shares'))}</span><span>🔖 {fmtNum(metricNumber(bestContent.metrics, 'saves'))}</span></div>
-            </>
-          : <p className="empty-state">Ainda não há dados de conteúdo suficientes para destacar uma publicação.</p>}
-        {bestNetwork && (() => {
-          const breakdown = bestContent && bestContent.platform === bestNetwork.platform
-            ? contentRows
-              .filter(row => row.platform === bestNetwork.platform && hasMetricData(row))
-              .reduce((total, row) => {
-                const rowBreakdown = interactionBreakdown(row)
-                return Object.fromEntries(Object.keys(rowBreakdown).map(name => [
-                  name,
-                  rowBreakdown[name] == null ? total[name] : (total[name] == null ? rowBreakdown[name] : total[name] + rowBreakdown[name])
-                ]))
-              }, { likes: null, comments: null, shares: null, saves: null })
-            : null
-          const detail = breakdown
-            ? ` (${fmtNum(breakdown.likes)} curtidas + ${fmtNum(breakdown.comments)} comentários + ${fmtNum(breakdown.shares)} compartilhamentos + ${fmtNum(breakdown.saves)} salvamentos)`
-            : ''
-          return <p className="analytics-executive-highlight-note"><b>{activeNet ? 'Rede analisada:' : 'Melhor rede:'}</b> {PLAT_LABELS[bestNetwork.platform]} concentrou {fmtNum(bestNetwork.interactions)} interações no recorte{detail}.</p>
-        })()}
+            <p className="rel-standout__net"><NetworkGlyph network={bestContent.platform} size={16} />{PLAT_LABELS[bestContent.platform]}</p>
+            <p className="rel-standout__title">{bestContent.text || bestContent.title || 'Conteúdo sem descrição'}</p>
+            <p className="ds-meta">{bestContent.publishedAt ? new Date(bestContent.publishedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : 'Data não informada'}</p>
+            <ul className="rel-standout__metrics">
+              <li><Icon name="heart" size={16} /><span className="ds-sr-only">Curtidas:</span>{fmtNum(metricNumber(bestContent.metrics, 'likes'))}</li>
+              <li><Icon name="comment" size={16} /><span className="ds-sr-only">Comentários:</span>{fmtNum(metricNumber(bestContent.metrics, 'comments'))}</li>
+              <li><Icon name="share" size={16} /><span className="ds-sr-only">Compartilhamentos:</span>{fmtNum(metricNumber(bestContent.metrics, 'shares'))}</li>
+              <li><Icon name="bookmark" size={16} /><span className="ds-sr-only">Salvamentos:</span>{fmtNum(metricNumber(bestContent.metrics, 'saves'))}</li>
+            </ul>
+          </>
+          : <p className="ds-hint">Ainda não há dados de conteúdo suficientes para destacar uma publicação.</p>}
+        {bestNetworkNote}
       </div>
+
+      {recommendedActions.length > 0 && <div className="rel-steps">
+        <h3 className="rel-subhead__title">Próximos passos recomendados</h3>
+        <ol className="rel-steps__list">{recommendedActions.map(action => <li key={action}>{action}</li>)}</ol>
+      </div>}
     </div>
 
-    {recommendedActions.length > 0 && <div className="analytics-performance-report-actions"><strong>Próximos passos recomendados</strong>{recommendedActions.map((action, index) => <p key={action}><b>{index + 1}</b>{action}</p>)}</div>}
   </section>
 }

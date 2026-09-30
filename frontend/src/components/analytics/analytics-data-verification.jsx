@@ -1,6 +1,8 @@
 import { filterTikTokVideosByPeriod, NETWORK_ORDER, PLAT_LABELS } from '../../lib/analytics-format.js'
+import { Icon, NetworkGlyph } from '../ui/icon.jsx'
 
-const STATUS_ICONS = { verified: '✓', partial: '!', no_data: '○' }
+const STATUS_ICONS = { verified: 'checkCircle', partial: 'alertTriangle', no_data: 'info' }
+const STATUS_TONES = { verified: 'ok', partial: 'warning', no_data: 'muted' }
 
 function numericOrNull(value) {
   if (value == null || value === '') return null
@@ -70,39 +72,45 @@ export function AnalyticsDataVerification({ verification, activeNet = null, sour
   const contentWithoutData = numericOrNull(content.withoutData)
   const visibleSourceErrors = sourceErrors.filter(issue => !activeNet || String(issue.source || '').toLowerCase().includes(String(PLAT_LABELS[activeNet] || activeNet).toLowerCase()))
 
-  return <section className={`analytics-data-verification is-${status}`} aria-labelledby="analytics-data-verification-title">
-    <div className="analytics-data-verification-heading">
-      <div className="analytics-data-verification-title-wrap">
-        <span className="analytics-data-verification-icon" aria-hidden="true">{STATUS_ICONS[status] || '○'}</span>
-        <div>
-          <p className="analytics-kicker">CONFERÊNCIA DOS DADOS</p>
-          <h3 id="analytics-data-verification-title">{label}{activeNet ? ` · ${PLAT_LABELS[activeNet] || activeNet}` : ''}</h3>
+  return <section className="ds-block rel-verify" data-status={status} aria-labelledby="analytics-data-verification-title">
+    <div className="ds-head">
+      <div className="ds-head__text">
+        <p className="ds-eyebrow">Conferência dos dados</p>
+        <div className="rel-verify__title">
+          <span className="rel-verify__mark" aria-hidden="true"><Icon name={STATUS_ICONS[status] || 'info'} /></span>
+          <h2 className="ds-head__title" id="analytics-data-verification-title">{label}{activeNet ? ` · ${PLAT_LABELS[activeNet] || activeNet}` : ''}</h2>
         </div>
+        {description && <p className="ds-head__desc">{description}</p>}
       </div>
-      <span className="analytics-data-verification-period">{periodLabel(verification.period)}</span>
+      <span className="ds-badge" data-tone="outline">{periodLabel(verification.period)}</span>
     </div>
-    <p className="analytics-data-verification-description">{description}</p>
-    {visibleSourceErrors.length > 0 && <div className="analytics-data-verification-source-error" role="status"><strong>Também não foi possível conferir:</strong> {visibleSourceErrors.map(issue => `${issue.source}: ${issue.message}`).join(' · ')}</div>}
-
-    <div className="analytics-data-verification-facts">
-      <div><strong>{coveragePercent == null ? '—' : `${coveragePercent}%`}</strong><span>cobertura de publicações</span><small>{contentWithData == null ? '—' : contentWithData} de {contentTotal == null ? '—' : contentTotal} com métrica confirmada</small></div>
-      <div><strong>{contentWithoutData == null ? '—' : contentWithoutData}</strong><span>sem métrica confirmada</span><small>Não entram como zero no cálculo.</small></div>
-      <div><strong>{entries.length}</strong><span>redes com fonte</span><small>API conectada ou histórico local.</small></div>
-    </div>
-
-    {entries.length > 0 && <div className="analytics-data-verification-platforms">
-      {entries.map(([platform, item]) => <article key={platform} className={`analytics-data-verification-platform is-${item.status}`}>
-        <div className="analytics-data-verification-platform-title"><strong>{PLAT_LABELS[platform] || platform}</strong><span><i aria-hidden="true">{STATUS_ICONS[item.status] || '○'}</i>{item.label}</span></div>
-        <p>{item.description}</p>
-        <small>{item.content?.total != null ? `${item.content.withData == null ? '—' : item.content.withData}/${item.content.total} publicações com dado` : `${item.accounts?.withAnalytics == null ? '—' : item.accounts.withAnalytics} conta(s) com analytics`}</small>
-      </article>)}
+    {visibleSourceErrors.length > 0 && <div className="ds-alert rel-verify__alert" data-tone="warning" role="status">
+      <Icon name="alertTriangle" className="ds-alert__icon" />
+      <p className="ds-alert__text"><strong>Também não foi possível conferir:</strong> {visibleSourceErrors.map(issue => `${issue.source}: ${issue.message}`).join(' · ')}</p>
     </div>}
 
-    <details className="analytics-data-verification-help">
-      <summary>Como interpretar esta conferência?</summary>
-      <p><strong>Dados verificados</strong> significa que a rede respondeu ou que o valor veio de um snapshot local identificado. <strong>Dados parciais</strong> significa que parte das publicações ou consultas não respondeu.</p>
-      <p>“—” significa que não existe valor confirmado para aquele indicador. Isso é diferente de zero: zero é um resultado informado pela rede.</p>
-      <p>Visualizações são reproduções e podem contar a mesma pessoa mais de uma vez. Seguidores e inscritos são totais por rede, não pessoas únicas.</p>
+    <div className="ds-stats rel-verify__facts" style={{ '--cols': 3 }}>
+      <div className="ds-stat"><p className="ds-stat__label">Cobertura de publicações</p><p className="ds-stat__value ds-stat__value--sm">{coveragePercent == null ? '—' : `${coveragePercent}%`}</p><p className="ds-stat__caption">{contentWithData == null ? '—' : contentWithData} de {contentTotal == null ? '—' : contentTotal} com métrica confirmada</p></div>
+      <div className="ds-stat"><p className="ds-stat__label">Sem métrica confirmada</p><p className="ds-stat__value ds-stat__value--sm">{contentWithoutData == null ? '—' : contentWithoutData}</p><p className="ds-stat__caption">Não entram como zero no cálculo.</p></div>
+      <div className="ds-stat"><p className="ds-stat__label">Redes com fonte</p><p className="ds-stat__value ds-stat__value--sm">{entries.length}</p><p className="ds-stat__caption">API conectada ou histórico local.</p></div>
+    </div>
+
+    {entries.length > 0 && <ul className="rel-verify__nets">
+      {entries.map(([platform, item]) => <li className="rel-verify__net" key={platform}>
+        <p className="rel-verify__netname"><NetworkGlyph network={platform} size={16} />{PLAT_LABELS[platform] || platform}</p>
+        <span className="ds-status" data-status={STATUS_TONES[item.status] || 'muted'}><Icon name={STATUS_ICONS[item.status] || 'info'} />{item.label}</span>
+        {item.description && <p className="ds-hint">{item.description}</p>}
+        <p className="ds-meta">{item.content?.total != null ? `${item.content.withData == null ? '—' : item.content.withData}/${item.content.total} publicações com dado` : `${item.accounts?.withAnalytics == null ? '—' : item.accounts.withAnalytics} conta(s) com analytics`}</p>
+      </li>)}
+    </ul>}
+
+    <details className="ds-disclosure rel-explain">
+      <summary>Como interpretar esta conferência?<Icon name="chevronDown" className="ds-disclosure__chev" /></summary>
+      <div className="ds-disclosure__body rel-explain__body">
+        <p><strong>Dados verificados</strong> significa que a rede respondeu ou que o valor veio de um snapshot local identificado. <strong>Dados parciais</strong> significa que parte das publicações ou consultas não respondeu.</p>
+        <p>“—” significa que não existe valor confirmado para aquele indicador. Isso é diferente de zero: zero é um resultado informado pela rede.</p>
+        <p>Visualizações são reproduções e podem contar a mesma pessoa mais de uma vez. Seguidores e inscritos são totais por rede, não pessoas únicas.</p>
+      </div>
     </details>
   </section>
 }

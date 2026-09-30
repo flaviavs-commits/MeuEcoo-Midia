@@ -67,10 +67,10 @@ export const METRIC_HELP = {
 }
 
 export const NET_TABS = {
-  instagram: [{ key: 'community', label: 'Comunidade' }, { key: 'posts', label: 'Posts Publicados' }, { key: 'growth', label: 'Crescimento' }],
-  facebook: [{ key: 'community', label: 'Comunidade' }, { key: 'posts', label: 'Posts Publicados' }],
-  youtube: [{ key: 'community', label: 'Comunidade' }, { key: 'videos', label: 'Vídeos Publicados' }, { key: 'growth', label: 'Crescimento' }],
-  tiktok: [{ key: 'community', label: 'Comunidade' }, { key: 'videos', label: 'Vídeos Publicados' }, { key: 'growth', label: 'Crescimento' }],
+  instagram: [{ key: 'community', label: 'Comunidade' }, { key: 'posts', label: 'Posts publicados' }, { key: 'growth', label: 'Crescimento' }],
+  facebook: [{ key: 'community', label: 'Comunidade' }, { key: 'posts', label: 'Posts publicados' }],
+  youtube: [{ key: 'community', label: 'Comunidade' }, { key: 'videos', label: 'Vídeos publicados' }, { key: 'growth', label: 'Crescimento' }],
+  tiktok: [{ key: 'community', label: 'Comunidade' }, { key: 'videos', label: 'Vídeos publicados' }, { key: 'growth', label: 'Crescimento' }],
 }
 
 export function fmtNum(n) {
@@ -270,14 +270,32 @@ export function detectNetworks({ metrics = [], instagramFollowers = {}, tiktokSt
 export const CHART_TICK_COLOR = '#8b8fa3'
 export const CHART_GRID_COLOR = 'rgba(255,255,255,0.05)'
 
+// Lê um token do design system (definido em styles/ds/tokens.css) com um
+// valor reserva para ambientes sem CSS, como os testes.
+function dsToken(name, fallback) {
+  if (typeof document === 'undefined' || typeof getComputedStyle !== 'function') return fallback
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return value || fallback
+}
+
+// Paleta dos gráficos: uma cor por série, a mesma em toda a área logada.
+export function vizColors() {
+  return {
+    primary: dsToken('--ds-viz-1', '#d1993e'),
+    secondary: dsToken('--ds-viz-2', '#5b8def'),
+    tertiary: dsToken('--ds-viz-3', '#e94f8a'),
+    quiet: dsToken('--ds-viz-quiet', '#a0a0b0'),
+  }
+}
+
 export function chartThemeColors() {
   const isLightTheme = typeof document !== 'undefined' && document.documentElement.dataset.theme === 'light'
   return {
-    tick: isLightTheme ? '#667085' : CHART_TICK_COLOR,
-    grid: isLightTheme ? 'rgba(29,39,51,0.1)' : CHART_GRID_COLOR,
+    tick: dsToken('--ds-ink-muted', isLightTheme ? '#667085' : CHART_TICK_COLOR),
+    grid: dsToken('--ds-viz-rule', isLightTheme ? 'rgba(29,39,51,0.1)' : CHART_GRID_COLOR),
     tooltipBackground: isLightTheme ? '#172631' : '#0b0b0c',
     tooltipText: '#ffffff',
-    tooltipBorder: isLightTheme ? '#9b6410' : '#d1993e',
+    tooltipBorder: dsToken('--ds-accent-graphic', isLightTheme ? '#9b6410' : '#d1993e'),
   }
 }
 

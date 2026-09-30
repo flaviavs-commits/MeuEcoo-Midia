@@ -1,9 +1,9 @@
 import { Line, Bar } from 'react-chartjs-2'
-import { filterByPeriod, filterTikTokVideosByPeriod, tiktokVideoToMetric, formatDiaBR, baseChartOptions, PLAT_COLORS } from '../../lib/analytics-format.js'
+import { filterByPeriod, filterTikTokVideosByPeriod, tiktokVideoToMetric, formatDiaBR, baseChartOptions, vizColors } from '../../lib/analytics-format.js'
 import { useTheme } from '../ui/theme-selector.jsx'
 
 function EmptyChart({ message }) {
-  return <p className="empty-state" style={{ textAlign: 'center', padding: '3rem 1rem' }}>{message}</p>
+  return <p className="rel-empty">{message}</p>
 }
 
 function hasMetricValue(metrics) {
@@ -11,11 +11,12 @@ function hasMetricValue(metrics) {
 }
 
 function GrowthChart({ net, instagramFollowers, tiktokStats, youtubeSubscribers }) {
+  const colors = vizColors()
   if (net === 'instagram') {
     const dias = Object.keys(instagramFollowers).sort()
     if (!dias.length) return <EmptyChart message="Sem dados de seguidores."/>
     return <Line
-      data={{ labels: dias.map(formatDiaBR), datasets: [{ label: 'Seguidores', data: dias.map(d => instagramFollowers[d].followerCount), borderColor: '#e94f8a', backgroundColor: 'rgba(233,79,138,0.1)', fill: true, tension: 0.3, pointRadius: 3 }] }}
+      data={{ labels: dias.map(formatDiaBR), datasets: [{ label: 'Seguidores', data: dias.map(d => instagramFollowers[d].followerCount), borderColor: colors.primary, backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 3 }] }}
       options={baseChartOptions()}
     />
   }
@@ -26,8 +27,8 @@ function GrowthChart({ net, instagramFollowers, tiktokStats, youtubeSubscribers 
       data={{
         labels: dias.map(formatDiaBR),
         datasets: [
-          { label: 'Seguidores', data: dias.map(d => tiktokStats[d].followerCount), borderColor: '#a0a0b0', backgroundColor: 'rgba(160,160,176,0.08)', fill: true, tension: 0.3, pointRadius: 3 },
-          { label: 'Curtidas Totais', data: dias.map(d => tiktokStats[d].likesCount), borderColor: '#8b8fa3', backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 3 },
+          { label: 'Seguidores', data: dias.map(d => tiktokStats[d].followerCount), borderColor: colors.primary, backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 3 },
+          { label: 'Curtidas Totais', data: dias.map(d => tiktokStats[d].likesCount), borderColor: colors.secondary, backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 3 },
         ],
       }}
       options={baseChartOptions()}
@@ -37,14 +38,15 @@ function GrowthChart({ net, instagramFollowers, tiktokStats, youtubeSubscribers 
     const dias = Object.keys(youtubeSubscribers).sort()
     if (!dias.length) return <EmptyChart message="Sem dados de inscritos."/>
     return <Line
-      data={{ labels: dias.map(formatDiaBR), datasets: [{ label: 'Inscritos', data: dias.map(d => youtubeSubscribers[d].subscriberCount), borderColor: '#ff5c5c', backgroundColor: 'rgba(255,92,92,0.1)', fill: true, tension: 0.3, pointRadius: 3 }] }}
+      data={{ labels: dias.map(formatDiaBR), datasets: [{ label: 'Inscritos', data: dias.map(d => youtubeSubscribers[d].subscriberCount), borderColor: colors.primary, backgroundColor: 'transparent', fill: false, tension: 0.3, pointRadius: 3 }] }}
       options={baseChartOptions()}
     />
   }
   return null
 }
 
-function PostsBarChart({ net, metrics }) {
+function PostsBarChart({ metrics }) {
+  const colors = vizColors()
   const postsSorted = metrics.filter(m => m.publishedAt && hasMetricValue(m.metrics)).sort((a, b) => new Date(a.publishedAt) - new Date(b.publishedAt))
   if (!postsSorted.length) return <EmptyChart message="Nenhum dado no período."/>
 
@@ -61,9 +63,9 @@ function PostsBarChart({ net, metrics }) {
   const hasComments = postsSorted.some(m => m.metrics.comments != null)
 
   const datasets = []
-  if (hasViews) datasets.push({ label: 'Visualizações', data: postsSorted.map(m => m.metrics.views ?? null), backgroundColor: 'rgba(209,153,62,0.8)', borderRadius: 4 })
-  if (hasLikes) datasets.push({ label: 'Curtidas', data: postsSorted.map(m => m.metrics.likes ?? null), backgroundColor: PLAT_COLORS[net] || '#e94f8a', borderRadius: 4 })
-  if (hasComments) datasets.push({ label: 'Comentários', data: postsSorted.map(m => m.metrics.comments ?? null), backgroundColor: 'rgba(52,211,153,0.8)', borderRadius: 4 })
+  if (hasViews) datasets.push({ label: 'Visualizações', data: postsSorted.map(m => m.metrics.views ?? null), backgroundColor: colors.primary, borderRadius: 4 })
+  if (hasLikes) datasets.push({ label: 'Curtidas', data: postsSorted.map(m => m.metrics.likes ?? null), backgroundColor: colors.tertiary, borderRadius: 4 })
+  if (hasComments) datasets.push({ label: 'Comentários', data: postsSorted.map(m => m.metrics.comments ?? null), backgroundColor: colors.secondary, borderRadius: 4 })
   if (!datasets.length) return <EmptyChart message="A rede não confirmou métricas para os posts deste período."/>
 
   const options = {
@@ -95,10 +97,10 @@ export function AnalyticsChart({ net, tab, data, tiktokVideos = [], periodDays }
   const isGrowthView = tab === 'growth' || (tab === 'community' && (net === 'instagram' || net === 'tiktok' || net === 'youtube'))
 
   return (
-    <div className="analytics-chart-wrap">
+    <div className="rel-canvas">
       {isGrowthView
         ? <GrowthChart net={net} instagramFollowers={instagramFollowers} tiktokStats={tiktokStats} youtubeSubscribers={youtubeSubscribers}/>
-        : <PostsBarChart net={net} metrics={chartMetrics}/>}
+        : <PostsBarChart metrics={chartMetrics}/>}
     </div>
   )
 }

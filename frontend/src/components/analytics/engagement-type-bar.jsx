@@ -1,14 +1,13 @@
 import { fmtNum } from '../../lib/analytics-format.js'
+import { Icon } from '../ui/icon.jsx'
 
 export function EngagementTypeBar({ icon, label, value, max }) {
   const percent = value == null || !max ? 0 : (value / max) * 100
   return (
-    <div className="an-eng-type-row">
-      <div className="an-eng-type-head">
-        <span className="an-eng-type-name">{icon} {label}</span>
-        <span className="an-eng-type-val">{fmtNum(value)}</span>
-      </div>
-      <div className="an-eng-type-bar"><div className="an-eng-type-bar-fill" style={{ width: `${percent}%` }}/></div>
+    <div className="ds-hbar">
+      <span className="ds-hbar__label">{icon && <Icon name={icon} size={16} />}{label}</span>
+      <span className="ds-hbar__track" aria-hidden="true"><span className="ds-hbar__fill" style={{ '--v': `${percent}%` }} /></span>
+      <span className="ds-hbar__value">{fmtNum(value)}</span>
     </div>
   )
 }

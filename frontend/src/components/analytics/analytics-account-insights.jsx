@@ -1,5 +1,6 @@
 import { Bar, Line } from 'react-chartjs-2'
-import { baseChartOptions, fmtNum, formatDataBR, formatDataDelay, formatDiaBR, labelForMetric } from '../../lib/analytics-format.js'
+import { Icon } from '../ui/icon.jsx'
+import { baseChartOptions, fmtNum, formatDataBR, formatDataDelay, formatDiaBR, labelForMetric, vizColors } from '../../lib/analytics-format.js'
 import { useTheme } from '../ui/theme-selector.jsx'
 
 function numberValue(value) {
@@ -95,9 +96,9 @@ function ProviderTimeline({ net, data, accountId }) {
   if (!rows.length) return null
   const names = [...new Set(rows.flatMap(row => Object.keys(row).filter(key => !['date', 'day'].includes(key) && typeof row[key] === 'number')))]
   if (!names.length) return null
-  return <div className="analytics-provider-table">
-    <div className="analytics-section-title">Métricas diárias agregadas</div>
-    <div className="analytics-table-scroll"><table>
+  return <div className="rel-report__tablewrap">
+    <h4 className="rel-report__title">Métricas diárias agregadas</h4>
+    <div className="ds-scrollx"><table className="ds-datatable">
       <thead><tr><th>Data</th>{names.map(name => <th key={name}>{labelForMetric(name)}</th>)}</tr></thead>
       <tbody>{rows.slice(-30).map((row, index) => <tr key={`${row.date || row.day || index}-${index}`}>
         <td>{row.date || row.day || '—'}</td>
@@ -110,9 +111,9 @@ function ProviderTimeline({ net, data, accountId }) {
 function ProviderGrowth({ net, data, accountId }) {
   const accounts = (data.accountAnalytics?.followerStats?.accounts || []).filter(account => account.platform === net && belongsToAccount(account, accountId))
   if (!accounts.length) return null
-  return <div className="analytics-provider-growth">
-    <div className="analytics-section-title">Crescimento de seguidores</div>
-    {accounts.map(account => <div className="analytics-provider-growth-row" key={account._id || account.accountId}>
+  return <div className="rel-report__group">
+    <h4 className="rel-report__title">Crescimento de seguidores</h4>
+    {accounts.map(account => <div className="rel-report__growthline" key={account._id || account.accountId}>
       <span>{account.username || account.accountName || 'Conta'}</span>
       <strong>{fmtNum(numberValue(account.currentFollowers))}</strong>
       {(() => {
@@ -150,16 +151,16 @@ function ProviderDecay({ net, data, accountId }) {
   })
   const hasPercentages = normalizedBuckets.some(bucket => bucket.value != null)
   const formatPercentage = value => `${value.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`
-  return <div className="analytics-provider-growth">
-    <div className="analytics-section-title">Vida útil do conteúdo</div>
-    <p className="analytics-insights-subtitle analytics-decay-explanation">
+  return <div className="rel-report__group">
+    <h4 className="rel-report__title">Vida útil do conteúdo</h4>
+    <p className="ds-hint">
       Percentual médio do engajamento final acumulado em cada faixa após a publicação. Não é percentual de alcance.
     </p>
-    <div className="analytics-decay-list">{normalizedBuckets.map((bucket, index) => <span key={`${bucket.label}-${index}`}>
+    <div className="rel-report__buckets">{normalizedBuckets.map((bucket, index) => <span key={`${bucket.label}-${index}`}>
       <strong>{bucket.label}</strong>{bucket.value == null ? ' — percentual não informado pela rede' : ` ${formatPercentage(bucket.value)}`}
       {Number.isFinite(bucket.postCount) && ` · ${fmtNum(bucket.postCount)} ${bucket.postCount === 1 ? 'post' : 'posts'}`}
     </span>)}</div>
-    {!hasPercentages && <p className="analytics-decay-data-note">A rede retornou as faixas, mas não enviou os percentuais. Eles não podem ser calculados com segurança sem os dados de engajamento correspondentes.</p>}
+    {!hasPercentages && <p className="ds-hint">A rede retornou as faixas, mas não enviou os percentuais. Eles não podem ser calculados com segurança sem os dados de engajamento correspondentes.</p>}
   </div>
 }
 
@@ -172,9 +173,9 @@ function ProviderBestTime({ net, data, accountId }) {
     .slice(0, 5)
   if (!slots.length) return null
   const days = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado']
-  return <div className="analytics-provider-growth">
-    <div className="analytics-section-title">Melhores horários para publicar (UTC)</div>
-    <div className="analytics-decay-list">{slots.map((slot, index) => <span key={`${slot.day_of_week}-${slot.hour}-${index}`}>
+  return <div className="rel-report__group">
+    <h4 className="rel-report__title">Melhores horários para publicar (UTC)</h4>
+    <div className="rel-report__buckets">{slots.map((slot, index) => <span key={`${slot.day_of_week}-${slot.hour}-${index}`}>
       <strong>{days[Number(slot.day_of_week)] || `Dia ${slot.day_of_week}`}, {String(slot.hour).padStart(2, '0')}h</strong>{' '}
       {numberValue(slot.avg_engagement) == null ? '—' : `${fmtNum(numberValue(slot.avg_engagement))} interações médias`}
       {numberValue(slot.post_count) == null ? '' : ` · ${fmtNum(numberValue(slot.post_count))} posts`}
@@ -187,15 +188,17 @@ function InsightSeries({ accounts }) {
   if (!entries.length) return null
   const chartEntries = sampleSeries(entries)
   const names = [...new Set(chartEntries.flatMap(([, values]) => Object.keys(values)))].slice(0, 4)
-  return <div className="analytics-insight-chart">
-    <div className="analytics-insight-chart-heading"><div className="analytics-section-title">Evolução das principais métricas</div><span>{entries.length > chartEntries.length ? `Visão compacta · ${pointCountLabel(chartEntries.length)}` : pointCountLabel(entries.length)}</span></div>
+  const viz = vizColors()
+  const seriesColors = [viz.primary, viz.tertiary, viz.secondary, viz.quiet]
+  return <div className="rel-report__chart">
+    <div className="rel-report__charthead"><h4 className="rel-report__title">Evolução das principais métricas</h4><span>{entries.length > chartEntries.length ? `Visão compacta · ${pointCountLabel(chartEntries.length)}` : pointCountLabel(entries.length)}</span></div>
     <Line
       data={{
         labels: chartEntries.map(([date]) => formatDiaBR(date)),
         datasets: names.map((name, index) => ({
           label: labelForMetric(name),
           data: chartEntries.map(([, values]) => values[name] ?? null),
-          borderColor: ['#d1993e', '#e94f8a', '#4ade80', '#5b8def', '#a78bfa'][index],
+          borderColor: seriesColors[index % seriesColors.length],
           backgroundColor: 'transparent',
           tension: 0.3,
           pointRadius: 2
@@ -210,11 +213,11 @@ function MetricSeriesTable({ accounts }) {
   const entries = collectSeries(accounts)
   if (!entries.length) return null
   const names = [...new Set(entries.flatMap(([, values]) => Object.keys(values)))]
-  return <details className="analytics-report-detail analytics-series-detail">
-    <summary>Ver série diária completa <span>{pointCountLabel(entries.length)}</span></summary>
-    <div className="analytics-provider-table analytics-full-series">
-      <p className="analytics-insights-subtitle">Todos os pontos de série temporal retornados pela rede.</p>
-      <div className="analytics-table-scroll"><table>
+  return <details className="ds-disclosure rel-report__more">
+    <summary>Ver série diária completa <span>{pointCountLabel(entries.length)}</span><Icon name="chevronDown" className="ds-disclosure__chev" /></summary>
+    <div className="rel-report__tablewrap">
+      <p className="ds-hint">Todos os pontos de série temporal retornados pela rede.</p>
+      <div className="ds-scrollx"><table className="ds-datatable">
         <thead><tr><th>Data</th>{names.map(name => <th key={name}>{labelForMetric(name)}</th>)}</tr></thead>
         <tbody>{entries.slice(-90).map(([date, values]) => <tr key={date}><td>{formatDiaBR(date)}</td>{names.map(name => <td key={name}>{values[name] == null ? '—' : fmtNum(values[name])}</td>)}</tr>)}</tbody>
       </table></div>
@@ -320,16 +323,16 @@ function collectDemographicCategories(accounts) {
 function InsightDemographics({ accounts }) {
   const categories = collectDemographicCategories(accounts)
   if (!categories.some(category => category.rows.length)) return null
-  return <div className="analytics-account-demographics">
-    <div className="analytics-section-title">Demografia e audiência</div>
-    <p className="analytics-insights-subtitle">Dimensões de público devolvidas pela integração da conta, organizadas por categoria.</p>
-    <div className="analytics-demographic-category-grid">{categories.map(category => <section className={`analytics-demographic-category is-${category.key}`} key={category.key}>
-      <div className="analytics-demographic-category-heading">
-        <span className="analytics-demographic-category-icon" aria-hidden="true">{category.icon}</span>
+  return <div className="rel-report__group">
+    <h4 className="rel-report__title">Demografia e audiência</h4>
+    <p className="ds-hint">Dimensões de público devolvidas pela integração da conta, organizadas por categoria.</p>
+    <div className="rel-report__demogrid">{categories.map(category => <section className={"rel-report__democat"} key={category.key}>
+      <div className="rel-report__democathead">
+        <span className="rel-report__democaticon" aria-hidden="true">{category.icon}</span>
         <div><strong>{category.label}</strong><small>{category.description}</small></div>
-        <span className="analytics-demographic-category-count">{category.rows.length ? `${category.rows.length} ${category.unit}` : 'Sem dados'}</span>
+        <span className="ds-meta">{category.rows.length ? `${category.rows.length} ${category.unit}` : 'Sem dados'}</span>
       </div>
-      {category.rows.length ? <div className="analytics-demographic-category-list">{category.rows.map(row => <span key={row.label}><b title={row.label}>{row.label}</b><em>{fmtNum(row.value)} seguidores</em></span>)}</div> : <p className="analytics-demographic-category-empty">A integração não retornou dados de {category.label.toLowerCase()}.</p>}
+      {category.rows.length ? <div className="rel-report__demolist">{category.rows.map(row => <span key={row.label}><b title={row.label}>{row.label}</b><em>{fmtNum(row.value)} seguidores</em></span>)}</div> : <p className="ds-hint">A integração não retornou dados de {category.label.toLowerCase()}.</p>}
     </section>)}</div>
   </div>
 }
@@ -338,7 +341,7 @@ function ReportCoverage({ accounts }) {
   const ranges = accounts.map(account => account.dateRange).filter(range => range?.since || range?.until)
   const delays = accounts.flatMap(account => [account.totals?.dataDelay, account.timeSeries?.dataDelay, account.dataDelay]).filter(Boolean)
   const names = accounts.map(account => account.accountName).filter(Boolean)
-  return <div className="analytics-report-coverage">
+  return <div className="rel-report__coverage">
     <span><b>Fonte</b> Integração conectada</span>
     {names.length > 0 && <span><b>Perfil</b> {names.join(' · ')}</span>}
     {ranges[0] && <span><b>Janela</b> {formatDataBR(ranges[0].since)} até {formatDataBR(ranges[0].until)}</span>}
@@ -349,14 +352,14 @@ function ReportCoverage({ accounts }) {
 function InsightBreakdowns({ accounts }) {
   const entries = collectBreakdowns(accounts)
   if (!entries.length) return null
-  return <details className="analytics-report-detail">
-    <summary>Ver detalhes por dimensão <span>{entries.length} dimensões</span></summary>
-    <div className="analytics-insight-chart analytics-breakdown-chart">
-      <div className="analytics-insight-chart-heading"><div className="analytics-section-title">Detalhes por dimensão</div><span>Top 20</span></div>
+  return <details className="ds-disclosure rel-report__more">
+    <summary>Ver detalhes por dimensão <span>{entries.length} dimensões</span><Icon name="chevronDown" className="ds-disclosure__chev" /></summary>
+    <div className="rel-report__chart">
+      <div className="rel-report__charthead"><h4 className="rel-report__title">Detalhes por dimensão</h4><span>Top 20</span></div>
       <Bar
         data={{
             labels: entries.slice(0, 20).map(([label]) => label),
-            datasets: [{ label: 'Valor', data: entries.slice(0, 20).map(([, value]) => value), backgroundColor: '#5b8def', borderRadius: 4 }]
+            datasets: [{ label: 'Valor', data: entries.slice(0, 20).map(([, value]) => value), backgroundColor: vizColors().secondary, borderRadius: 4 }]
         }}
  options={{ ...baseChartOptions(), indexAxis: 'y', plugins: { ...baseChartOptions().plugins, legend: { display: false } }, scales: { ...baseChartOptions().scales, x: { ...baseChartOptions().scales.x, ticks: { ...baseChartOptions().scales.x.ticks, maxTicksLimit: 6 } }, y: { ...baseChartOptions().scales.y, ticks: { ...baseChartOptions().scales.y.ticks, autoSkip: false, font: { size: 10 } } } } }}
       />
@@ -381,27 +384,27 @@ export function AnalyticsAccountInsights({ net, data, accountId = null }) {
 
   const reportName = accounts.length === 1 ? accounts[0].accountName || accounts[0].username || accounts[0].accountId : `${accounts.length} contas`
 
-  return <section id="analytics-account-report" className="analytics-account-insights">
-        <div className="analytics-insights-heading">
+  return <section id="analytics-account-report" className="rel-report">
+        <div className="rel-subhead rel-report__head">
       <div>
-        <div className="analytics-section-title">Relatório completo do perfil</div>
-        <div className="analytics-insights-subtitle">{reportName || `${accounts.length} conta(s)`} · métricas específicas retornadas pela integração conectada.</div>
+        <h3 className="rel-subhead__title">Relatório completo do perfil</h3>
+        <div className="ds-hint">{reportName || `${accounts.length} conta(s)`} · métricas específicas retornadas pela integração conectada.</div>
       </div>
-      <span className="analytics-insights-badge">{accountId ? 'Perfil selecionado' : 'Todas as contas'}</span>
+      <span className="ds-badge" data-tone="outline">{accountId ? 'Perfil selecionado' : 'Todas as contas'}</span>
     </div>
 
     <ReportCoverage accounts={accounts}/>
 
-    {net === 'tiktok' && <p className="analytics-tiktok-limitations-note">O TikTok disponibiliza apenas contadores acumulados desde o início da conta; os valores em série temporal vêm dos registros diários do Zernio. Tempo de exibição, fontes de impressões, visualizações do perfil, alcance e impressões no nível da conta não estão disponíveis em nenhuma API pública do TikTok.</p>}
+    {net === 'tiktok' && <p className="ds-hint rel-report__note">O TikTok disponibiliza apenas contadores acumulados desde o início da conta; os valores em série temporal vêm dos registros diários do Zernio. Tempo de exibição, fontes de impressões, visualizações do perfil, alcance e impressões no nível da conta não estão disponíveis em nenhuma API pública do TikTok.</p>}
 
     {metrics.length
-      ? <div className="analytics-insight-metrics">
-          {metrics.map(([name, value]) => <div className="analytics-insight-metric" key={name}>
+      ? <div className="rel-report__metrics">
+          {metrics.map(([name, value]) => <div className="rel-report__metric" key={name}>
             <strong>{fmtNum(value)}</strong>
             <span>{labelForMetric(name)}</span>
           </div>)}
         </div>
-      : <p className="empty-state">A rede não retornou métricas detalhadas para o período.</p>}
+      : <p className="ds-hint">A rede não retornou métricas detalhadas para o período.</p>}
 
     <InsightSeries accounts={accounts}/>
     <MetricSeriesTable accounts={accounts}/>
@@ -412,12 +415,12 @@ export function AnalyticsAccountInsights({ net, data, accountId = null }) {
     <ProviderDecay net={net} data={data} accountId={accountId}/>
     <ProviderBestTime net={net} data={data} accountId={accountId}/>
 
-    {unavailable.length > 0 && <details className="analytics-limitations">
-      <summary>Métricas não expostas pela API</summary>
+    {unavailable.length > 0 && <details className="ds-disclosure rel-report__more">
+      <summary>Métricas não expostas pela API<Icon name="chevronDown" className="ds-disclosure__chev" /></summary>
       <p>{unavailable.map(labelForMetric).join(' · ')}</p>
     </details>}
-    {errors.length > 0 && <details className="analytics-limitations analytics-limitations-warning">
-      <summary>Relatórios indisponíveis nesta conexão ({errors.length})</summary>
+    {errors.length > 0 && <details className="ds-disclosure rel-report__more" data-tone="warning">
+      <summary>Relatórios indisponíveis nesta conexão ({errors.length})<Icon name="chevronDown" className="ds-disclosure__chev" /></summary>
       <p>{[...new Set(errors.map(error => error.scope || error.message).filter(Boolean))].join(' · ')}</p>
     </details>}
   </section>

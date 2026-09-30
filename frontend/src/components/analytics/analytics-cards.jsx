@@ -79,12 +79,12 @@ export function AnalyticsCards({ net, tab, data, tiktokVideos, periodDays }) {
   const cards = buildCards(net, tab, { metrics, instagramFollowers, tiktokStats, youtubeSubscribers, tiktokVideos: videos })
 
   return (
-    <div className="analytics-cards">
+    <div className="ds-stats rel-netfigures" style={{ '--cols': Math.min(cards.length, 5) || 1 }}>
       {cards.map(card => (
-        <div key={card.label} className={`analytics-card ${card.accent}`} title={card.help}>
-          <div className="analytics-card-val">{card.val}</div>
-          <div className="analytics-card-label">{card.label}</div>
-          <p>{card.help}</p>
+        <div key={card.label} className="ds-stat">
+          <p className="ds-stat__label">{card.label}</p>
+          <p className="ds-stat__value ds-stat__value--md">{card.val ?? '—'}</p>
+          <p className="ds-stat__caption">{card.help}</p>
         </div>
       ))}
     </div>
