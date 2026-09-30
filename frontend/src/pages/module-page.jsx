@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { LoadingState } from '../components/ui/loading-state.jsx'
+import { PageSkeleton } from '../components/ui/loading-state.jsx'
 import { PlanGate } from '../components/ui/plan-gate.jsx'
 import { hasActivePlanModule } from '../lib/plans.js'
 
@@ -57,7 +57,7 @@ export function ModulePage({ type, onNavigate, user, onUserChange }) {
   // pagamento confirmado.
   if (type !== 'perfil' && user && !hasActivePlanModule(user.plan, type, user.planActive, user.planUnrestricted)) return <PlanGate currentPlan={user.plan} moduleName={type} planActive={user.planActive} />
   const Page = PAGES_BY_TYPE[type]
-  if (Page) return <Suspense fallback={<section className="page-view"><section className="panel"><LoadingState>Carregando módulo...</LoadingState></section></section>}><Page onNavigate={onNavigate} user={user} onUserChange={onUserChange}/></Suspense>
+  if (Page) return <Suspense fallback={<PageSkeleton label="Carregando módulo..." />}><Page onNavigate={onNavigate} user={user} onUserChange={onUserChange}/></Suspense>
   const [title, description] = descriptions[type] || ['Módulo', 'Área da aplicação']
   return <section className="page-view"><section className="panel module-placeholder"><p className="eyebrow">MÓDULO REACT</p><h2>{title}</h2><p>{description}</p><span className="status-badge">Migração em andamento</span></section></section>
 }

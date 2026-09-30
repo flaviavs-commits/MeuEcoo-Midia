@@ -234,7 +234,7 @@ const STEPS = [
   {
     eyebrow: 'TUDO PRONTO',
     title: 'Você já conhece toda a plataforma! 🎉',
-    body: 'Um fluxo recomendado é: conecte suas contas, publique ou agende um primeiro conteúdo, acompanhe o resultado no Analytics e use o sistema inteligente para planejar o próximo teste. O tutorial fica sempre disponível pelo ícone 🎓 ou em Perfil.',
+    body: 'Um fluxo recomendado é: conecte suas contas, publique ou agende um primeiro conteúdo, acompanhe o resultado no Analytics e use o sistema inteligente para planejar o próximo teste. O tutorial fica sempre disponível em Perfil.',
     tips: [
       'Comece conectando as redes que deseja administrar.',
       'Use o Meu Post para publicar agora, agendar, salvar um rascunho ou criar um modelo.',

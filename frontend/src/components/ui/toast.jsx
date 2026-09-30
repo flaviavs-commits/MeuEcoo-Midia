@@ -1,4 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { Icon } from './icon.jsx'
+
+const TOAST_TONES = { error: 'danger', warning: 'warning', info: 'info' }
+const TOAST_ICONS = { error: 'alertCircle', warning: 'alertTriangle', info: 'info' }
 
 const ToastContext = createContext(null)
 
@@ -21,10 +25,16 @@ export function ToastProvider({ children }) {
     timers.current.add(timer)
   }, [])
 
+  const dismiss = useCallback(id => setToasts(current => current.filter(toast => toast.id !== id)), [])
+
   return <ToastContext.Provider value={notify}>
     {children}
-    <div className="toast-stack" aria-live="polite" aria-atomic="true">
-      {toasts.map(toast => <div className={`toast toast-${toast.type}`} key={toast.id} role={toast.type === 'error' ? 'alert' : 'status'}><span aria-hidden="true">{toast.type === 'error' || toast.type === 'warning' ? '!' : '✓'}</span>{toast.message}</div>)}
+    <div className="ds-toasts" data-ds-root aria-live="polite" aria-atomic="true">
+      {toasts.map(toast => <div className="ds-toast" data-tone={TOAST_TONES[toast.type]} key={toast.id} role={toast.type === 'error' ? 'alert' : 'status'}>
+        <Icon name={TOAST_ICONS[toast.type] || 'checkCircle'} className="ds-toast__icon" />
+        <p className="ds-toast__msg">{toast.message}</p>
+        <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-btn--sm ds-toast__close" onClick={() => dismiss(toast.id)} aria-label="Fechar aviso"><Icon name="close" size={16} /></button>
+      </div>)}
     </div>
   </ToastContext.Provider>
 }

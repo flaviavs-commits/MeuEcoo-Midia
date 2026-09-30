@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../../lib/api.js'
+import { Icon } from '../ui/icon.jsx'
 
 function persistMessage(contexto, role, conteudo) {
   apiFetch('/api/ai/chat-messages', { method: 'POST', body: JSON.stringify({ contexto, role, conteudo }) }).catch(() => {})
@@ -56,7 +57,7 @@ function summarizeData(data) {
 }
 
 function RobotAvatar({ size = 'small' }) {
-  return <span className={`ai-robot-avatar ai-robot-avatar--${size}`} aria-hidden="true">
+  return <span className={`aiw-avatar aiw-avatar--${size}`} aria-hidden="true">
     <img src="/logo-icon.png" alt="" />
   </span>
 }
@@ -65,35 +66,37 @@ function AgentMessage({ message, index, onConfirm, onEdit, editingIndex, onChang
   const summary = summarizeData(message.data)
   const image = message.data?.image
   return (
-    <div className={`max-w-[90%] rounded-lg px-3 py-2 text-sm leading-snug ${message.role === 'user' ? 'ml-auto bg-gold/15 text-zinc-100' : 'bg-surface-soft text-zinc-200'}`}>
+    <div className="aiw-msg" data-role={message.role}>
       {message.role === 'agent' && editingIndex === index
-        ? <textarea value={message.text} onChange={event => onChangeMessage(index, event.target.value)} aria-label="Editar resposta do sistema inteligente" className="w-full rounded border border-subtle bg-app p-2 text-sm text-zinc-100" />
-        : <span className="whitespace-pre-line">{message.text}</span>}
-      {image && <img src={image} alt="Imagem criada pelo sistema inteligente" className="mt-2 max-h-72 w-full rounded-lg object-contain" />}
-      {message.data?.postDraft?.image && <button type="button" onClick={() => onContinueToPost(message.data.postDraft)} className="mt-2 rounded-lg bg-gold px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110">Usar no Meu Post</button>}
-      {summary && <pre className="mt-2 whitespace-pre-wrap border-t border-subtle pt-2 text-xs text-zinc-400">{summary}</pre>}
-      {message.role === 'agent' && <button type="button" onClick={() => onEdit(editingIndex === index ? null : index)} className="mt-1 block text-[11px] text-gold hover:underline">{editingIndex === index ? 'Concluir edição' : 'Editar resposta'}</button>}
-      {message.confirmationToken && <button type="button" onClick={() => onConfirm(message.confirmationToken, index)} className="mt-2 rounded-lg bg-gold px-3 py-1.5 text-xs font-semibold text-black hover:brightness-110">Confirmar ação</button>}
+        ? <textarea value={message.text} onChange={event => onChangeMessage(index, event.target.value)} aria-label="Editar resposta do sistema inteligente" className="ds-textarea aiw-msg__editor" />
+        : <span className="aiw-msg__text">{message.text}</span>}
+      {image && <img src={image} alt="Imagem criada pelo sistema inteligente" className="aiw-msg__image" />}
+      {summary && <pre className="aiw-msg__data">{summary}</pre>}
+      {(message.data?.postDraft?.image || message.confirmationToken || message.role === 'agent') && <div className="aiw-msg__actions">
+        {message.data?.postDraft?.image && <button type="button" onClick={() => onContinueToPost(message.data.postDraft)} className="ds-btn ds-btn--primary ds-btn--sm">Usar no Meu Post</button>}
+        {message.confirmationToken && <button type="button" onClick={() => onConfirm(message.confirmationToken, index)} className="ds-btn ds-btn--primary ds-btn--sm">Confirmar ação</button>}
+        {message.role === 'agent' && <button type="button" onClick={() => onEdit(editingIndex === index ? null : index)} className="aiw-link">{editingIndex === index ? 'Concluir edição' : 'Editar resposta'}</button>}
+      </div>}
     </div>
   )
 }
 
 function AiWidgetPanel({ messages, editingIndex, onEdit, onChangeMessage, sending, processingMessage, error, input, onInputChange, onSend, onConfirm, onClose, messagesRef, onContinueToPost }) {
   return (
-    <section role="dialog" aria-label="Assistente inteligente" className="ai-assistant-panel flex h-[520px] w-[min(390px,calc(100vw-2.5rem))] flex-col overflow-hidden rounded-xl border border-subtle bg-surface shadow-2xl">
-      <header className="flex items-center justify-between gap-2 border-b border-subtle px-4 py-3">
-        <div className="flex items-center gap-2"><RobotAvatar /><div><p className="text-sm font-semibold text-zinc-50">Assistente inteligente</p><p className="text-[11px] text-zinc-500">Ajuda para agilizar sua rotina</p></div></div>
-        <button type="button" aria-label="Fechar assistente" onClick={onClose} className="rounded-full p-1.5 text-zinc-500 hover:bg-surface-soft hover:text-zinc-200">✕</button>
+    <section role="dialog" aria-label="Assistente inteligente" className="aiw-panel">
+      <header className="aiw-head">
+        <div className="aiw-head__id"><RobotAvatar /><div><p className="aiw-head__title">Assistente inteligente</p><p className="aiw-head__sub">Ajuda para agilizar sua rotina</p></div></div>
+        <button type="button" aria-label="Fechar assistente" onClick={onClose} className="ds-btn ds-btn--quiet ds-btn--icon ds-btn--sm"><Icon name="close" size={18} /></button>
       </header>
-      <div ref={messagesRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-3">
-        {messages.length === 0 && <p className="text-sm text-zinc-500">Peça uma ideia, uma imagem ou consulte seus posts. Revise antes de publicar.</p>}
+      <div ref={messagesRef} className="aiw-log">
+        {messages.length === 0 && <div className="aiw-hello"><RobotAvatar size="large" /><p>Peça uma ideia, uma imagem ou consulte seus posts. Revise antes de publicar.</p></div>}
         {messages.map((message, index) => <AgentMessage key={index} message={message} index={index} editingIndex={editingIndex} onEdit={onEdit} onChangeMessage={onChangeMessage} onConfirm={onConfirm} onContinueToPost={onContinueToPost} />)}
-        {sending && <div className="max-w-[85%] rounded-lg bg-surface-soft px-3 py-2 text-sm text-zinc-400" aria-live="polite">{processingMessage}</div>}
-        {error && <p className="text-sm text-red-400" role="alert">{error}</p>}
+        {sending && <div className="aiw-msg aiw-msg--wait" aria-live="polite"><span className="ds-spinner" aria-hidden="true" />{processingMessage}</div>}
+        {error && <p className="aiw-error" role="alert"><Icon name="alertCircle" size={16} />{error}</p>}
       </div>
-      <form onSubmit={onSend} className="flex items-center gap-2 border-t border-subtle p-3">
-        <input value={input} onChange={onInputChange} placeholder="Digite o que você precisa..." aria-label="Mensagem para o Assistente inteligente" className="flex-1 rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100 outline-none focus:border-gold/50" />
-        <button type="submit" disabled={sending || !input.trim()} className="rounded-lg bg-gold px-3 py-2 text-sm font-semibold text-black disabled:opacity-40">Enviar</button>
+      <form onSubmit={onSend} className="aiw-compose">
+        <input value={input} onChange={onInputChange} placeholder="Digite o que você precisa..." aria-label="Mensagem para o Assistente inteligente" className="ds-input aiw-compose__input" />
+        <button type="submit" disabled={sending || !input.trim()} className="ds-btn ds-btn--primary aiw-compose__send"><Icon name="send" size={16} />Enviar</button>
       </form>
     </section>
   )
@@ -161,8 +164,8 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
     onNavigate?.('agendador')
   }
 
-  return <div className="ai-assistant-widget fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
+  return <div className="ai-assistant-widget aiw" data-ds-root>
     {open && <AiWidgetPanel messages={messages} editingIndex={editingIndex} onEdit={setEditingIndex} onChangeMessage={(index, text) => setMessages(value => value.map((message, messageIndex) => messageIndex === index ? { ...message, text } : message))} sending={sending} processingMessage={processingMessage} error={error} input={input} onInputChange={event => setInput(event.target.value)} onSend={send} onConfirm={confirm} onClose={() => setOpen(false)} messagesRef={messagesRef} onContinueToPost={continueToPost} />}
-    <button type="button" onClick={() => setOpen(value => !value)} aria-label={open ? 'Fechar assistente inteligente' : 'Abrir assistente inteligente'} aria-expanded={open} className="ai-assistant-toggle flex h-14 w-14 items-center justify-center rounded-full bg-gold text-xl text-black shadow-[0_4px_18px_rgba(229,184,66,0.4)] transition-transform hover:scale-105">{open ? '✕' : <RobotAvatar size="large" />}</button>
+    <button type="button" onClick={() => setOpen(value => !value)} aria-label={open ? 'Fechar assistente inteligente' : 'Abrir assistente inteligente'} aria-expanded={open} className="aiw-toggle" data-open={open || undefined}>{open ? <Icon name="close" size={22} /> : <RobotAvatar size="large" />}</button>
   </div>
 }

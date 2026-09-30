@@ -1,4 +1,5 @@
 import { getPlan, minimumPlanForModule } from '../../lib/plans.js'
+import { Icon } from './icon.jsx'
 
 const MODULE_LABELS = {
   rascunhos: 'Baú de Ideias',
@@ -16,5 +17,13 @@ export function PlanGate({ currentPlan, moduleName, planActive = true }) {
   const label = MODULE_LABELS[moduleName] || 'Este módulo'
   const paymentPending = planActive === false
 
-  return <section className="page-view"><section className="panel plan-gate"><p className="eyebrow">{paymentPending ? 'PAGAMENTO PENDENTE' : `RECURSO DO PLANO ${required.name.toUpperCase()}`}</p><div className="plan-gate-icon" aria-hidden="true">✦</div><h2>{paymentPending ? 'Escolha um plano para começar' : label}</h2><p>{paymentPending ? 'Seu perfil está pronto. Escolha o plano Básico, Pro ou Premium e conclua o pagamento para liberar os recursos da plataforma.' : `O plano ${current.name} não inclui este recurso. Faça upgrade para o plano ${required.name} e libere ${label.toLowerCase()}.`}</p><a className="action-button inline-flex" href="/app/perfil">{paymentPending ? 'Escolher plano' : 'Conhecer os planos'}</a></section></section>
+  return <div className="ds-page gate" data-ds-root>
+    <section className="gate-well" aria-labelledby="gate-title">
+      <span className="gate-icon" aria-hidden="true"><Icon name={paymentPending ? 'lock' : 'crown'} size={26} /></span>
+      <p className="ds-eyebrow">{paymentPending ? 'Pagamento pendente' : `Recurso do plano ${required.name}`}</p>
+      <h1 className="gate-title" id="gate-title">{paymentPending ? 'Escolha um plano para começar' : label}</h1>
+      <p className="gate-text">{paymentPending ? 'Seu perfil está pronto. Escolha o plano Básico, Pro ou Premium e conclua o pagamento para liberar os recursos da plataforma.' : `O plano ${current.name} não inclui este recurso. Faça upgrade para o plano ${required.name} e libere ${label.toLowerCase()}.`}</p>
+      <a className="ds-btn ds-btn--primary" href="/app/perfil">{paymentPending ? 'Escolher plano' : 'Conhecer os planos'}<Icon name="arrow" size={16} /></a>
+    </section>
+  </div>
 }

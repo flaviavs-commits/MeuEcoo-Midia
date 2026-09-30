@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Icon } from './icon.jsx'
 
 export const THEME_STORAGE_KEY = 'meu-ecoo:theme:v2'
 
@@ -65,7 +66,7 @@ export function ThemeToggleButton({ className = '' }) {
   </button>
 }
 
-export function ThemeSelector() {
+export function ThemeSelector({ variant = 'legacy' }) {
   const [theme, setTheme] = useState(getStoredTheme)
 
   useEffect(() => {
@@ -77,6 +78,33 @@ export function ThemeSelector() {
     }
     window.dispatchEvent(new CustomEvent('meu-ecoo:themechange', { detail: nextTheme }))
   }, [theme])
+
+  useEffect(() => {
+    const handleThemeChange = event => setTheme(event.detail === 'light' ? 'light' : 'dark')
+    window.addEventListener('meu-ecoo:themechange', handleThemeChange)
+    return () => window.removeEventListener('meu-ecoo:themechange', handleThemeChange)
+  }, [])
+
+  if (variant === 'toggle') {
+    const isLight = theme === 'light'
+    return <button
+      type="button"
+      className="ds-btn ds-btn--quiet ds-btn--icon"
+      data-tutorial-target="tema"
+      aria-label={isLight ? 'Mudar para o tema escuro' : 'Mudar para o tema claro'}
+      title={isLight ? 'Tema escuro' : 'Tema claro'}
+      onClick={() => setTheme(isLight ? 'dark' : 'light')}
+    >
+      <Icon name={isLight ? 'moon' : 'sun'} />
+    </button>
+  }
+
+  if (variant === 'segmented') {
+    return <div className="ds-seg" role="group" aria-label="Tema da interface" data-tutorial-target="tema">
+      <button type="button" className="ds-seg__opt" aria-pressed={theme === 'light'} onClick={() => setTheme('light')}><Icon name="sun" />Claro</button>
+      <button type="button" className="ds-seg__opt" aria-pressed={theme === 'dark'} onClick={() => setTheme('dark')}><Icon name="moon" />Escuro</button>
+    </div>
+  }
 
   return <div className="theme-selector" data-tutorial-target="tema" role="group" aria-label="Tema da interface">
     <button type="button" className={theme === 'light' ? 'is-active' : ''} aria-pressed={theme === 'light'} aria-label="Tema claro" title="Tema claro" onClick={() => setTheme('light')}>
