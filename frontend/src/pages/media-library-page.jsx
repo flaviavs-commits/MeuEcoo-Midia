@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { useToast } from '../components/ui/toast.jsx'
-import { PlatformIcon } from '../components/ui/platform-icon.jsx'
+import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
+import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 
 const platforms = [
   ['instagram', 'Instagram'],
@@ -38,7 +39,11 @@ function suggestionText(post) {
 
 export function MediaLibraryPage({ onNavigate }) {
   const [assets, setAssets] = useState([])
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [loadedOnce, setLoadedOnce] = useState(false)
   const [folders, setFolders] = useState([])
+  const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [folder, setFolder] = useState('')
   const [uploadFolder, setUploadFolder] = useState('Geral')
@@ -55,17 +60,44 @@ export function MediaLibraryPage({ onNavigate }) {
   const [suggestionLoading, setSuggestionLoading] = useState(false)
   const [savedSuggestions, setSavedSuggestions] = useState([])
   const notify = useToast()
+  const fileInputRef = useRef(null)
+  const requestRef = useRef(0)
 
-  const load = useCallback(() => apiFetch(`/api/media-assets?search=${encodeURIComponent(search)}&folder=${encodeURIComponent(folder)}`).then(data => setAssets(data.assets || [])), [folder, search])
+  // Espera uma pausa na digitação antes de consultar o servidor.
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearch(searchInput.trim() ? searchInput : ''), 300)
+    return () => window.clearTimeout(timer)
+  }, [searchInput])
+
+  const load = useCallback(() => {
+    const requestId = ++requestRef.current
+    return apiFetch(`/api/media-assets?search=${encodeURIComponent(search)}&folder=${encodeURIComponent(folder)}`).then(data => {
+      // Ignora respostas antigas quando a busca muda durante a consulta.
+      if (requestId !== requestRef.current) return
+      setAssets(data.assets || [])
+      setHasMore(Boolean(data.hasMore))
+    })
+  }, [folder, search])
 
   useEffect(() => {
     setLoading(true)
-    load().catch(error => notify(error.message, 'error')).finally(() => setLoading(false))
+    load().catch(error => notify(error.message, 'error')).finally(() => { setLoading(false); setLoadedOnce(true) })
   }, [load, notify])
 
+  const loadFolders = useCallback(() => apiFetch('/api/media-folders').then(data => setFolders(data.folders || [])), [])
+
+  async function loadMore() {
+    setLoadingMore(true)
+    try {
+      const data = await apiFetch(`/api/media-assets?search=${encodeURIComponent(search)}&folder=${encodeURIComponent(folder)}&offset=${assets.length}`)
+      setAssets(current => [...current, ...(data.assets || []).filter(item => !current.some(existing => existing.id === item.id))])
+      setHasMore(Boolean(data.hasMore))
+    } catch (error) { notify(error.message, 'error') } finally { setLoadingMore(false) }
+  }
+
   useEffect(() => {
-    apiFetch('/api/media-folders').then(data => setFolders(data.folders || [])).catch(error => notify(error.message, 'error'))
-  }, [notify])
+    loadFolders().catch(error => notify(error.message, 'error'))
+  }, [loadFolders, notify])
 
   function selectFolder(nextFolder) {
     setFolder(nextFolder)
@@ -106,12 +138,17 @@ export function MediaLibraryPage({ onNavigate }) {
       setFolders(foldersData.folders || [])
       await load()
       notify(`${files.length} mídia(s) adicionada(s) à biblioteca.`)
-    } catch (error) { notify(error.message, 'error') } finally { setUploading(false) }
+    } catch (error) {
+      notify(error.message, 'error')
+      // Arquivos enviados antes da falha já foram salvos: atualiza a grade e as pastas.
+      loadFolders().catch(() => {})
+      load().catch(() => {})
+    } finally { setUploading(false) }
   }
 
   async function remove(asset) {
     if (!window.confirm(`Remover ${asset.name} da biblioteca?`)) return
-    try { await apiFetch(`/api/media-assets/${asset.id}`, { method: 'DELETE' }); setAssets(current => current.filter(item => item.id !== asset.id)); notify('Mídia removida.') }
+    try { await apiFetch(`/api/media-assets/${asset.id}`, { method: 'DELETE' }); setAssets(current => current.filter(item => item.id !== asset.id)); notify('Mídia removida.'); loadFolders().catch(() => {}) }
     catch (error) { notify(error.message, 'error') }
   }
 
@@ -175,7 +212,7 @@ export function MediaLibraryPage({ onNavigate }) {
     const text = suggestionText(suggestion)
     if (!text.trim()) return
     try {
-      await apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify({ title: suggestion.titulo || `Ideio sistema inteligente · ${suggestionNiche || 'novo conteúdo'}`, text, platforms: suggestion.plataformas?.length ? suggestion.plataformas : suggestionPlatforms }) })
+      await apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify({ title: suggestion.titulo || `Ideia do sistema inteligente · ${suggestionNiche || 'novo conteúdo'}`, text, platforms: suggestion.plataformas?.length ? suggestion.plataformas : suggestionPlatforms }) })
       setSavedSuggestions(current => [...current, suggestion.suggestionId])
       notify('Ideia salva no Baú de Ideias.')
     } catch (error) { notify(error.message, 'error') }
@@ -186,50 +223,171 @@ export function MediaLibraryPage({ onNavigate }) {
 
   const folderOptions = [{ name: 'Geral', assetCount: folders.find(item => item.name.toLowerCase() === 'geral')?.assetCount || 0 }, ...folders.filter(item => item.name.toLowerCase() !== 'geral')]
 
-  return <section className="page-view media-library-page">
-    <header className="media-library-heading"><div className="media-library-heading-copy"><span className="media-library-heading-icon" aria-hidden="true">▧</span><div><p className="eyebrow">BIBLIOTECA DE CONTEÚDO</p><h2>Sua biblioteca de mídia</h2><p>Centralize fotos e vídeos e descubra novas ideias a partir do que já funciona nas suas redes.</p></div></div><div className="media-library-heading-actions"><button type="button" className="secondary-button media-library-folder-button" onClick={() => setFolderDialogOpen(current => !current)}>＋ Nova pasta</button><label className="action-button media-library-upload-button">{uploading ? 'Enviando…' : 'Adicionar mídia'}<input type="file" hidden multiple accept="image/*,video/*" onChange={upload} disabled={uploading} /></label></div></header>
-    {folderDialogOpen && <form className="media-library-folder-form" onSubmit={createFolder}><label><span>Nome da nova pasta</span><input autoFocus value={newFolderName} onChange={event => setNewFolderName(event.target.value)} placeholder="Ex.: Campanhas de verão" maxLength={80} /></label><button type="button" className="secondary-button" onClick={() => { setFolderDialogOpen(false); setNewFolderName('') }}>Cancelar</button><button type="submit" className="action-button" disabled={creatingFolder || !newFolderName.trim()}>{creatingFolder ? 'Criando…' : 'Criar pasta'}</button></form>}
+  const totalAssets = folders.reduce((total, item) => total + Number(item.assetCount || 0), 0)
+  const filtered = Boolean(search || folder)
 
-    <section className="media-ai-opportunities" aria-labelledby="media-ai-opportunities-title">
-      <div className="media-ai-opportunities-heading">
-        <div className="media-ai-opportunities-title">
-          <span className="media-ai-opportunities-icon" aria-hidden="true">✦</span>
-          <div>
-            <p className="eyebrow">ASSISTENTE DE CONTEÚDO</p>
-            <h3 id="media-ai-opportunities-title">Encontre sua próxima oportunidade</h3>
-            <p>O sistema inteligente cruza seu nicho com os sinais disponíveis no Analytics e sugere ideias para testar.</p>
-          </div>
-        </div>
-        <span className="media-ai-data-badge">{suggestionInsights ? 'Baseado no seu histórico' : 'Analisa seu histórico'}</span>
+  return <div className="ds-page lib" data-ds-root>
+    <header className="ds-pagehead lib-head">
+      <div className="ds-pagehead__text">
+        <p className="ds-eyebrow">Acervo</p>
+        <h1 className="ds-pagehead__title">Biblioteca</h1>
+        <p className="ds-pagehead__lede">Fotos e vídeos reutilizáveis, organizados em pastas e prontos para usar no Meu Post.</p>
       </div>
-      <div className="media-ai-opportunities-controls">
-        <label>
-          <span>Nicho ou tema principal <em>opcional</em></span>
-          <input value={suggestionNiche} onChange={event => setSuggestionNiche(event.target.value)} placeholder="Ex.: educação financeira" />
-        </label>
-        <label>
-          <span>Período do histórico</span>
-          <select value={suggestionDays} onChange={event => setSuggestionDays(Number(event.target.value))}>
-            <option value={7}>Últimos 7 dias</option>
-            <option value={30}>Últimos 30 dias</option>
-            <option value={90}>Últimos 90 dias</option>
+      <div className="ds-pagehead__actions lib-upload">
+        <span className="ds-select lib-upload__dest">
+          <select className="ds-select__control" value={uploadFolder} onChange={event => setUploadFolder(event.target.value)} aria-label="Destino dos próximos uploads">
+            {folderOptions.map(option => <option value={option.name} key={option.name}>Enviar para: {option.name}</option>)}
           </select>
-        </label>
-        <div className="media-ai-platform-picker">
-          <span>Redes para adaptar <small>{suggestionPlatforms.length} selecionada{suggestionPlatforms.length === 1 ? '' : 's'}</small></span>
-          <div>
-            {platforms.map(([id, label]) => <button type="button" className={suggestionPlatforms.includes(id) ? 'is-selected' : ''} onClick={() => toggleSuggestionPlatform(id)} key={id} aria-pressed={suggestionPlatforms.includes(id)}><PlatformIcon platform={id} className="media-ai-platform-picker-icon" />{label}</button>)}
-          </div>
-        </div>
-        <button type="button" className="action-button media-ai-generate-button" onClick={generateContentSuggestions} disabled={suggestionLoading}>
-          <span aria-hidden="true">✦</span>{suggestionLoading ? 'Analisando e criando…' : suggestions.length ? 'Gerar novas ideias' : 'Gerar sugestões'}
+          <Icon name="chevronDown" className="ds-select__chev" />
+        </span>
+        <button type="button" className="ds-btn ds-btn--primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+          {uploading ? <><span className="ds-spinner" aria-hidden="true" />Enviando…</> : <><Icon name="upload" />Adicionar mídia</>}
         </button>
+        <input ref={fileInputRef} className="lib-upload__input" type="file" multiple accept="image/*,video/*" onChange={upload} disabled={uploading} tabIndex={-1} aria-hidden="true" />
       </div>
-      {suggestionInsights && <div className="media-ai-insight-summary"><div className="media-ai-insight-metrics"><span><strong>{quality?.publications || 0}</strong> publicações analisadas</span><span><strong>{quality?.profiles || 0}</strong> perfis com dados</span><span><strong>{inferredNiche || 'Nicho aberto'}</strong> nicho de referência</span></div><p>{suggestionInsights.summary}</p>{suggestionInsights.recommendations?.length ? <div className="media-ai-insight-tips">{suggestionInsights.recommendations.slice(0, 2).map((tip, index) => <span key={index}><b>{index + 1}</b>{tip}</span>)}</div> : null}</div>}
-      {suggestionLoading && <div className="media-ai-opportunities-loading" role="status" aria-live="polite"><span className="media-ai-opportunities-loading-icon" aria-hidden="true">✦</span><div><strong>Lendo seus sinais e preparando ideias</strong><p>O sistema inteligente está combinando seu histórico com as redes escolhidas.</p></div><span className="media-ai-loading-dots" aria-hidden="true">•••</span></div>}
-      {suggestions.length ? <div className="media-ai-suggestions" aria-live="polite">{suggestions.map((suggestion, index) => <article className="media-ai-suggestion-card" key={suggestion.suggestionId}><div className="media-ai-suggestion-card-heading"><span className="media-ai-suggestion-number">{String(index + 1).padStart(2, '0')}</span><div><span className="media-ai-card-kicker">IDEIA PARA TESTAR</span><h4>{suggestion.titulo || `Sugestão ${index + 1}`}</h4></div></div><p className="media-ai-suggestion-text">{suggestion.text}</p><div className="media-ai-suggestion-reason"><b>Por que vale testar</b><span>{suggestionInsights?.recommendations?.[index % (suggestionInsights.recommendations?.length || 1)] || 'A ideia combina o nicho informado com um formato de conteúdo fácil de testar e comparar.'}</span></div><footer><span>{(suggestion.plataformas?.length ? suggestion.plataformas : suggestionPlatforms).map(platformLabel).join(' · ')}</span><button type="button" className="secondary-button" onClick={() => saveSuggestionToIdeaVault(suggestion)} disabled={savedSuggestions.includes(suggestion.suggestionId)}>{savedSuggestions.includes(suggestion.suggestionId) ? 'Salvo no Baú de Ideias' : 'Salvar no Baú de Ideias'}</button></footer></article>)}</div> : !suggestionLoading && <div className="media-ai-opportunities-empty"><span className="media-ai-opportunities-empty-icon" aria-hidden="true">✦</span><div className="media-ai-opportunities-empty-copy"><strong>Comece com um tema ou deixe o sistema inteligente descobrir</strong><p>Informe um assunto para direcionar as ideias. Se deixar em branco, o sistema tenta encontrar um nicho no seu histórico.</p></div><div className="media-ai-opportunities-examples" aria-label="Temas sugeridos">{suggestionExamples.map(example => <button type="button" key={example} onClick={() => setSuggestionNiche(example)}>{example}</button>)}</div></div>}
+    </header>
+
+    <section className="lib-shelf" aria-labelledby="lib-shelf-title">
+      <h2 className="ds-sr-only" id="lib-shelf-title">Mídias salvas</h2>
+      <div className="lib-tools">
+        <label className="ds-inputwrap lib-tools__search">
+          <Icon name="search" />
+          <input className="ds-input" type="search" value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder="Buscar por nome ou tag…" aria-label="Buscar mídia" />
+        </label>
+        <span className="ds-select lib-tools__folder">
+          <select className="ds-select__control" value={folder} onChange={event => selectFolder(event.target.value)} aria-label="Filtrar pasta">
+            <option value="">Todas as pastas</option>
+            {folderOptions.map(option => <option value={option.name} key={option.name}>{option.name}</option>)}
+          </select>
+          <Icon name="chevronDown" className="ds-select__chev" />
+        </span>
+        <button type="button" className="ds-btn ds-btn--secondary lib-tools__newfolder" onClick={() => setFolderDialogOpen(current => !current)} aria-expanded={folderDialogOpen}><Icon name="plus" />Nova pasta</button>
+      </div>
+
+      <div className="ds-netswitch lib-folders" role="group" aria-label="Pastas da biblioteca">
+        <button type="button" className="ds-netswitch__opt" aria-pressed={!folder} onClick={() => selectFolder('')}>Todas <span className="lib-folders__count">{totalAssets}</span></button>
+        {folderOptions.map(option => <button type="button" className="ds-netswitch__opt" aria-pressed={folder === option.name} onClick={() => selectFolder(option.name)} key={option.name}>{option.name} <span className="lib-folders__count">{option.assetCount || 0}</span></button>)}
+      </div>
+
+      {folderDialogOpen && <form className="lib-newfolder" onSubmit={createFolder}>
+        <div className="ds-field lib-newfolder__field">
+          <label className="ds-label" htmlFor="lib-newfolder-name">Nome da nova pasta</label>
+          <input id="lib-newfolder-name" className="ds-input" autoFocus value={newFolderName} onChange={event => setNewFolderName(event.target.value)} placeholder="Ex.: Campanhas de verão" maxLength={80} />
+        </div>
+        <button type="button" className="ds-btn ds-btn--quiet" onClick={() => { setFolderDialogOpen(false); setNewFolderName('') }}>Cancelar</button>
+        <button type="submit" className="ds-btn ds-btn--primary" disabled={creatingFolder || !newFolderName.trim()}>{creatingFolder ? 'Criando…' : 'Criar pasta'}</button>
+      </form>}
+
+      {loading && !loadedOnce
+        ? <div className="lib-assets" aria-busy="true"><p className="ds-sr-only" aria-live="polite">Carregando biblioteca…</p>{[1, 2, 3, 4].map(item => <div className="lib-asset" key={item}><span className="ds-skel lib-asset__skel" /><span className="ds-skel ds-skel--text" style={{ width: '70%' }} /></div>)}</div>
+        : assets.length
+          ? <>
+              <ul className="lib-assets" aria-busy={loading}>
+                {assets.map(asset => <li className="lib-asset" key={asset.id}>
+                  <div className="lib-asset__media">{asset.mimeType?.startsWith('video/') ? <video src={asset.url} muted controls preload="metadata" /> : <img src={asset.url} alt={asset.name} loading="lazy" />}</div>
+                  <div className="lib-asset__body">
+                    <p className="lib-asset__name" title={asset.name}>{asset.name}</p>
+                    <p className="ds-meta">{asset.folder}{asset.sizeBytes ? ` · ${formatSize(asset.sizeBytes)}` : ''}</p>
+                    {asset.tags?.length ? <p className="lib-asset__tags">{asset.tags.map(tag => <span key={tag}>#{tag}</span>)}</p> : null}
+                  </div>
+                  <div className="lib-asset__actions">
+                    <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => useAssetInPost(asset)}><Icon name="compose" size={16} />Usar no Meu Post</button>
+                    <OverflowMenu label={`Mais ações para ${asset.name}`} items={[{ label: 'Remover da biblioteca', icon: 'trash', danger: true, onSelect: () => remove(asset) }]} />
+                  </div>
+                </li>)}
+              </ul>
+              {hasMore && <div className="lib-more"><button type="button" className="ds-btn ds-btn--secondary" onClick={loadMore} disabled={loadingMore}>{loadingMore ? <><span className="ds-spinner" aria-hidden="true" />Carregando…</> : 'Carregar mais mídias'}</button></div>}
+            </>
+          : <div className="ds-empty lib-empty">
+              <span className="ds-icontile ds-icontile--lg" aria-hidden="true"><Icon name={filtered ? 'search' : 'image'} /></span>
+              <p className="ds-empty__title ds-empty__title--sm">Nenhuma mídia encontrada</p>
+              <p className="ds-empty__text">{filtered ? 'Nada corresponde à busca ou à pasta escolhida.' : 'Adicione fotos ou vídeos para montar seu acervo reutilizável.'}</p>
+              <div className="ds-empty__actions">
+                {filtered
+                  ? <button type="button" className="ds-go" onClick={() => { setSearchInput(''); setSearch(''); selectFolder('') }}>Ver todas as mídias<Icon name="arrow" /></button>
+                  : <button type="button" className="ds-btn ds-btn--primary" onClick={() => fileInputRef.current?.click()} disabled={uploading}><Icon name="upload" />Adicionar mídia</button>}
+              </div>
+            </div>}
     </section>
 
-    <section className="panel media-library-assets-panel"><div className="media-library-assets-toolbar"><div><p className="eyebrow">SEU ACERVO</p><h3>Mídias salvas</h3></div><div className="media-library-filters"><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar por nome ou tag…" aria-label="Buscar mídia" /><select value={folder} onChange={event => selectFolder(event.target.value)} aria-label="Filtrar pasta"><option value="">Todas as pastas</option>{folderOptions.map(option => <option value={option.name} key={option.name}>{option.name}</option>)}</select></div></div><div className="media-library-folder-tabs" role="tablist" aria-label="Pastas da biblioteca"><button type="button" role="tab" aria-selected={!folder} className={!folder ? 'is-active' : ''} onClick={() => selectFolder('')}>Todas <small>{folders.reduce((total, item) => total + Number(item.assetCount || 0), 0)}</small></button>{folderOptions.map(option => <button type="button" role="tab" aria-selected={folder === option.name} className={folder === option.name ? 'is-active' : ''} onClick={() => selectFolder(option.name)} key={option.name}>{option.name} <small>{option.assetCount || 0}</small></button>)}</div><label className="media-library-upload-folder"><span>Destino dos próximos uploads</span><select value={uploadFolder} onChange={event => setUploadFolder(event.target.value)}>{folderOptions.map(option => <option value={option.name} key={option.name}>{option.name}</option>)}</select></label>{loading ? <p className="empty-state">Carregando biblioteca…</p> : assets.length ? <div className="media-library-grid">{assets.map(asset => <article className="media-library-asset-card" key={asset.id}><div className="media-library-asset-preview">{asset.mimeType?.startsWith('video/') ? <video src={asset.url} muted controls preload="metadata" /> : <img src={asset.url} alt={asset.name} />}</div><div className="media-library-asset-body"><strong title={asset.name}>{asset.name}</strong><small>{asset.folder}{asset.sizeBytes ? ` · ${formatSize(asset.sizeBytes)}` : ''}</small>{asset.tags?.length ? <div className="media-library-tags">{asset.tags.map(tag => <span key={tag}>#{tag}</span>)}</div> : null}<button type="button" className="media-library-use-button" onClick={() => useAssetInPost(asset)}>Usar no Meu Post</button><button type="button" className="media-library-remove-button" onClick={() => remove(asset)}>Remover da biblioteca</button></div></article>)}</div> : <div className="empty-state media-library-empty"><strong>Nenhuma mídia encontrada</strong><p>Adicione fotos ou vídeos para montar seu acervo reutilizável.</p></div>}</section>
-  </section>
+    <section className="ds-block lib-ideas" aria-labelledby="media-ai-opportunities-title">
+      <div className="ds-head">
+        <div className="ds-head__text">
+          <p className="ds-eyebrow">Assistente inteligente</p>
+          <h2 className="ds-head__title" id="media-ai-opportunities-title">Encontre sua próxima oportunidade</h2>
+          <p className="ds-head__desc">O sistema inteligente cruza seu nicho com os sinais disponíveis nos Relatórios e sugere ideias para testar.</p>
+        </div>
+        <span className="ds-badge" data-tone={suggestionInsights ? 'gold' : 'outline'}>{suggestionInsights ? 'Baseado no seu histórico' : 'Analisa seu histórico'}</span>
+      </div>
+
+      <div className="lib-ideas__form">
+        <div className="ds-field">
+          <div className="ds-field__top"><label className="ds-label" htmlFor="lib-niche">Nicho ou tema principal</label><span className="ds-label__req">opcional</span></div>
+          <input id="lib-niche" className="ds-input" value={suggestionNiche} onChange={event => setSuggestionNiche(event.target.value)} placeholder="Ex.: educação financeira" />
+        </div>
+        <div className="ds-field">
+          <label className="ds-label" htmlFor="lib-days">Período do histórico</label>
+          <span className="ds-select">
+            <select id="lib-days" className="ds-select__control" value={suggestionDays} onChange={event => setSuggestionDays(Number(event.target.value))}>
+              <option value={7}>Últimos 7 dias</option>
+              <option value={30}>Últimos 30 dias</option>
+              <option value={90}>Últimos 90 dias</option>
+            </select>
+            <Icon name="chevronDown" className="ds-select__chev" />
+          </span>
+        </div>
+        <div className="ds-field lib-ideas__nets">
+          <p className="ds-label">Redes para adaptar <span className="ds-label__req">{suggestionPlatforms.length} selecionada{suggestionPlatforms.length === 1 ? '' : 's'}</span></p>
+          <div className="ds-netswitch" role="group" aria-label="Redes para adaptar">
+            {platforms.map(([id, label]) => <button type="button" className="ds-netswitch__opt" onClick={() => toggleSuggestionPlatform(id)} key={id} aria-pressed={suggestionPlatforms.includes(id)}><NetworkGlyph network={id} size={16} />{label}</button>)}
+          </div>
+        </div>
+        <button type="button" className="ds-btn ds-btn--primary lib-ideas__go" onClick={generateContentSuggestions} disabled={suggestionLoading}>
+          {suggestionLoading ? <span className="ds-spinner" aria-hidden="true" /> : <Icon name="sparkle" />}{suggestionLoading ? 'Analisando e criando…' : suggestions.length ? 'Gerar novas ideias' : 'Gerar sugestões'}
+        </button>
+      </div>
+
+      {suggestionInsights && <div className="lib-ideas__insights">
+        <ul className="lib-ideas__facts">
+          <li><strong className="ds-num">{quality?.publications || 0}</strong> publicações analisadas</li>
+          <li><strong className="ds-num">{quality?.profiles || 0}</strong> perfis com dados</li>
+          <li><strong>{inferredNiche || 'Nicho aberto'}</strong> nicho de referência</li>
+        </ul>
+        {suggestionInsights.summary && <p className="lib-ideas__summary">{suggestionInsights.summary}</p>}
+        {suggestionInsights.recommendations?.length ? <ol className="lib-ideas__tips">{suggestionInsights.recommendations.slice(0, 2).map((tip, index) => <li key={index}>{tip}</li>)}</ol> : null}
+      </div>}
+
+      {suggestionLoading && <div className="ds-alert lib-ideas__loading" role="status" aria-live="polite">
+        <span className="ds-spinner ds-alert__icon" aria-hidden="true" />
+        <p className="ds-alert__title">Lendo seus sinais e preparando ideias</p>
+        <p className="ds-alert__text">O sistema inteligente está combinando seu histórico com as redes escolhidas.</p>
+      </div>}
+
+      {suggestions.length
+        ? <ol className="lib-ideas__list" aria-live="polite">
+            {suggestions.map((suggestion, index) => {
+              const saved = savedSuggestions.includes(suggestion.suggestionId)
+              return <li className="lib-idea" key={suggestion.suggestionId}>
+                <p className="lib-idea__num ds-num" aria-hidden="true">{String(index + 1).padStart(2, '0')}</p>
+                <p className="ds-eyebrow">Ideia para testar</p>
+                <h3 className="lib-idea__title">{suggestion.titulo || `Sugestão ${index + 1}`}</h3>
+                <p className="lib-idea__text">{suggestion.text}</p>
+                <div className="lib-idea__why">
+                  <p className="lib-idea__whylabel">{suggestionInsights?.recommendations?.length ? 'Recomendação dos Relatórios' : 'Por que vale testar'}</p>
+                  <p>{suggestionInsights?.recommendations?.[index % (suggestionInsights.recommendations?.length || 1)] || 'A ideia combina o nicho informado com um formato de conteúdo fácil de testar e comparar.'}</p>
+                </div>
+                <div className="lib-idea__foot">
+                  <span className="lib-idea__nets">{(suggestion.plataformas?.length ? suggestion.plataformas : suggestionPlatforms).map(platform => <span key={platform}><NetworkGlyph network={platform} size={14} />{platformLabel(platform)}</span>)}</span>
+                  <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => saveSuggestionToIdeaVault(suggestion)} disabled={saved}>{saved ? <><Icon name="check" size={16} />Salvo no Baú de Ideias</> : <><Icon name="chest" size={16} />Salvar no Baú de Ideias</>}</button>
+                </div>
+              </li>
+            })}
+          </ol>
+        : !suggestionLoading && <div className="ds-empty ds-empty--quiet lib-ideas__empty">
+            <p className="ds-empty__title ds-empty__title--sm">Comece com um tema ou deixe o sistema inteligente descobrir</p>
+            <p className="ds-empty__text">Informe um assunto para direcionar as ideias. Se deixar em branco, o sistema tenta encontrar um nicho no seu histórico.</p>
+            <div className="ds-empty__actions" role="group" aria-label="Temas sugeridos">{suggestionExamples.map(example => <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" key={example} onClick={() => setSuggestionNiche(example)}>{example}</button>)}</div>
+          </div>}
+    </section>
+  </div>
 }
