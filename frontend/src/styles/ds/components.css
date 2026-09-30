@@ -1019,7 +1019,7 @@
     .ds-stat { padding-right: 12px; }
     .ds-stat__value { font-size: var(--ds-text-3xl); }
     /* 16px keeps iOS from zooming into focused fields */
-    .ds-input, .ds-textarea, .ds-select__control, .ds-selectx { min-height: 44px; font-size: 16px; }
+    .ds-input, .ds-textarea, .ds-select__control { min-height: 44px; font-size: 16px; }
     /* touch: every control is at least 44px tall on phones, whatever its desktop size */
     .ds-password__input { padding-right: 48px; }
     .ds-password__toggle { top: 0; right: 0; bottom: 0; width: 44px; }
@@ -1468,6 +1468,8 @@
   }
 
   @media (max-width: 767px) {
+    /* after the select's own rules, so the phone size wins over --md and --sm */
+    .ds-selectx, .ds-selectx--sm { min-height: 44px; font-size: 16px; }
     .ds-scrim--sheet { place-items: end stretch; padding: 0; }
     .ds-sheet, .ds-sheet--sm, .ds-sheet--lg {
       width: 100%; max-height: calc(100dvh - 48px); border-bottom: 0; border-radius: var(--ds-radius-2xl) var(--ds-radius-2xl) 0 0;
