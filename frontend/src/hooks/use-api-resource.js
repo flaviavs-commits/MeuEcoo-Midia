@@ -29,9 +29,12 @@ export function useApiResource(loader, initialValue) {
     }
   }, [loader])
 
+  // Uma carga nova (outra rede, outro mês) começa sem o erro da anterior; se ela também
+  // falhar, o erro volta com a mensagem nova.
   useEffect(() => {
     let active = true
     setLoading(true)
+    setError('')
     loader()
       .then(nextValue => { if (active) setValue(nextValue) })
       .catch(caught => { if (active) setError(caught.message) })
