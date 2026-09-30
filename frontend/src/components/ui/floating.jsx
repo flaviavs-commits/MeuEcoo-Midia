@@ -236,7 +236,7 @@ export function Tooltip({ label, children, placement = 'right', disabled = false
  */
 export function Sheet({
   open, onClose, title, description, children, footer, className = '', size = 'md',
-  closeLabel = 'Fechar', hideTitle = false, eyebrow, container,
+  closeLabel = 'Fechar', hideTitle = false, eyebrow, container, icon, tone,
 }) {
   const panelRef = useRef(null)
   const titleId = useId()
@@ -283,7 +283,8 @@ export function Sheet({
         aria-labelledby={titleId}
         aria-describedby={description ? descId : undefined}
       >
-        <header className="ds-sheet__head">
+        <header className={`ds-sheet__head${icon ? ' ds-sheet__head--icon' : ''}`}>
+          {icon && <span className="ds-sheet__icon" data-tone={tone} aria-hidden="true"><Icon name={icon} /></span>}
           <div className="ds-sheet__heading">
             {eyebrow && <p className="ds-eyebrow">{eyebrow}</p>}
             <h2 className={hideTitle ? 'ds-sr-only' : 'ds-sheet__title'} id={titleId}>{title}</h2>

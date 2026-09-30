@@ -19,16 +19,21 @@ export function OverflowMenu({ label, items, size = 'sm', icon = 'dots', sheetTi
     item.onSelect()
   }
 
-  const options = items.map(item => <button
-    key={item.label}
-    type="button"
-    role="menuitem"
-    className={`ds-menu__item${item.danger ? ' ds-menu__item--danger' : ''}`}
-    disabled={item.disabled}
-    onClick={() => choose(item)}
-  >
-    {item.icon && <Icon name={item.icon} />}{item.label}
-  </button>)
+  // A destructive action sits after a divider, apart from the everyday ones.
+  const options = items.flatMap((item, index) => {
+    const button = <button
+      key={item.label}
+      type="button"
+      role="menuitem"
+      className={`ds-menu__item${item.danger ? ' ds-menu__item--danger' : ''}`}
+      disabled={item.disabled}
+      onClick={() => choose(item)}
+    >
+      {item.icon && <Icon name={item.icon} />}{item.label}
+    </button>
+    const divide = item.danger && index > 0 && !items[index - 1].danger
+    return divide ? [<div key={`${item.label}-sep`} role="separator" className="ds-menu__sep" />, button] : [button]
+  })
 
   return <>
     <button
