@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiFetch } from '../lib/api.js'
+import { apiFetch, ApiError } from '../lib/api.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { Icon } from '../components/ui/icon.jsx'
 
@@ -35,6 +35,12 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? 'agora' : date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 
+// Mensagem do backend quando ela existe; qualquer outro erro (ex.: resposta
+// num formato inesperado) vira o texto próprio da ação, nunca o erro técnico.
+function messageOf(error, fallback) {
+  return error instanceof ApiError ? error.message : fallback
+}
+
 export function WorkspacePage({ onNavigate } = {}) {
   const [workspaces, setWorkspaces] = useState([])
   const [posts, setPosts] = useState([])
@@ -54,9 +60,9 @@ export function WorkspacePage({ onNavigate } = {}) {
     setLoadError('')
     try {
       const [spaces, postData] = await Promise.all([apiFetch('/api/workspaces'), apiFetch('/api/posts')])
-      const nextSpaces = spaces.workspaces || []
+      const nextSpaces = spaces?.workspaces || []
       setWorkspaces(nextSpaces)
-      setPosts(postData.posts || [])
+      setPosts(postData?.posts || [])
       setSelected(current => nextSpaces.find(space => space.id === (preferId ?? current?.id)) || nextSpaces[0] || null)
       return nextSpaces
     } finally {
@@ -64,9 +70,13 @@ export function WorkspacePage({ onNavigate } = {}) {
     }
   }, [])
 
+  // A falha de carga já aparece no alerta da página (com "Tentar de novo"); um
+  // toast igual ao mesmo tempo só repetiria a mensagem.
+  const loadFailed = useCallback(error => setLoadError(messageOf(error, 'Não foi possível carregar seus espaços.')), [])
+
   useEffect(() => {
-    load().catch(error => { setLoadError(error.message); notify(error.message, 'error') })
-  }, [load, notify])
+    load().catch(loadFailed)
+  }, [load, loadFailed])
 
   useEffect(() => {
     if (!selected) {
@@ -81,15 +91,15 @@ export function WorkspacePage({ onNavigate } = {}) {
       apiFetch(`/api/workspaces/${selected.id}/approvals`),
     ]).then(([memberData, approvalData]) => {
       if (!active) return
-      setMembers(memberData.members || [])
-      setApprovals(approvalData.approvals || [])
+      setMembers(memberData?.members || [])
+      setApprovals(approvalData?.approvals || [])
       setForm(current => ({
         ...current,
         brandName: selected.branding?.name || '',
         primaryColor: selected.branding?.primaryColor || '#d9ad5b',
       }))
     }).catch(error => {
-      if (active) notify(error.message, 'error')
+      if (active) notify(messageOf(error, 'Não foi possível carregar as pessoas e as aprovações deste espaço.'), 'error')
     }).finally(() => {
       if (active) setLoadingDetails(false)
     })
@@ -102,37 +112,45 @@ export function WorkspacePage({ onNavigate } = {}) {
     try {
       const created = await apiFetch('/api/workspaces', { method: 'POST', body: JSON.stringify({ name: form.name }) })
       setForm(current => ({ ...current, name: '' }))
-      await load(created?.workspace?.id ?? null)
       notify('Espaço criado. Agora você pode conectar contas e adicionar o time.')
-    } catch (error) { notify(error.message, 'error') }
+      // O espaço já existe: se só a lista falhar ao recarregar, o aviso da página cuida disso.
+      await load(created?.workspace?.id ?? null).catch(loadFailed)
+    } catch (error) { notify(messageOf(error, 'Não foi possível criar o espaço.'), 'error') }
     finally { setBusy('') }
+  }
+
+  // Depois de uma gravação que deu certo, recarregar a lista é secundário: se só
+  // isso falhar, o sucesso continua valendo e o aviso diz o que aconteceu.
+  async function refreshAfterSave(path, apply, what) {
+    try { apply(await apiFetch(path)) }
+    catch { notify(`${what} Recarregue a página para ver a lista atualizada.`, 'error') }
   }
 
   async function addMember(event) {
     event.preventDefault()
     if (!selected) return
+    const spaceId = selected.id
     setBusy('member')
     try {
-      await apiFetch(`/api/workspaces/${selected.id}/members`, { method: 'POST', body: JSON.stringify({ email: form.email, role: form.role }) })
-      const data = await apiFetch(`/api/workspaces/${selected.id}/members`)
-      setMembers(data.members || [])
+      await apiFetch(`/api/workspaces/${spaceId}/members`, { method: 'POST', body: JSON.stringify({ email: form.email, role: form.role }) })
       setForm(current => ({ ...current, email: '' }))
       notify('Colaborador adicionado ao espaço.')
-    } catch (error) { notify(error.message, 'error') }
+      await refreshAfterSave(`/api/workspaces/${spaceId}/members`, data => setMembers(data?.members || []), 'O colaborador foi adicionado, mas a lista não atualizou.')
+    } catch (error) { notify(messageOf(error, 'Não foi possível adicionar o colaborador.'), 'error') }
     finally { setBusy('') }
   }
 
   async function requestApproval(event) {
     event.preventDefault()
     if (!selected || !form.postId) return
+    const spaceId = selected.id
     setBusy('approval')
     try {
-      await apiFetch(`/api/workspaces/${selected.id}/approvals`, { method: 'POST', body: JSON.stringify({ postId: Number(form.postId) }) })
-      const data = await apiFetch(`/api/workspaces/${selected.id}/approvals`)
-      setApprovals(data.approvals || [])
+      await apiFetch(`/api/workspaces/${spaceId}/approvals`, { method: 'POST', body: JSON.stringify({ postId: Number(form.postId) }) })
       setForm(current => ({ ...current, postId: '' }))
       notify('Solicitação enviada para aprovação.')
-    } catch (error) { notify(error.message, 'error') }
+      await refreshAfterSave(`/api/workspaces/${spaceId}/approvals`, data => setApprovals(data?.approvals || []), 'A solicitação foi enviada, mas a lista não atualizou.')
+    } catch (error) { notify(messageOf(error, 'Não foi possível enviar para aprovação.'), 'error') }
     finally { setBusy('') }
   }
 
@@ -143,7 +161,7 @@ export function WorkspacePage({ onNavigate } = {}) {
       await apiFetch(`/api/workspaces/approvals/${approval.id}`, { method: 'PATCH', body: JSON.stringify({ status }) })
       setApprovals(current => current.map(item => item.id === approval.id ? { ...item, status } : item))
       notify(status === 'approved' ? 'Conteúdo aprovado.' : 'Conteúdo rejeitado.')
-    } catch (error) { notify(error.message, 'error') }
+    } catch (error) { notify(messageOf(error, 'Não foi possível registrar a decisão.'), 'error') }
     finally { setBusy('') }
   }
 
@@ -153,10 +171,10 @@ export function WorkspacePage({ onNavigate } = {}) {
     setBusy('brand')
     try {
       const data = await apiFetch(`/api/workspaces/${selected.id}/branding`, { method: 'PATCH', body: JSON.stringify({ name: form.brandName, primaryColor: form.primaryColor }) })
-      setSelected(current => current ? { ...current, branding: data.branding } : current)
-      setWorkspaces(current => current.map(space => space.id === selected.id ? { ...space, branding: data.branding } : space))
+      setSelected(current => current ? { ...current, branding: data?.branding } : current)
+      setWorkspaces(current => current.map(space => space.id === selected.id ? { ...space, branding: data?.branding } : space))
       notify('Identidade visual atualizada.')
-    } catch (error) { notify(error.message, 'error') }
+    } catch (error) { notify(messageOf(error, 'Não foi possível salvar a identidade visual.'), 'error') }
     finally { setBusy('') }
   }
 
@@ -289,7 +307,7 @@ export function WorkspacePage({ onNavigate } = {}) {
       <Icon name="alertCircle" className="ds-alert__icon" />
       <p className="ds-alert__title">Não foi possível carregar seus espaços</p>
       <p className="ds-alert__text">{loadError}</p>
-      <div className="ds-alert__actions"><button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => load().catch(error => setLoadError(error.message))} disabled={loading}>Tentar de novo</button></div>
+      <div className="ds-alert__actions"><button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => load().catch(loadFailed)} disabled={loading}>Tentar de novo</button></div>
     </div>}
 
     {!loading && !loadError && !workspaces.length

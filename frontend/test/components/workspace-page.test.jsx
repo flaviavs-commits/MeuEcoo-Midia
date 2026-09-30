@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { WorkspacePage } from '../../src/pages/workspace-page.jsx'
 import { ToastProvider } from '../../src/components/ui/toast.jsx'
 import * as api from '../../src/lib/api.js'
@@ -37,5 +38,39 @@ describe('WorkspacePage', () => {
     expect(await screen.findByText('Post #10')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Aprovar' })).not.toBeInTheDocument()
     expect(screen.getByText('Só proprietários, administradores e aprovadores podem aprovar ou rejeitar.')).toBeInTheDocument()
+  })
+
+  it('confirma o colaborador adicionado mesmo quando só a lista falha ao recarregar', async () => {
+    const base = mockApi('owner').getMockImplementation()
+    let memberGets = 0
+    const apiFetch = vi.spyOn(api, 'apiFetch').mockImplementation((path, options) => {
+      if (path === '/api/workspaces/3/members' && options?.method === 'POST') return Promise.resolve({ member: { id: 2 } })
+      if (path === '/api/workspaces/3/members' && ++memberGets > 1) return Promise.reject(new api.ApiError('Falha temporária.', 503))
+      return base(path, options)
+    })
+    render(<ToastProvider><WorkspacePage /></ToastProvider>)
+
+    await userEvent.click(await screen.findByRole('tab', { name: 'Pessoas' }))
+    const email = await screen.findByLabelText('Adicionar colaborador')
+    await userEvent.type(email, 'novo@allowed.test')
+    await userEvent.click(screen.getByRole('button', { name: 'Adicionar' }))
+
+    expect(await screen.findByText('Colaborador adicionado ao espaço.')).toBeInTheDocument()
+    expect(await screen.findByText(/O colaborador foi adicionado, mas a lista não atualizou/)).toBeInTheDocument()
+    expect(email).toHaveValue('')
+    expect(apiFetch).toHaveBeenCalledWith('/api/workspaces/3/members', { method: 'POST', body: JSON.stringify({ email: 'novo@allowed.test', role: 'editor' }) })
+  })
+
+  it('não mostra erro técnico quando a lista de espaços vem num formato inesperado', async () => {
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/workspaces') return Promise.reject(new TypeError("Cannot read properties of null (reading 'workspaces')"))
+      if (path === '/api/posts') return Promise.resolve({ posts: [] })
+      return Promise.reject(new Error(`rota não mockada: ${path}`))
+    })
+    render(<ToastProvider><WorkspacePage /></ToastProvider>)
+
+    expect(await screen.findByText('Não foi possível carregar seus espaços.')).toBeInTheDocument()
+    expect(screen.queryByText(/Cannot read properties/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Tentar de novo' })).toBeInTheDocument()
   })
 })
