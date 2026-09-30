@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
-import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { OnboardingChecklist } from '../components/ui/onboarding-checklist.jsx'
+import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
+import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
+import { ColumnChart } from '../components/ui/column-chart.jsx'
 
 const STATUS_LABELS = { scheduled: 'Agendada', agendado: 'Agendada', published: 'Publicada', publicado: 'Publicado', failed: 'Falhou', erro: 'Falhou', error: 'Falhou', partial: 'Parcial', processing: 'Processando' }
 const SCHEDULER_AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
@@ -40,8 +42,8 @@ function engagementValue(metrics) {
 
 function compactNumber(value) {
   const number = Number(value || 0)
-  if (number >= 1000000) return `${(number / 1000000).toFixed(1).replace('.0', '')} mi`
-  if (number >= 1000) return `${(number / 1000).toFixed(1).replace('.0', '')} mil`
+  if (number >= 1000000) return `${(number / 1000000).toFixed(1).replace('.0', '').replace('.', ',')} mi`
+  if (number >= 1000) return `${(number / 1000).toFixed(1).replace('.0', '').replace('.', ',')} mil`
   return String(number)
 }
 
@@ -99,19 +101,47 @@ function failureDiagnosis(post) {
   }
 }
 
-function shortPostDate(post) {
-  const value = postDateValue(post)
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? 'data não informada' : date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+const MONTHS = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+const WEEKDAYS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
+const STATUS_TONES = { scheduled: 'scheduled', agendado: 'scheduled', published: 'published', publicado: 'published', failed: 'failed', erro: 'failed', error: 'failed', partial: 'partial', processing: 'processing' }
+const STATUS_ICONS = { scheduled: 'clock', published: 'checkCircle', failed: 'alertCircle', partial: 'halfCircle', processing: 'processing' }
+const FAILURE_STATUSES = ['error', 'erro', 'failed', 'partial']
+
+function todayLabel() {
+  const text = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
+  return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
-function reviewAlertMessage(post, diagnosis) {
-  const platform = PLATFORM_LABELS[postPlatforms(post)[0]] || 'rede social'
-  const postLabel = `o post #${post.id} do dia ${shortPostDate(post)}`
-  if (diagnosis.className === 'is-content') {
-    return `Revisar ${postLabel}: é possível que não tenha sido publicado porque o tamanho ou formato da imagem está fora do padrão do ${platform}.`
+function readActivityFilter() {
+  try {
+    return localStorage.getItem(ACTIVITY_FILTER_KEY) || 'all'
+  } catch {
+    return 'all'
   }
-  return `Revisar ${postLabel}: é possível que não tenha sido publicado por uma falha no ${platform}.`
+}
+
+// Meu Post saves text per network (textByPlatform) and usually leaves "text" empty.
+function postText(post) {
+  if (post.text || post.title) return post.text || post.title
+  const byPlatform = post.textByPlatform && typeof post.textByPlatform === 'object' ? Object.values(post.textByPlatform) : []
+  return byPlatform.find(value => typeof value === 'string' && value.trim()) || ''
+}
+
+function postTitle(post) {
+  return postText(post) || `Publicação #${post.id}`
+}
+
+function NetGlyphs({ platforms, size = 14 }) {
+  if (!platforms.length) return <span className="ds-meta">Rede não informada</span>
+  return <span className="dash-inline" aria-label={platforms.map(platform => PLATFORM_LABELS[platform] || platform).join(', ')}>
+    {platforms.map(platform => <NetworkGlyph network={platform} size={size} key={platform} />)}
+  </span>
+}
+
+function statFigure(loading, error, value) {
+  if (loading) return { text: '—', state: undefined }
+  if (error) return { text: '—', state: 'unavailable' }
+  return { text: String(value), state: undefined }
 }
 
 function bestObservedHour(rows) {
@@ -150,11 +180,18 @@ export function DashboardPage({ onNavigate }) {
   const [accountsLoading, setAccountsLoading] = useState(true)
   const [analyticsLoading, setAnalyticsLoading] = useState(true)
   const [analyticsRetry, setAnalyticsRetry] = useState(0)
-  const [activityFilter, setActivityFilter] = useState(() => localStorage.getItem(ACTIVITY_FILTER_KEY) || 'all')
+  const [activityFilter, setActivityFilter] = useState(readActivityFilter)
   const [activitySearch, setActivitySearch] = useState('')
   const [deletingPostId, setDeletingPostId] = useState(null)
+  const [alertError, setAlertError] = useState('')
 
-  useEffect(() => { localStorage.setItem(ACTIVITY_FILTER_KEY, activityFilter) }, [activityFilter])
+  useEffect(() => {
+    try {
+      localStorage.setItem(ACTIVITY_FILTER_KEY, activityFilter)
+    } catch {
+      // O filtro continua valendo nesta sessão mesmo sem storage.
+    }
+  }, [activityFilter])
 
   useEffect(() => {
     let active = true
@@ -257,14 +294,14 @@ export function DashboardPage({ onNavigate }) {
   const timeInsight = bestHour
     ? `Nos conteúdos com mais interação, o horário observado foi ${bestHour}. Teste essa janela em novos posts e compare o resultado.`
     : 'Ainda não há dados suficientes para sugerir um horário de postagem com segurança.'
-  const onboardingIncomplete = !accountsLoading && !postsLoading && (data.accounts.length === 0 || data.posts.length === 0 || !data.posts.some(post => ['published', 'publicado', 'scheduled', 'agendado'].includes(post.status)))
+  const onboardingIncomplete = !accountsLoading && !postsLoading && !postsError && !accountsError && (data.accounts.length === 0 || data.posts.length === 0 || !data.posts.some(post => ['published', 'publicado', 'scheduled', 'agendado'].includes(post.status)))
   const isEmptyWorkspace = !accountsLoading && !postsLoading && !postsError && !accountsError && data.accounts.length === 0 && data.posts.length === 0
   const recentPosts = useMemo(() => {
     const query = activitySearch.trim().toLowerCase()
     return data.posts
       .filter(post => post.status !== 'cancelled')
       .filter(post => activityFilter === 'all' || (activityFilter === 'published' ? ['published', 'publicado'].includes(post.status) : activityFilter === 'scheduled' ? ['scheduled', 'agendado'].includes(post.status) : ['error', 'erro', 'failed', 'partial'].includes(post.status)))
-      .filter(post => !query || (post.text || post.title || '').toLowerCase().includes(query))
+      .filter(post => !query || postText(post).toLowerCase().includes(query))
       .sort((a, b) => new Date(b.publishedAt || b.scheduledAt || b.scheduled_at || 0) - new Date(a.publishedAt || a.scheduledAt || a.scheduled_at || 0))
       .slice(0, 8)
   }, [data.posts, activityFilter, activitySearch])
@@ -314,129 +351,357 @@ export function DashboardPage({ onNavigate }) {
   }
 
   async function deleteFailure(post) {
-    const label = post.text || post.title || `Publicação #${post.id}`
+    const label = postTitle(post)
     if (!window.confirm(`Excluir esta publicação com falha?\n\n${label}\n\nEla será removida da lista do dashboard e não poderá ser reenviada.`)) return
     setDeletingPostId(post.id)
+    setAlertError('')
     try {
       await apiFetch(`/api/posts/${post.id}`, { method: 'DELETE' })
       setData(current => ({ ...current, posts: current.posts.filter(item => item.id !== post.id) }))
     } catch (error) {
-      setPostsError(error.message)
+      setAlertError(error.message)
     } finally {
       setDeletingPostId(null)
     }
   }
 
-  return <section className="page-view dashboard-page">
-    <header className="dashboard-hero">
-      <div>
-        <p className="eyebrow">VISÃO GERAL</p>
-        <h2>Seu painel de conteúdo</h2>
-        <p>Tenha uma visão rápida das publicações, agendamentos e redes conectadas.</p>
-      </div>
-      <div className="dashboard-hero-tools">
-        <div className="dashboard-live-status"><span className="dashboard-live-dot" aria-hidden="true"/><div><strong>{accountsLoading ? 'Verificando redes' : connectedPlatforms ? 'Operação conectada' : 'Conecte sua primeira rede'}</strong><small>{accountsLoading ? 'Aguarde um instante...' : `${connectedPlatforms} de ${DASHBOARD_PLATFORMS.length} redes com acesso`}</small></div></div>
-        <div className="dashboard-actions">
-          <button type="button" className="secondary-button dashboard-ai-button" onClick={() => onNavigate('ai')}><span aria-hidden="true">✦</span> Assistente inteligente</button>
-          <button type="button" className="secondary-button" onClick={() => onNavigate('integracoes')} aria-label="Adicionar ou gerenciar contas">+ Adicionar conta</button>
-          <button type="button" className="secondary-button" onClick={() => onNavigate('calendario')}>Ver calendário</button>
-          <button type="button" className="action-button" onClick={() => onNavigate('agendador')}>Criar publicação</button>
-        </div>
+  const failedCount = data.posts.filter(post => FAILURE_STATUSES.includes(post.status)).length
+  const publicationsFigure = statFigure(postsLoading, postsError, data.posts.length)
+  const scheduledFigure = statFigure(postsLoading, postsError, scheduled)
+  const failuresFigure = statFigure(postsLoading, postsError, failedCount)
+  const accountsFigure = statFigure(accountsLoading, accountsError, data.accounts.length)
+  const performanceRefreshing = analyticsLoading && Boolean(analytics)
+  const trendDay = date => new Date(`${date}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  const attentionCount = reviewAlerts.length + (scheduledWithoutDate ? 1 : 0)
+
+  return <div className="ds-page dash" data-ds-root>
+    <header className="ds-pagehead">
+      <div className="ds-pagehead__text">
+        <p className="ds-eyebrow">{todayLabel()}</p>
+        <h1 className="ds-pagehead__title">Início</h1>
+        <p className="ds-pagehead__lede">Tenha uma visão rápida das publicações, agendamentos e redes conectadas.</p>
       </div>
     </header>
 
-    {dashboardError && <p className="dashboard-error-banner" role="alert">{dashboardError}</p>}
-    {onboardingIncomplete && <OnboardingChecklist accounts={data.accounts} posts={data.posts} onNavigate={onNavigate} />}
+    {dashboardError && <div className="ds-alert dash-banner" data-tone="danger" role="alert">
+      <Icon name="alertCircle" className="ds-alert__icon" />
+      <p className="ds-alert__title">Parte das informações não carregou</p>
+      <p className="ds-alert__text">{dashboardError}</p>
+    </div>}
 
-    <section className="panel dashboard-accounts-panel">
-      <div className="panel-heading"><div><p className="eyebrow">CONEXÕES</p><h2>Contas e redes</h2><p className="panel-subtitle">{accountsLoading ? 'Verificando conexões...' : `${data.accounts.length} conta${data.accounts.length === 1 ? '' : 's'} conectada${data.accounts.length === 1 ? '' : 's'} em ${connectedPlatforms} de ${DASHBOARD_PLATFORMS.length} redes suportadas.`}</p></div><button type="button" className="action-button dashboard-connect-button" onClick={() => onNavigate('integracoes')}>+ Conectar conta</button></div>
-      {accountsLoading
-        ? <p className="empty-state" aria-live="polite">Carregando conexões...</p>
-      : <div className="dashboard-platform-list">{DASHBOARD_PLATFORMS.map(([platform, label]) => { const platformAccounts = data.accounts.filter(item => item.platform === platform); const account = platformAccounts[0]; const count = platformAccounts.length; return <button type="button" className={`dashboard-platform-card${count ? ' is-connected' : ''}`} key={platform} onClick={() => onNavigate('integracoes')}><span className={`account-platform-icon account-platform-icon-${platform}`}><PlatformIcon platform={platform} className="dashboard-platform-icon" /></span><span className="dashboard-platform-card-copy"><strong>{count > 1 ? `${count} contas ${label}` : account?.name || account?.handle || label}</strong><small>{count ? `${count} conta${count === 1 ? '' : 's'} conectada${count === 1 ? '' : 's'}` : 'Não conectada'}</small></span><span className="dashboard-platform-state" aria-hidden="true">{count ? '✓' : '+'}</span></button> })}</div>}
-      {accountsError && <p className="dashboard-inline-error" aria-live="polite">Não foi possível verificar o status das contas.</p>}
-    </section>
+    {isEmptyWorkspace
+      ? <OnboardingChecklist variant="empty" accounts={data.accounts} posts={data.posts} onNavigate={onNavigate} />
+      : <>
+        {onboardingIncomplete && <OnboardingChecklist accounts={data.accounts} posts={data.posts} onNavigate={onNavigate} />}
 
-    {isEmptyWorkspace ? <section className="panel dashboard-empty-state" aria-labelledby="dashboard-empty-title">
-      <div className="dashboard-empty-state-icon" aria-hidden="true">＋</div>
-      <div>
-        <p className="eyebrow">SEU ESPAÇO</p>
-        <h2 id="dashboard-empty-title">Seu dashboard ainda está vazio</h2>
-        <p>Nenhuma conta, publicação ou métrica aparece aqui até você começar a usar a plataforma.</p>
-        <div className="dashboard-empty-state-actions">
-          <button type="button" className="action-button" onClick={() => onNavigate('integracoes')}>Conectar primeira conta</button>
-          <button type="button" className="secondary-button" onClick={() => onNavigate('agendador')}>Criar primeira publicação</button>
-        </div>
-      </div>
-    </section> : <>
-    <div className="metric-grid dashboard-metrics">
-      <article className="dashboard-metric-card dashboard-metric-publications"><div className="dashboard-metric-heading"><span>Publicações</span><i aria-hidden="true">✦</i></div><strong>{postsLoading ? '—' : data.posts.length}</strong><small>Total criado na conta</small></article>
-      <article className="dashboard-metric-card dashboard-metric-scheduled"><div className="dashboard-metric-heading"><span>Agendadas</span><i aria-hidden="true">◷</i></div><strong>{postsLoading ? '—' : scheduled}</strong><small>{scheduledWithoutDate ? `${scheduledWithoutDate} sem horário definido` : 'Prontas para publicação'}</small></article>
-      <article className="dashboard-metric-card dashboard-metric-accounts"><div className="dashboard-metric-heading"><span>Contas conectadas</span><i aria-hidden="true">⌁</i></div><strong>{accountsLoading ? '—' : data.accounts.length}</strong><small>{connectedPlatforms} de {DASHBOARD_PLATFORMS.length} redes ativas</small></article>
-    </div>
+        <section className="dash-status" aria-label="Resumo da conta" aria-busy={postsLoading || accountsLoading}>
+          <div className="ds-stats">
+            <div className="ds-stat">
+              <p className="ds-stat__label">Publicações</p>
+              <p className="ds-stat__value" data-state={publicationsFigure.state}>{publicationsFigure.text}</p>
+              <p className="ds-stat__caption">{postsError ? 'Indisponível agora' : 'Total criado na conta'}</p>
+            </div>
+            <div className="ds-stat">
+              <p className="ds-stat__label">Agendadas</p>
+              <p className="ds-stat__value" data-state={scheduledFigure.state}>{scheduledFigure.text}</p>
+              {scheduledWithoutDate
+                ? <p className="ds-stat__caption dash-status__warn"><Icon name="clock" size={14} />{scheduledWithoutDate} sem horário definido</p>
+                : <p className="ds-stat__caption">{postsError ? 'Indisponível agora' : 'Prontas para publicação'}</p>}
+            </div>
+            <div className="ds-stat">
+              <p className="ds-stat__label">Falhas</p>
+              <p className="ds-stat__value" data-state={failuresFigure.state} data-tone={failedCount && !postsError ? 'danger' : undefined}>{failuresFigure.text}</p>
+              <p className="ds-stat__caption">
+                {postsError ? 'Indisponível agora' : reviewAlerts.length ? <a className="ds-link" href="#dash-atencao">Revisar abaixo</a> : failedCount ? 'Detalhes nas publicações recentes' : 'Nenhuma falha registrada'}
+              </p>
+            </div>
+            <div className="ds-stat">
+              <p className="ds-stat__label">Contas conectadas</p>
+              <p className="ds-stat__value" data-state={accountsFigure.state}>{accountsFigure.text}</p>
+              <p className="ds-stat__caption">{accountsError ? 'Indisponível agora' : `${connectedPlatforms} de ${DASHBOARD_PLATFORMS.length} redes`}</p>
+            </div>
+          </div>
+        </section>
 
-    {reviewAlerts.length > 0 && <section className="panel dashboard-failures-panel" aria-labelledby="dashboard-failures-title">
-      <div className="panel-heading"><div><p className="eyebrow">ATENÇÃO NECESSÁRIA</p><h2 id="dashboard-failures-title">Revisar publicações</h2><p className="panel-subtitle">Alertas de publicações que podem não ter sido concluídas.</p></div><span className="dashboard-failure-count">{reviewAlerts.length} {reviewAlerts.length === 1 ? 'alerta' : 'alertas'}</span></div>
-      <div className="dashboard-failures-list">{reviewAlerts.map(({ post, diagnosis }) => { const deleting = deletingPostId === post.id; return <article className="dashboard-failure-item" key={post.id}><div className="dashboard-failure-copy"><p className="dashboard-review-alert">{reviewAlertMessage(post, diagnosis)}</p></div><div className="dashboard-failure-actions"><button type="button" className="link-button" onClick={() => reviewFailure(post)} disabled={deleting}>Revisar publicação</button><button type="button" className="link-button danger-link" onClick={() => deleteFailure(post)} disabled={deleting}>{deleting ? 'Excluindo...' : 'Excluir alerta'}</button></div></article> })}</div>
-    </section>}
-
-    <section className="dashboard-insights-grid" aria-label="Métricas e insights do período">
-      <section className="panel dashboard-performance-panel">
-        <div className="panel-heading"><div><p className="eyebrow">PERFORMANCE</p><h2>Métricas dos últimos {analyticsPeriodDays} dias</h2><p className="panel-subtitle">Dados coletados das publicações com métricas disponíveis nas redes conectadas.</p></div><div className="dashboard-performance-actions"><div className="dashboard-platform-switch" role="group" aria-label="Filtrar performance por rede social">{PERFORMANCE_PLATFORM_FILTERS.map(([platform, label]) => <button type="button" className={analyticsPlatform === platform ? 'is-active' : ''} aria-pressed={analyticsPlatform === platform} key={platform} onClick={() => setAnalyticsPlatform(platform)}>{platform !== 'all' && <PlatformIcon platform={platform} className="dashboard-platform-filter-icon" />}{label}</button>)}</div><div className="dashboard-period-switch" role="group" aria-label="Período da performance">{PERFORMANCE_PERIODS.map(days => <button type="button" className={analyticsPeriodDays === days ? 'is-active' : ''} aria-pressed={analyticsPeriodDays === days} key={days} onClick={() => setAnalyticsPeriodDays(days)}>{days} dias</button>)}</div><button type="button" className="link-button" onClick={() => onNavigate('analytics')}>Ver análises completas</button></div></div>
-         {analyticsLoading && !analytics
-           ? <p className="empty-state" aria-live="polite">Carregando métricas...</p>
-           : analyticsError && !analytics
-             ? <div className="dashboard-analytics-empty"><strong>Métricas indisponíveis no momento</strong><p>{analyticsError}</p><button type="button" className="link-button" onClick={() => onNavigate('analytics')}>Abrir Analytics</button></div>
-             : <>
-                 {analyticsError && <div className="dashboard-analytics-warning" role="status"><span>Não foi possível atualizar agora. Exibindo o último resultado válido.</span><button type="button" className="link-button" onClick={() => setAnalyticsRetry(value => value + 1)}>Tentar novamente</button></div>}
-                 <div className="dashboard-kpi-row"><div><span>Visualizações</span><strong>{compactNumber(totalViews)}</strong></div><div><span>Interações</span><strong>{compactNumber(totalEngagement)}</strong></div><div><span>Taxa de interação</span><strong>{engagementRate.toFixed(1)}%</strong></div></div>
-                  <div className="dashboard-trend-chart" role="img" aria-label={`Gráfico de visualizações e interações de ${selectedPlatformLabel.toLowerCase()} dos últimos ${analyticsPeriodDays} dias`}>
-                  {trend.length ? trend.map(item => <div className="dashboard-chart-column" key={item.date}><div className="dashboard-chart-bars"><span className="dashboard-chart-bar is-views" style={{ height: `${Math.max((item.views / maxTrendValue) * 100, item.views ? 8 : 2)}%` }} title={`${compactNumber(item.views)} visualizações`}/><span className="dashboard-chart-bar is-engagement" style={{ height: `${Math.max((item.engagement / maxTrendValue) * 100, item.engagement ? 8 : 2)}%` }} title={`${compactNumber(item.engagement)} interações`}/></div><small>{new Date(`${item.date}T12:00:00`).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</small></div>) : <p className="empty-state">Ainda não há série suficiente para desenhar o gráfico.</p>}
+        {attentionCount > 0 && <section className="ds-block dash-attn" id="dash-atencao" aria-labelledby="dash-atencao-title">
+          <div className="ds-head">
+            <div className="ds-head__text">
+              <h2 className="ds-head__title" id="dash-atencao-title">Precisa de atenção <span className="ds-badge" data-tone="danger">{attentionCount} {attentionCount === 1 ? 'item' : 'itens'}</span></h2>
+              <p className="ds-head__desc">Publicações que podem não ter sido concluídas e agendamentos sem horário.</p>
+            </div>
+          </div>
+          <ul className="ds-list">
+            {reviewAlerts.map(({ post, diagnosis }) => {
+              const deleting = deletingPostId === post.id
+              const platforms = postPlatforms(post)
+              return <li className="ds-list-item ds-list-item--top dash-attn__item" key={post.id}>
+                <span className="dash-attn__mark" aria-hidden="true"><Icon name="alertCircle" /></span>
+                <div className="ds-list-item__body">
+                  <p className="ds-list-item__title ds-list-item__title--wrap">{postTitle(post)}</p>
+                  <p className="ds-list-item__meta"><NetGlyphs platforms={platforms} /><span className="ds-num">{formatPostDate(postDateValue(post))}</span></p>
+                  <p className="dash-attn__reason">
+                    <span className="ds-badge" data-tone={diagnosis.className === 'is-network' ? 'info' : 'danger'}>{diagnosis.label}</span>
+                    <span>{diagnosis.reason}</span>
+                  </p>
+                  <details className="ds-disclosure dash-attn__how">
+                    <summary>Como resolver<Icon name="chevronDown" size={16} className="ds-disclosure__chev" /></summary>
+                    <p className="ds-disclosure__body">{diagnosis.nextStep}</p>
+                  </details>
                 </div>
-                <div className="dashboard-chart-legend"><span><i className="is-views"/>Visualizações</span><span><i className="is-engagement"/>Interações</span></div>
+                <div className="ds-list-item__trail">
+                  <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => reviewFailure(post)} disabled={deleting}>
+                    <Icon name="compose" size={16} />Revisar no editor
+                  </button>
+                  {deleting
+                    ? <span className="ds-meta dash-inline" aria-live="polite"><span className="ds-spinner" aria-hidden="true" />Excluindo...</span>
+                    : <OverflowMenu label={`Mais ações para ${postTitle(post)}`} items={[{ label: 'Excluir alerta', icon: 'trash', danger: true, onSelect: () => deleteFailure(post) }]} />}
+                </div>
+              </li>
+            })}
+            {scheduledWithoutDate > 0 && <li className="ds-list-item dash-attn__item">
+              <span className="dash-attn__mark" data-tone="warning" aria-hidden="true"><Icon name="clock" /></span>
+              <div className="ds-list-item__body">
+                <p className="ds-list-item__title ds-list-item__title--wrap">{scheduledWithoutDate === 1 ? '1 publicação agendada está' : `${scheduledWithoutDate} publicações agendadas estão`} sem horário definido.</p>
+              </div>
+              <div className="ds-list-item__trail"><button type="button" className="ds-go" onClick={() => onNavigate('calendario')}>Corrigir agenda<Icon name="arrow" /></button></div>
+            </li>}
+          </ul>
+          {alertError && <p className="dash-attn__note" role="status">Não foi possível excluir o alerta: {alertError}</p>}
+        </section>}
+
+        <section className="ds-block dash-perf" aria-labelledby="dash-perf-title">
+          <div className="ds-head">
+            <div className="ds-head__text">
+              <h2 className="ds-head__title" id="dash-perf-title">Desempenho</h2>
+              <p className="ds-head__desc">Métricas dos últimos {analyticsPeriodDays} dias, das publicações com métricas disponíveis nas redes conectadas.</p>
+            </div>
+            <div className="ds-head__actions"><button type="button" className="ds-go" onClick={() => onNavigate('analytics')}>Abrir Relatórios<Icon name="arrow" /></button></div>
+          </div>
+          <div className="ds-filterbar dash-perf__filters">
+            <div className="ds-netswitch" role="group" aria-label="Filtrar desempenho por rede social">
+              {PERFORMANCE_PLATFORM_FILTERS.map(([platform, label]) => <button type="button" className="ds-netswitch__opt" aria-pressed={analyticsPlatform === platform} key={platform} onClick={() => setAnalyticsPlatform(platform)}>
+                <NetworkGlyph network={platform} size={16} />{label}
+              </button>)}
+            </div>
+            <div className="ds-filterbar__end">
+              {performanceRefreshing && <span className="ds-meta dash-perf__updating" aria-live="polite"><span className="ds-spinner" aria-hidden="true" />Atualizando...</span>}
+              <div className="ds-seg" role="group" aria-label="Período do desempenho">
+                {PERFORMANCE_PERIODS.map(days => <button type="button" className="ds-seg__opt" aria-pressed={analyticsPeriodDays === days} key={days} onClick={() => setAnalyticsPeriodDays(days)}>{days} dias</button>)}
+              </div>
+            </div>
+          </div>
+
+          {analyticsLoading && !analytics
+            ? <div className="dash-perf__body" aria-busy="true">
+              <div className="dash-perf__main">
+                <div className="ds-stats" style={{ '--cols': 3 }}>{[52, 44, 38].map(width => <div className="ds-stat" key={width}><span className="ds-skel" style={{ width: '52%' }} /><span className="ds-skel ds-skel--figure" style={{ width: `${width}%` }} /></div>)}</div>
+                <span className="ds-skel ds-skel--block" style={{ height: 150, marginTop: 28 }} />
+                <p className="ds-sr-only" aria-live="polite">Carregando métricas...</p>
+              </div>
+              <div className="dash-perf__aside"><span className="ds-skel" style={{ width: '30%' }} />{[1, 2, 3].map(item => <span className="ds-skel" key={item} style={{ height: 40 }} />)}</div>
+            </div>
+            : analyticsError && !analytics
+              ? <div className="ds-alert" data-tone="warning" role="status">
+                <Icon name="alertTriangle" className="ds-alert__icon" />
+                <p className="ds-alert__title">Métricas indisponíveis no momento</p>
+                <p className="ds-alert__text">{analyticsError} Uma nova tentativa acontece automaticamente.</p>
+                <div className="ds-alert__actions">
+                  <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => setAnalyticsRetry(value => value + 1)}><Icon name="refresh" size={16} />Tentar novamente</button>
+                  <button type="button" className="ds-go" onClick={() => onNavigate('analytics')}>Abrir Relatórios<Icon name="arrow" /></button>
+                </div>
+              </div>
+              : <>
+                {analyticsError && <div className="ds-alert dash-banner" data-tone="warning" role="status">
+                  <Icon name="alertTriangle" className="ds-alert__icon" />
+                  <p className="ds-alert__text">Não foi possível atualizar agora. Exibindo o último resultado válido.</p>
+                  <div className="ds-alert__actions"><button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => setAnalyticsRetry(value => value + 1)}><Icon name="refresh" size={16} />Tentar novamente</button></div>
+                </div>}
+                <div className="dash-perf__body">
+                  <div className="dash-perf__main" aria-busy={performanceRefreshing}>
+                    <div className="ds-stats" style={{ '--cols': 3 }}>
+                      <div className="ds-stat"><p className="ds-stat__label">Visualizações</p><p className="ds-stat__value">{compactNumber(totalViews)}</p></div>
+                      <div className="ds-stat"><p className="ds-stat__label">Interações</p><p className="ds-stat__value" data-tone="gold">{compactNumber(totalEngagement)}</p></div>
+                      <div className="ds-stat"><p className="ds-stat__label">Taxa de interação</p><p className="ds-stat__value">{engagementRate.toFixed(1).replace('.', ',')}<span className="ds-stat__unit">%</span></p></div>
+                    </div>
+                    {trend.length
+                      ? <>
+                        <div className="dash-perf__charts">
+                          <ColumnChart
+                            title="Visualizações por dia de publicação"
+                            data={trend.map(item => ({ key: item.date, label: trendDay(item.date), value: item.views }))}
+                            format={compactNumber}
+                            height={96}
+                            ariaLabel={`Visualizações por dia de publicação de ${selectedPlatformLabel.toLowerCase()}. Os valores estão na tabela logo abaixo.`}
+                          />
+                          <ColumnChart
+                            title="Interações por dia de publicação"
+                            data={trend.map(item => ({ key: item.date, label: trendDay(item.date), value: item.engagement }))}
+                            format={compactNumber}
+                            height={96}
+                            tone="2"
+                            ariaLabel={`Interações por dia de publicação de ${selectedPlatformLabel.toLowerCase()}. Os valores estão na tabela logo abaixo.`}
+                          />
+                        </div>
+                        <details className="ds-disclosure dash-perf__values">
+                          <summary><Icon name="activity" size={18} />Ver valores por dia<Icon name="chevronDown" size={18} className="ds-disclosure__chev" /></summary>
+                          <div className="ds-disclosure__body ds-scrollx">
+                            <table className="ds-datatable">
+                              <thead><tr><th scope="col">Dia</th><th scope="col" className="ds-cellnum">Visualizações</th><th scope="col" className="ds-cellnum">Interações</th></tr></thead>
+                              <tbody>{trend.map(item => <tr key={item.date}><td>{trendDay(item.date)}</td><td className="ds-cellnum">{item.views.toLocaleString('pt-BR')}</td><td className="ds-cellnum">{item.engagement.toLocaleString('pt-BR')}</td></tr>)}</tbody>
+                            </table>
+                          </div>
+                        </details>
+                      </>
+                      : <p className="ds-meta dash-perf__state">Ainda não há série suficiente para desenhar o gráfico.</p>}
+                  </div>
+                  <aside className="dash-perf__aside" aria-label="Destaques do período">
+                    <h3 className="dash-kicker">Destaques</h3>
+                    {topEngagementPosts.length
+                      ? <ol className="dash-top">
+                        {topEngagementPosts.map((post, index) => <li className="dash-top__item" key={`${post.postId}-${post.platform}`}>
+                          <span className="dash-top__rank">0{index + 1}</span>
+                          <div className="dash-top__body">
+                            <p className="dash-top__title">{post.text || post.youtubeTitle || 'Publicação sem descrição'}</p>
+                            <p className="ds-meta dash-inline"><NetworkGlyph network={post.platform} size={14} />{PLATFORM_LABELS[post.platform] || post.platform} · {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('pt-BR') : 'Data não informada'}</p>
+                          </div>
+                          <p className="dash-top__metric"><strong>{compactNumber(engagementValue(post.metrics))}</strong><span>interações</span></p>
+                        </li>)}
+                      </ol>
+                      : <p className="ds-meta">As publicações com mais interações no recorte aparecem aqui.</p>}
+                    {topEngagementPosts.length > 0 && <p className="ds-meta">O ranking considera curtidas, comentários, compartilhamentos e salvamentos registrados.</p>}
+                  </aside>
+                </div>
               </>}
-      </section>
 
-      <section className="panel dashboard-ai-insights-panel">
-        <div className="panel-heading"><div><p className="eyebrow">INSIGHTS PARA AÇÃO</p><h2>O que fazer agora</h2><p className="panel-subtitle">Leituras simples para transformar dados em próximos testes.</p></div><span className="dashboard-insight-spark" aria-hidden="true">✦</span></div>
-        <article className="dashboard-insight-card"><span className="dashboard-insight-icon">↗</span><div><strong>Conteúdo</strong><p>{analyticsInsight}</p></div></article>
-        <article className="dashboard-insight-card"><span className="dashboard-insight-icon">◷</span><div><strong>Horário de postagem</strong><p>{timeInsight}</p></div></article>
-        <article className="dashboard-insight-card is-action"><span className="dashboard-insight-icon">✦</span><div><strong>Próximo teste</strong><p>Crie uma variação com o sistema inteligente usando a publicação de melhor desempenho como referência.</p><button type="button" className="link-button" onClick={() => onNavigate('ai')}>Criar uma variação</button></div></article>
-      </section>
-    </section>
+          <div className="dash-reads">
+            <h3 className="dash-kicker">Leituras do período</h3>
+            <dl className="dash-notes dash-reads__list">
+              <div><dt>Conteúdo</dt><dd>{analyticsInsight}</dd></div>
+              <div><dt>Horário de postagem</dt><dd>{timeInsight}</dd></div>
+              <div><dt>Próximo teste</dt><dd>Crie uma variação com o sistema inteligente usando a publicação de melhor desempenho como referência.<br /><button type="button" className="ds-go" onClick={() => onNavigate('ai')}>Criar uma variação<Icon name="arrow" /></button></dd></div>
+            </dl>
+          </div>
+        </section>
 
-    {topEngagementPosts.length > 0 && <section className="panel dashboard-top-posts-panel" aria-labelledby="dashboard-top-posts-title">
-      <div className="panel-heading"><div><p className="eyebrow">DESTAQUES</p><h2 id="dashboard-top-posts-title">Publicações com maior engajamento</h2><p className="panel-subtitle">O ranking considera curtidas, comentários, compartilhamentos e salvamentos registrados.</p></div><button type="button" className="link-button" onClick={() => onNavigate('analytics')}>Comparar no Analytics</button></div>
-      <div className="dashboard-top-posts-list">{topEngagementPosts.map((post, index) => <article className="dashboard-top-post" key={`${post.postId}-${post.platform}`}><span className="dashboard-top-post-rank">0{index + 1}</span><span className={`account-platform-icon account-platform-icon-${post.platform}`}><PlatformIcon platform={post.platform} className="h-4 w-4" /></span><div className="dashboard-top-post-copy"><strong>{post.text || post.youtubeTitle || 'Publicação sem descrição'}</strong><small>{post.platform} · {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('pt-BR') : 'Data não informada'}</small></div><div className="dashboard-top-post-metric"><strong>{compactNumber(engagementValue(post.metrics))}</strong><small>interações</small></div></article>)}</div>
-    </section>}
+        <div className="ds-split dash-lower">
+          <section className="ds-block dash-recent" aria-labelledby="dash-recent-title">
+            <div className="ds-head">
+              <div className="ds-head__text">
+                <h2 className="ds-head__title" id="dash-recent-title">Publicações recentes</h2>
+                <p className="ds-head__desc">Acompanhe o que foi publicado e o que está em andamento.</p>
+              </div>
+              <div className="ds-head__actions"><button type="button" className="ds-go" onClick={() => onNavigate('atividade')}>Ver em Atividades<Icon name="arrow" /></button></div>
+            </div>
+            <div className="ds-filterbar dash-recent__filters">
+              <label className="ds-inputwrap dash-recent__search">
+                <Icon name="search" />
+                <span className="ds-sr-only">Buscar publicação no Início</span>
+                <input className="ds-input" type="search" value={activitySearch} onChange={event => setActivitySearch(event.target.value)} placeholder="Buscar publicação..." />
+              </label>
+              <div className="ds-seg" role="group" aria-label="Filtrar publicações">
+                {[['all', 'Todas'], ['published', 'Publicadas'], ['scheduled', 'Agendadas'], ['failed', 'Falhas']].map(([key, label]) => <button type="button" className="ds-seg__opt" aria-pressed={activityFilter === key} key={key} onClick={() => setActivityFilter(key)}>{label}</button>)}
+              </div>
+            </div>
+            {postsError
+              ? <p className="ds-alert ds-alert--quiet" aria-live="polite">Não foi possível carregar as publicações.</p>
+              : postsLoading
+                ? <div aria-busy="true">
+                  <p className="ds-sr-only" aria-live="polite">Carregando publicações...</p>
+                  {[1, 2, 3, 4].map(item => <div className="dash-skelrow" key={item}><span className="ds-skel" style={{ width: 44, height: 20 }} /><span className="ds-skel" style={{ flex: 1 }} /><span className="ds-skel" style={{ width: 80 }} /></div>)}
+                </div>
+                : recentPosts.length
+                  ? <ul className="ds-list dash-recent__list">
+                    {recentPosts.map(post => {
+                      const isFailure = FAILURE_STATUSES.includes(post.status)
+                      const isScheduled = post.status === 'scheduled' || post.status === 'agendado'
+                      const canRetry = isFailure && failureDiagnosis(post).retryable
+                      const tone = STATUS_TONES[post.status] || 'muted'
+                      return <li className="ds-list-item" key={post.id}>
+                        <span className="ds-list-item__lead dash-recent__nets"><NetGlyphs platforms={postPlatforms(post)} size={16} /></span>
+                        <div className="ds-list-item__body">
+                          <p className="ds-list-item__title">{postText(post) || 'Publicação sem texto'}</p>
+                          <p className="ds-list-item__meta"><span className="ds-num">{formatPostDate(postDateValue(post))}</span></p>
+                        </div>
+                        <div className="ds-list-item__trail">
+                          <span className="ds-status" data-status={tone}><Icon name={STATUS_ICONS[tone] || 'info'} />{STATUS_LABELS[post.status] || post.status || 'Sem status'}</span>
+                          <button
+                            type="button"
+                            className="dash-recent__act"
+                            data-emphasis={canRetry ? 'true' : undefined}
+                            onClick={() => isScheduled ? onNavigate('calendario') : isFailure ? openFailure(post) : onNavigate('atividade')}
+                          >
+                            {isScheduled ? 'Calendário' : isFailure ? (canRetry ? 'Revisar no editor' : 'Ver detalhes') : 'Detalhes'}
+                          </button>
+                        </div>
+                      </li>
+                    })}
+                  </ul>
+                  : <p className="ds-empty ds-empty--quiet ds-meta">{activitySearch || activityFilter !== 'all' ? 'Nenhuma publicação encontrada para este filtro.' : 'Nenhuma publicação encontrada.'}</p>}
+          </section>
 
-    <div className="dashboard-grid">
-      <section className="panel">
-       <div className="panel-heading">
-         <div><p className="eyebrow">ATIVIDADE</p><h2>Publicações recentes</h2><p className="panel-subtitle">Acompanhe o que foi publicado e o que está em andamento.</p></div><button type="button" className="link-button" onClick={() => onNavigate('atividade')}>Ver histórico</button>
-       </div>
-      <div className="dashboard-activity-toolbar"><input value={activitySearch} onChange={event => setActivitySearch(event.target.value)} placeholder="Buscar publicação..." aria-label="Buscar publicação no dashboard"/><div className="dashboard-filter-buttons" role="group" aria-label="Filtrar publicações"><button type="button" className={activityFilter === 'all' ? 'active' : ''} onClick={() => setActivityFilter('all')}>Todas</button><button type="button" className={activityFilter === 'published' ? 'active' : ''} onClick={() => setActivityFilter('published')}>Publicadas</button><button type="button" className={activityFilter === 'scheduled' ? 'active' : ''} onClick={() => setActivityFilter('scheduled')}>Agendadas</button><button type="button" className={activityFilter === 'failed' ? 'active' : ''} onClick={() => setActivityFilter('failed')}>Falhas</button></div></div>
-      {postsError
-        ? <p className="error-message" aria-live="polite">Não foi possível carregar as publicações.</p>
-        : postsLoading
-          ? <p className="empty-state" aria-live="polite">Carregando publicações...</p>
-          : recentPosts.length
-            ? <div className="data-list">{recentPosts.map(post => { const isFailure = ['failed', 'error', 'erro', 'partial'].includes(post.status); const canRetry = isFailure && failureDiagnosis(post).retryable; return <div className="data-row dashboard-post-row" key={post.id}><span className="dashboard-post-platforms" aria-label={postPlatforms(post).length ? postPlatforms(post).join(', ') : 'Rede não informada'}>{postPlatforms(post).length ? postPlatforms(post).map(platform => <span className={`account-platform-icon account-platform-icon-${platform}`} key={platform}><PlatformIcon platform={platform} className="h-3.5 w-3.5" /></span>) : <span className="dashboard-platform-missing">◎</span>}</span><span className="dashboard-post-copy"><strong>{post.text || post.title || 'Publicação sem texto'}</strong><small>{formatPostDate(postDateValue(post))}</small></span><span className={`status-text status-text-${post.status || 'unknown'}`}>{STATUS_LABELS[post.status] || post.status || 'Sem status'}</span><button type="button" className="link-button dashboard-post-action" onClick={() => post.status === 'scheduled' || post.status === 'agendado' ? onNavigate('calendario') : isFailure ? openFailure(post) : onNavigate('atividade')}>{post.status === 'scheduled' || post.status === 'agendado' ? 'Calendário' : isFailure ? (canRetry ? 'Revisar no editor' : 'Ver detalhes') : 'Detalhes'}</button></div> })}</div>
-            : <p className="empty-state">{activitySearch || activityFilter !== 'all' ? 'Nenhuma publicação encontrada para este filtro.' : 'Nenhuma publicação encontrada.'}</p>}
-      </section>
+          <div className="dash-lower__aside">
+            <section className="ds-block dash-next" aria-labelledby="dash-next-title">
+              <div className="ds-head">
+                <div className="ds-head__text"><h2 className="ds-head__title" id="dash-next-title">Próximos agendamentos</h2></div>
+                <div className="ds-head__actions"><button type="button" className="ds-go" onClick={() => onNavigate('calendario')}>Ver calendário<Icon name="arrow" /></button></div>
+              </div>
+              {postsLoading
+                ? <div aria-busy="true"><p className="ds-sr-only" aria-live="polite">Carregando agenda...</p>{[1, 2, 3].map(item => <div className="dash-skelrow" key={item}><span className="ds-skel" style={{ width: 48, height: 52, borderRadius: 10 }} /><span className="ds-skel" style={{ flex: 1 }} /></div>)}</div>
+                : upcoming.length
+                  ? <ul className="ds-list">
+                    {upcoming.map(post => {
+                      const date = new Date(postDateValue(post))
+                      const day = String(date.getDate()).padStart(2, '0')
+                      const month = String(date.getMonth() + 1).padStart(2, '0')
+                      const time = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+                      return <li className="ds-list-item ds-list-item--top dash-next__item" key={post.id}>
+                        <span className="dash-date" aria-hidden="true"><span className="dash-date__day">{day}</span><span className="dash-date__month">{MONTHS[date.getMonth()]}</span></span>
+                        <div className="ds-list-item__body">
+                          <p className="ds-meta"><span className="ds-num">{WEEKDAYS[date.getDay()]}, {day}/{month} · {time}</span><NetGlyphs platforms={postPlatforms(post)} /></p>
+                          <p className="ds-list-item__title ds-list-item__title--wrap">{postText(post) || 'Publicação sem texto'}</p>
+                        </div>
+                      </li>
+                    })}
+                  </ul>
+                  : <div className="ds-empty ds-empty--quiet">
+                    <p className="ds-empty__text">{scheduledWithoutDate ? 'Nenhum agendamento com data definida.' : 'Nenhum agendamento próximo. Crie uma publicação para manter suas redes ativas.'}</p>
+                    <div className="ds-empty__actions"><button type="button" className="ds-go" onClick={() => onNavigate(scheduledWithoutDate ? 'calendario' : 'agendador')}>{scheduledWithoutDate ? 'Corrigir agenda' : 'Criar post'}<Icon name="arrow" /></button></div>
+                  </div>}
+            </section>
 
-      <section className="panel dashboard-upcoming-panel">
-        <div className="panel-heading"><div><p className="eyebrow">PRÓXIMOS PASSOS</p><h2>Próximos agendamentos</h2></div><button type="button" className="link-button" onClick={() => onNavigate('calendario')}>Ver calendário</button></div>
-        {postsLoading
-          ? <p className="empty-state" aria-live="polite">Carregando agenda...</p>
-          : upcoming.length
-            ? <div className="dashboard-upcoming-list">{upcoming.map(post => <div className="dashboard-upcoming-item" key={post.id}><span className="dashboard-upcoming-date">{formatPostDate(postDateValue(post))}</span><strong>{post.text || post.title || 'Publicação sem texto'}</strong><button type="button" className="link-button" onClick={() => onNavigate('calendario')}>Abrir calendário</button></div>)}</div>
-            : scheduledWithoutDate
-              ? <div className="dashboard-callout dashboard-callout-warning"><span className="dashboard-callout-icon" aria-hidden="true">!</span><p>{scheduledWithoutDate === 1 ? '1 publicação agendada está' : `${scheduledWithoutDate} publicações agendadas estão`} sem horário definido.</p><button type="button" className="link-button" onClick={() => onNavigate('calendario')}>Corrigir agenda</button></div>
-              : <div className="dashboard-callout"><span className="dashboard-callout-icon" aria-hidden="true">✦</span><p>Nenhum agendamento próximo. Crie uma publicação para manter suas redes ativas.</p><button type="button" className="link-button" onClick={() => onNavigate('agendador')}>Agendar agora</button></div>}
-      </section>
-    </div>
-
-    </>}
-
-  </section>
+            <section className="ds-block dash-nets" aria-labelledby="dash-nets-title">
+              <div className="ds-head">
+                <div className="ds-head__text"><h2 className="ds-head__title" id="dash-nets-title">Redes conectadas</h2></div>
+                <div className="ds-head__actions"><button type="button" className="ds-go" onClick={() => onNavigate('integracoes')}>Abrir Contas<Icon name="arrow" /></button></div>
+              </div>
+              {accountsLoading
+                ? <div aria-busy="true"><p className="ds-sr-only" aria-live="polite">Carregando conexões...</p>{[1, 2, 3, 4].map(item => <div className="dash-skelrow" key={item}><span className="ds-skel ds-skel--circle" style={{ width: 36, height: 36 }} /><span className="ds-skel" style={{ flex: 1 }} /></div>)}</div>
+                : accountsError
+                  ? <p className="ds-alert ds-alert--quiet" aria-live="polite">Não foi possível verificar o status das contas.</p>
+                  : <ul className="ds-list ds-list--interactive">
+                    {DASHBOARD_PLATFORMS.map(([platform, label]) => {
+                      const platformAccounts = data.accounts.filter(item => item.platform === platform)
+                      const count = platformAccounts.length
+                      const names = platformAccounts.map(account => account.handle || account.name).filter(Boolean).join(', ')
+                      return <li key={platform}>
+                        <button type="button" className="ds-list-item dash-nets__item" onClick={() => onNavigate('integracoes')}>
+                          <span className="dash-nets__glyph"><NetworkGlyph network={platform} size={20} /></span>
+                          <span className="ds-list-item__body">
+                            <span className="ds-list-item__title">{label}</span>
+                            <span className="ds-list-item__meta"><span>{count ? (count > 1 ? `${count} contas${names ? ` · ${names}` : ''}` : names || '1 conta') : 'Nenhuma conta'}</span></span>
+                          </span>
+                          <span className="ds-list-item__trail">
+                            {count
+                              ? <span className="ds-status" data-status="ok"><Icon name="checkCircle" />Conectada</span>
+                              : <span className="ds-status" data-status="muted"><Icon name="plus" />Conectar conta</span>}
+                          </span>
+                        </button>
+                      </li>
+                    })}
+                  </ul>}
+            </section>
+          </div>
+        </div>
+      </>}
+  </div>
 }

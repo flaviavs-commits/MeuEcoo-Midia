@@ -18,7 +18,7 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('Nenhuma publicação encontrada.')).not.toBeInTheDocument()
 
     resolvePosts({ posts: [] })
-    await waitFor(() => expect(screen.getByText('Seu dashboard ainda está vazio')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Seu Início ainda está vazio')).toBeInTheDocument())
     expect(screen.queryByText('Visualizações')).not.toBeInTheDocument()
     expect(screen.queryByText('Publicações recentes')).not.toBeInTheDocument()
   })
