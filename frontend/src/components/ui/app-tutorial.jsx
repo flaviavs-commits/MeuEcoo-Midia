@@ -15,43 +15,42 @@ const STEPS = [
   {
     eyebrow: 'BEM-VINDO(A)',
     title: 'Vamos conhecer o Meu Ecoo Mídia',
-    body: 'Este tour mostra como conectar suas redes, criar conteúdo, organizar a agenda e acompanhar resultados. Você pode revê-lo quando quiser pelo ícone 🎓 no topo da tela.',
+    body: 'Este tour mostra como conectar suas redes, criar conteúdo, organizar a agenda e acompanhar resultados. Você pode revê-lo quando quiser em Perfil.',
     tips: [
       'Use Próximo para avançar e Voltar para revisar uma etapa.',
       'O tour abre cada tela automaticamente para mostrar onde encontrar os recursos.',
-      'No celular, abra Mais para acessar os módulos que não ficam na barra inferior.'
+      'No celular, o botão Mais, na barra inferior, reúne os módulos que não ficam nela.'
     ]
   },
   {
     page: 'dashboard',
     title: 'Seu painel principal',
-    body: 'O Dashboard é o ponto de partida para entender o que precisa da sua atenção e decidir o próximo passo.',
+    body: 'O Início é o ponto de partida para entender o que precisa da sua atenção e decidir o próximo passo.',
     tips: [
       'Veja totais de publicações, agendamentos, contas conectadas e redes ativas.',
       'Acompanhe visualizações, interações, taxa de interação e tendência por período e rede.',
       'Leia os insights de conteúdo e melhor horário baseados nos dados reais disponíveis.',
       'Busque publicações recentes e filtre entre todas, publicadas, agendadas e com falha.',
-      'Revise falhas no editor, corrija a agenda ou abra o Analytics para investigar.'
+      'Revise falhas no editor, corrija a agenda ou abra os Relatórios para investigar.'
     ]
   },
   {
     target: 'tema',
     title: 'Ajuste a experiência do app',
-    body: 'No topo você encontra preferências e atalhos que deixam a rotina mais rápida e confortável.',
+    body: 'O menu da sua conta, no canto superior direito, reúne preferências e atalhos que deixam a rotina mais rápida.',
     tips: [
-      'Alterne entre os temas Claro e Escuro; a escolha fica salva neste dispositivo.',
-      'Use ? para consultar os atalhos de teclado: C cria um post, D abre o Dashboard e Esc fecha janelas.',
-      'O ícone de mensagens leva direto ao Inbox.',
+      'Alterne entre os temas claro e escuro; a escolha fica salva neste dispositivo.',
+      'Use ? para consultar os atalhos de teclado: C cria um post, D abre o Início e Esc fecha janelas.',
       'O sino mostra atualizações recentes de publicações e abre o histórico completo de Atividades.'
     ]
   },
   {
     target: 'criar-post',
     title: 'Crie um post de qualquer tela',
-    body: 'O botão + Criar Novo Post permanece no topo do app. Use-o para abrir o Meu Post sem voltar ao menu.',
+    body: 'O botão Criar post fica no topo do app. Use-o para abrir o Meu Post de qualquer tela.',
     tips: [
       'Você também pode pressionar C quando não estiver digitando em um campo.',
-      'No celular, a ação Criar fica disponível na barra inferior.'
+      'No celular, use Criar, na barra inferior.'
     ]
   },
   {
@@ -234,7 +233,7 @@ const STEPS = [
   {
     eyebrow: 'TUDO PRONTO',
     title: 'Você já conhece toda a plataforma! 🎉',
-    body: 'Um fluxo recomendado é: conecte suas contas, publique ou agende um primeiro conteúdo, acompanhe o resultado no Analytics e use o sistema inteligente para planejar o próximo teste. O tutorial fica sempre disponível em Perfil.',
+    body: 'Um fluxo recomendado é: conecte suas contas, publique ou agende um primeiro conteúdo, acompanhe o resultado nos Relatórios e use o sistema inteligente para planejar o próximo teste. O tutorial fica sempre disponível em Perfil.',
     tips: [
       'Comece conectando as redes que deseja administrar.',
       'Use o Meu Post para publicar agora, agendar, salvar um rascunho ou criar um modelo.',
@@ -252,33 +251,21 @@ function stepEyebrow(step, index) {
   return `PASSO ${index} DE ${STEPS.length - 2}`
 }
 
-// Páginas cujo destaque é alcançável no mobile sem abrir a barra lateral
-// (menu inferior ou barra superior, que ficam sempre visíveis). Todo o
-// resto só existe no menu lateral, então precisa que ele seja aberto.
-const MOBILE_REACHABLE_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'inbox', 'perfil'])
-
-function stepNeedsMobileSidebar(step) {
-  if (!step) return false
-  if (step.target) return step.target === 'administracao'
-  return Boolean(step.page) && !MOBILE_REACHABLE_PAGES.has(step.page)
-}
-
-// No mobile, o item destacado por um passo fica sempre perto do topo da tela
-// (menu lateral aberto ou barra superior) — exceto os 4 itens que também
-// vivem no menu inferior fixo. Por isso a caixa do tutorial "encosta" no
-// lado oposto ao do destaque: sobe para o topo quando o alvo é o menu
-// inferior, e vira uma folha (sheet) colada embaixo nos demais casos — assim
-// ela nunca cobre o próprio elemento que está apresentando.
-const BOTTOM_NAV_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'inbox'])
-
-function stepSpotlightsMobileBottomNav(step) {
-  return Boolean(step?.page) && !step.target && BOTTOM_NAV_PAGES.has(step.page)
+// A caixa do tutorial "encosta" no lado oposto ao do destaque: sobe para o
+// topo quando o alvo está na metade de baixo (barra inferior do celular) e
+// fica embaixo nos demais casos — assim nunca cobre o que está apresentando.
+function spotlightIsLow(rect) {
+  return Boolean(rect) && rect.top + rect.height / 2 > window.innerHeight / 2
 }
 
 // Procura, entre todos os elementos marcados com esse alvo (menu lateral,
-// menu inferior no mobile ou ações fixas do topo), o primeiro que está de
-// fato visível na tela — no mobile a barra lateral fica fora da tela, então
-// é ignorada.
+// barra inferior do celular ou ações do topo), o primeiro que está de fato
+// visível. No celular os módulos fora da barra inferior moram em "Mais", e
+// é esse botão que recebe o destaque.
+function findSpotlight(target) {
+  return findVisibleTarget(target) || (target ? findVisibleTarget('mais') : null)
+}
+
 function findVisibleTarget(target) {
   if (!target || typeof document === 'undefined') return null
   const candidates = document.querySelectorAll(`[data-tutorial-target="${target}"]`)
@@ -291,7 +278,7 @@ function findVisibleTarget(target) {
   return null
 }
 
-export function AppTutorial({ open, onNavigate, onClose, onComplete, onRequestSidebar }) {
+export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
   const [index, setIndex] = useState(0)
   const [spotlightRect, setSpotlightRect] = useState(null)
   const dialogRef = useRef(null)
@@ -317,13 +304,9 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete, onRequestSi
   }, [open, index])
 
   useEffect(() => {
-    if (!open) {
-      onRequestSidebar?.(false)
-      return
-    }
+    if (!open) return
     const step = STEPS[index]
     if (step.page) onNavigate?.(step.page)
-    onRequestSidebar?.(stepNeedsMobileSidebar(step))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, index])
 
@@ -336,7 +319,7 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete, onRequestSi
     }
     const step = STEPS[index]
     function updateRect() {
-      setSpotlightRect(findVisibleTarget(step.target || step.page))
+      setSpotlightRect(findSpotlight(step.target || step.page))
     }
     updateRect()
     // Recalcula depois do próximo frame, já que a navegação para a página do
@@ -355,6 +338,9 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete, onRequestSi
     if (!open) return
     function handleKeydown(event) {
       if (event.key === 'Escape') { event.preventDefault(); onClose() }
+      // Enter só avança com o foco na própria caixa; num botão ("Voltar",
+      // "Pular tutorial", fechar) ele aciona o botão focado.
+      if (event.key === 'Enter' && event.target !== dialogRef.current) return
       if (event.key === 'ArrowRight' || event.key === 'Enter') { event.preventDefault(); goNext() }
       if (event.key === 'ArrowLeft') { event.preventDefault(); goBack() }
     }
@@ -382,7 +368,7 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete, onRequestSi
   const overlayClassName = [
     'tutorial-overlay',
     spotlightRect ? 'has-spotlight' : '',
-    stepSpotlightsMobileBottomNav(step) ? 'spotlight-near-bottom' : ''
+    spotlightIsLow(spotlightRect) ? 'spotlight-near-bottom' : ''
   ].filter(Boolean).join(' ')
 
   return <div className={overlayClassName} role="presentation" onMouseDown={onClose}>

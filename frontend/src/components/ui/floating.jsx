@@ -13,6 +13,22 @@ function focusablesIn(root) {
   return root ? [...root.querySelectorAll(FOCUSABLE)] : []
 }
 
+const MENU_ITEMS = '[role="menuitem"]:not([disabled]), [role="menuitemcheckbox"]:not([disabled]), [role="menuitemradio"]:not([disabled])'
+
+// Arrow keys, Home and End move between the items of a menu.
+export function moveMenuFocus(event, container) {
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+  event.preventDefault()
+  const items = [...container.querySelectorAll(MENU_ITEMS)]
+  if (!items.length) return
+  const index = items.indexOf(document.activeElement)
+  let next = 0
+  if (event.key === 'ArrowDown') next = (index + 1) % items.length
+  if (event.key === 'ArrowUp') next = (index - 1 + items.length) % items.length
+  if (event.key === 'End') next = items.length - 1
+  items[next].focus()
+}
+
 function trapTab(event, root) {
   const items = focusablesIn(root)
   if (!items.length) { event.preventDefault(); return }
@@ -106,7 +122,7 @@ export function Popover({
     if (!open || initialFocus === 'none') return
     const panel = panelRef.current
     const target = panel?.querySelector('[data-autofocus]')
-      || panel?.querySelector('[role="menuitem"]:not([disabled]), [role="menuitemradio"]:not([disabled])')
+      || panel?.querySelector(MENU_ITEMS)
       || focusablesIn(panel)[0]
     target?.focus({ preventScroll: true })
   }, [open, initialFocus])

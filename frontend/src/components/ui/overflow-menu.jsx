@@ -1,20 +1,7 @@
 import { useId, useRef, useState } from 'react'
 import { Icon } from './icon.jsx'
-import { Popover, Sheet } from './floating.jsx'
+import { Popover, Sheet, moveMenuFocus as moveFocus } from './floating.jsx'
 import { useIsPhone } from '../../lib/breakpoints.js'
-
-function moveFocus(event, container) {
-  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
-  event.preventDefault()
-  const options = [...container.querySelectorAll('[role="menuitem"]:not([disabled])')]
-  if (!options.length) return
-  const index = options.indexOf(document.activeElement)
-  let next = 0
-  if (event.key === 'ArrowDown') next = (index + 1) % options.length
-  if (event.key === 'ArrowUp') next = (index - 1 + options.length) % options.length
-  if (event.key === 'End') next = options.length - 1
-  options[next].focus()
-}
 
 // "…" button that groups secondary and destructive actions of one item:
 // an anchored menu with a pointer, an action sheet on phones.

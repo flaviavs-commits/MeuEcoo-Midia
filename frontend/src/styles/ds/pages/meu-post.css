@@ -302,15 +302,14 @@
     .mp-date { max-width: none; }
     .mp-acct { grid-template-columns: auto auto minmax(0, 1fr); }
     .mp-acct > .ds-status { grid-column: 3; justify-self: start; margin-top: -6px; }
-    .mp-bar { bottom: calc(var(--ds-bottomnav-h) + env(safe-area-inset-bottom) + 8px); }
+    /* the shell hides the bottom navigation in the composer; the bar sits on the bottom edge (plus the safe area) */
+    .mp-bar { bottom: calc(var(--ds-bottom-inset, 0px) + env(safe-area-inset-bottom) + 8px); }
     .mp-bar__main { gap: 8px; padding: 8px; }
     .mp-bar__issues, .mp-bar__ready { flex: 1 1 100%; }
     .mp-bar__save, .mp-bar__template { display: none; }
     .mp-bar__more { display: inline-flex; }
     .mp-bar__actions { flex: 1 1 100%; flex-wrap: nowrap; }
     .mp-bar__submit { flex: 1; }
-    /* the floating assistant rises above the action bar so it never covers "Agendar" */
-    :where(body):has(.mp-bar) .ai-assistant-widget { bottom: calc(var(--ds-bottomnav-h) + env(safe-area-inset-bottom) + 140px); }
   }
   @media (prefers-reduced-motion: reduce) {
     .pub-status__track .ds-progress__bar { animation: none; width: 100%; opacity: 0.5; }

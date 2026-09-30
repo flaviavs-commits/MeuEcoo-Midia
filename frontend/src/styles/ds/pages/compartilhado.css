@@ -25,12 +25,13 @@
   .gate-text { max-width: 46ch; font-size: var(--ds-text-md); line-height: 1.6; color: var(--ds-ink-2); margin-bottom: 8px; }
 
   /* ========== assistant widget */
+  /* the floating assistant sits above whatever is pinned to the bottom (the phone bottom nav) */
   .aiw {
-    position: fixed; right: 24px; bottom: 24px; z-index: var(--ds-z-fab); background: transparent;
+    position: fixed; right: 24px; bottom: calc(24px + var(--ds-bottom-inset, 0px)); z-index: var(--ds-z-fab); background: transparent;
     display: flex; flex-direction: column; align-items: flex-end; gap: 12px;
   }
   .aiw-toggle {
-    display: grid; place-items: center; width: 56px; height: 56px; padding: 0; border: 0; border-radius: 18px; cursor: pointer;
+    display: grid; place-items: center; width: 52px; height: 52px; padding: 0; border: 0; border-radius: 16px; cursor: pointer;
     background: var(--ds-accent); color: var(--ds-accent-ink);
     box-shadow: 0 10px 28px -8px color-mix(in srgb, var(--ds-accent-graphic) 70%, transparent), var(--ds-shadow-2);
     transition: transform var(--ds-dur-fast) var(--ds-ease-out), border-radius var(--ds-dur-base) var(--ds-ease-out);
@@ -42,7 +43,7 @@
   .aiw-avatar { display: inline-grid; place-items: center; flex: none; overflow: hidden; border-radius: 12px; background: var(--ds-invert-bg); }
   .aiw-avatar > img { width: 78%; height: 78%; object-fit: contain; }
   .aiw-avatar--small { width: 34px; height: 34px; border-radius: 10px; }
-  .aiw-avatar--large { width: 44px; height: 44px; }
+  .aiw-avatar--large { width: 40px; height: 40px; }
 
   .aiw-panel {
     display: flex; flex-direction: column; width: min(400px, calc(100vw - 48px)); height: min(560px, calc(100dvh - 140px)); overflow: hidden;
@@ -76,12 +77,22 @@
   .aiw-compose__input { flex: 1; min-width: 0; }
   .aiw-compose__send { flex: none; }
 
+  /* ========== page error boundary */
+  .page-error { max-width: 560px; margin: 48px auto; }
+  .page-error__icon {
+    display: grid; place-items: center; width: 48px; height: 48px; border-radius: 14px;
+    background: var(--ds-warning-soft); color: var(--ds-warning);
+  }
+
   @media (max-width: 1023px) {
     .ds-pageskel__blocks { grid-template-columns: minmax(0, 1fr); }
   }
   @media (max-width: 767px) {
-    .aiw { right: 12px; bottom: calc(var(--ds-bottomnav-h) + env(safe-area-inset-bottom) + 12px); }
-    .aiw-toggle { width: 52px; height: 52px; }
+    .aiw { right: 12px; bottom: calc(12px + var(--ds-bottom-inset, 0px)); }
+    .aiw-toggle { width: 48px; height: 48px; border-radius: 14px; }
+    .aiw-toggle .aiw-avatar--large { width: 36px; height: 36px; }
+    /* in the composer the contextual action bar owns the bottom edge; the assistant stays in "Mais" */
+    .ds-shell[data-bottomnav='off'] .aiw { display: none; }
     .aiw-panel { width: calc(100vw - 24px); height: min(520px, max(320px, calc(100dvh - 180px))); }
     .aiw-compose__input { font-size: 16px; }
     .gate { min-height: 0; }

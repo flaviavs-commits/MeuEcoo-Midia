@@ -870,8 +870,6 @@
   .ds-nav__lock .ds-icon { width: 14px; height: 14px; color: var(--ds-ink-muted); }
   .ds-nav__item[data-locked='true'] { color: var(--ds-ink-muted); }
   .ds-side__foot { margin-top: auto; display: grid; gap: 2px; padding-top: 12px; border-top: 1px solid var(--ds-line); }
-  .ds-side__phone { display: none; }
-  .ds-shell__scrim { display: none; }
 
   /* --- main column, topbar */
   .ds-shell__main { display: flex; flex-direction: column; min-width: 0; }
@@ -947,40 +945,39 @@
   }
   .ds-bottomnav__plus .ds-icon { width: 20px; height: 20px; stroke-width: 2; }
   .ds-bottomnav__item--create { color: var(--ds-ink); font-weight: var(--ds-weight-semibold); }
-
-  /* --- collapsed rail (desktop toggle) and automatic rail (768–1199) */
-  .ds-shell[data-side='rail'] { grid-template-columns: var(--ds-rail-w) minmax(0, 1fr); }
-  .ds-shell[data-side='rail'] .ds-side__inner { padding-inline: 12px; align-items: center; }
-  .ds-shell[data-side='rail'] .ds-side__brand { justify-content: center; padding: 0; margin-inline: -12px; align-self: stretch; }
-  .ds-shell[data-side='rail'] .ds-side__logo { display: none; }
-  .ds-shell[data-side='rail'] .ds-side__mark { display: block; }
-  .ds-shell[data-side='rail'] .ds-nav__label,
-  .ds-shell[data-side='rail'] .ds-nav__text,
-  .ds-shell[data-side='rail'] .ds-nav__lock-text {
-    position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+  .ds-bottomnav__item[data-active] { color: var(--ds-ink); font-weight: var(--ds-weight-semibold); }
+  .ds-bottomnav__item[data-active] .ds-icon { color: var(--ds-accent-graphic); }
+  .ds-bottomnav__item[data-active]::before {
+    content: ''; position: absolute; top: 0; left: 50%; width: 20px; height: 2px; margin-left: -10px;
+    border-radius: 0 0 2px 2px; background: var(--ds-accent-graphic);
   }
-  .ds-shell[data-side='rail'] .ds-nav__group + .ds-nav__group { border-top: 1px solid var(--ds-line); padding-top: 12px; }
-  .ds-shell[data-side='rail'] .ds-nav { gap: 12px; }
-  .ds-shell[data-side='rail'] .ds-nav__item { width: 44px; min-height: 40px; padding: 0; justify-content: center; }
-  .ds-shell[data-side='rail'] .ds-nav__lock { position: absolute; right: 4px; bottom: 4px; }
-  .ds-shell[data-side='rail'] .ds-side__foot { width: 100%; justify-items: center; }
+  .ds-bottomnav__item:focus-visible { outline-offset: -4px; border-radius: var(--ds-radius-lg); }
 
-  @media (min-width: 768px) and (max-width: 1023px) {
-    .ds-shell:not([data-side='expanded']) { grid-template-columns: var(--ds-rail-w) minmax(0, 1fr); }
-    .ds-shell:not([data-side='expanded']) .ds-side__inner { padding-inline: 12px; align-items: center; }
-    .ds-shell:not([data-side='expanded']) .ds-side__brand { justify-content: center; padding: 0; margin-inline: -12px; align-self: stretch; }
-    .ds-shell:not([data-side='expanded']) .ds-side__logo { display: none; }
-    .ds-shell:not([data-side='expanded']) .ds-side__mark { display: block; }
-    .ds-shell:not([data-side='expanded']) .ds-nav__label,
-    .ds-shell:not([data-side='expanded']) .ds-nav__text,
-    .ds-shell:not([data-side='expanded']) .ds-nav__lock-text {
+  /* --- collapsed rail: the desktop preference, or the tablet default. The shell sets
+     data-side="rail" only from 768px up, so a saved preference can never squeeze a phone. */
+  @media (min-width: 768px) {
+    .ds-shell[data-side='rail'] { grid-template-columns: var(--ds-rail-w) minmax(0, 1fr); }
+    .ds-shell[data-side='rail'] .ds-side__inner { padding-inline: 12px; align-items: center; }
+    .ds-shell[data-side='rail'] .ds-side__brand { justify-content: center; padding: 0; margin-inline: -12px; align-self: stretch; }
+    .ds-shell[data-side='rail'] .ds-side__logo { display: none; }
+    .ds-shell[data-side='rail'] .ds-side__mark { display: block; }
+    .ds-shell[data-side='rail'] .ds-nav__label,
+    .ds-shell[data-side='rail'] .ds-nav__text,
+    .ds-shell[data-side='rail'] .ds-nav__lock-text {
       position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
     }
-    .ds-shell:not([data-side='expanded']) .ds-nav__group + .ds-nav__group { border-top: 1px solid var(--ds-line); padding-top: 12px; }
-    .ds-shell:not([data-side='expanded']) .ds-nav { gap: 12px; }
-    .ds-shell:not([data-side='expanded']) .ds-nav__item { width: 44px; min-height: 40px; padding: 0; justify-content: center; }
-    .ds-shell:not([data-side='expanded']) .ds-nav__lock { position: absolute; right: 4px; bottom: 4px; }
-    .ds-shell:not([data-side='expanded']) .ds-side__foot { width: 100%; justify-items: center; }
+    .ds-shell[data-side='rail'] .ds-nav__group + .ds-nav__group { border-top: 1px solid var(--ds-line); padding-top: 10px; }
+    .ds-shell[data-side='rail'] .ds-nav { gap: 10px; }
+    .ds-shell[data-side='rail'] .ds-nav__item { width: 44px; min-height: 40px; padding: 0; justify-content: center; }
+    .ds-shell[data-side='rail'] .ds-nav__lock { position: absolute; right: 3px; bottom: 3px; }
+    .ds-shell[data-side='rail'] .ds-side__foot { width: 100%; justify-items: center; }
+    .ds-shell[data-side='rail'] .ds-tipanchor { display: flex; justify-content: center; }
+  }
+  /* laptop: the expanded sidebar starts a step narrower (the user can still drag it) */
+  @media (min-width: 1024px) and (max-width: 1279px) {
+    .ds-shell { --ds-side-w: 216px; }
+  }
+  @media (min-width: 768px) and (max-width: 1023px) {
     .ds-profile__name { display: none; }
   }
 
@@ -990,23 +987,11 @@
     /* the bottom navigation is on by default; screens that replace it (composer) set data-bottomnav="off" */
     .ds-shell:not([data-bottomnav='off']) { --ds-bottom-inset: calc(var(--ds-bottomnav-h) + env(safe-area-inset-bottom)); padding-bottom: var(--ds-bottom-inset); }
     .ds-side { display: none; }
-    .ds-shell[data-drawer='open'] .ds-side {
-      display: block; position: fixed; inset: 0 auto 0 0; z-index: var(--ds-z-drawer);
-      width: min(86vw, 320px); border-right: 0; box-shadow: var(--ds-shadow-4);
-      animation: ds-slide-right var(--ds-dur-slow) var(--ds-ease-out);
-    }
-    .ds-shell[data-drawer='open'] .ds-side__phone { display: grid; gap: 2px; }
-    .ds-shell[data-drawer='open'] .ds-shell__scrim {
-      display: block; position: fixed; inset: 0; z-index: calc(var(--ds-z-drawer) - 1);
-      border: 0; padding: 0; background: var(--ds-scrim); cursor: pointer;
-      animation: ds-fade var(--ds-dur-slow) var(--ds-ease-out);
-    }
     .ds-top { height: calc(var(--ds-top-h-phone) + env(safe-area-inset-top)); padding: env(safe-area-inset-top) 8px 0 var(--ds-gutter); gap: 4px; }
+    .ds-top:has(.ds-top__back) { padding-left: 4px; }
     .ds-top__page { font-size: var(--ds-text-lg); }
-    .ds-top__group { display: none; }
-    .ds-top__anchor > .ds-popover { position: fixed; top: calc(var(--ds-top-h-phone) + env(safe-area-inset-top) + 8px); left: 8px; right: 8px; width: auto; }
-    .ds-top__wide { display: none; }
-    .ds-profile { padding: 0 4px; }
+    .ds-top__back { margin-left: 0; }
+    .ds-profile { padding: 0 4px; margin-left: 0; }
     .ds-profile__name, .ds-profile > .ds-icon { display: none; }
     .ds-page { padding-bottom: 40px; }
     .ds-pagehead { grid-template-columns: minmax(0, 1fr); padding: 16px 0 14px; gap: 12px; }
@@ -1135,23 +1120,31 @@
   .ds-legend__key[data-k='quiet'] { background: var(--ds-viz-quiet); }
   .ds-legend__key--line { height: 2px; width: 14px; border-radius: 2px; }
 
-  /* --- shell parts: topbar variants, theme icon, phone drawer extras */
-  .ds-top__drawer { display: none; }
+  /* --- shell parts */
   html[data-theme='light'] .ds-show-dark,
   html[data-theme='dark'] .ds-show-light { display: none; }
-  .ds-side__theme { display: grid; gap: 8px; padding: 8px 10px 10px; }
-  .ds-side__theme .ds-nav__label { padding: 0; }
-  .ds-side__legal { padding: 12px 10px 4px; font-size: var(--ds-text-xs); color: var(--ds-ink-muted); }
-  .ds-side__legal a { text-decoration: none; }
-  .ds-side__legal a:hover { color: var(--ds-ink); text-decoration: underline; }
-  .ds-side__collapse .ds-icon { color: var(--ds-ink-muted); }
   .ds-shell__content { flex: 1; min-width: 0; }
   .ds-shell__content:focus { outline: none; }
   .ds-nav, .ds-nav__group { padding: 0; margin: 0; }
   .ds-nav__item { height: auto; }
   .ds-top__collapse[aria-expanded] { background: none; }
   .ds-top__collapse:hover { background: var(--ds-wash); }
-  .ds-top__crumb { min-width: 0; }
+  .ds-top__crumb { min-width: 0; flex: 0 1 auto; }
+  .ds-top__page { display: flex; align-items: baseline; min-width: 0; }
+  .ds-top__page > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .ds-top__create { margin-right: 2px; }
+  .ds-top__back .ds-icon { width: 22px; height: 22px; }
+  .ds-top .ds-tipanchor { display: inline-flex; }
+
+  /* the assistant gets one quiet accent, always on (not only when it is the current page) */
+  .ds-nav__item--special .ds-icon,
+  .ds-more__item--special > .ds-icon:first-child { color: var(--ds-accent-graphic); }
+  .ds-nav__item--special { color: var(--ds-ink); }
+
+  /* "Tema escuro" item: the DS switch drawn as an indicator */
+  span.ds-switch { display: inline-block; cursor: inherit; }
+  .ds-switch[data-on] { background: var(--ds-selected); }
+  .ds-switch[data-on]::before { transform: translateX(16px); background: var(--ds-knob-on); }
   .ds-foot .copyright-notice { display: inline; color: inherit; font-size: inherit; line-height: inherit; }
   .ds-side__foot:empty { display: none; }
   .ds-shortcuts { display: grid; gap: 2px; margin-top: 8px; }
@@ -1192,11 +1185,6 @@
   .ds-profilemenu__name { font: var(--ds-weight-semibold) var(--ds-text-base)/1.3 var(--ds-font-sans); color: var(--ds-ink); }
   .ds-profilemenu__mail { font-size: var(--ds-text-xs); color: var(--ds-ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-  @media (max-width: 767px) {
-    .ds-top__drawer { display: inline-flex; }
-    .ds-side__collapse, .ds-top__collapse { display: none; }
-
-  }
 
 
   /* ===================================================== 32. BRAND GLYPHS */
@@ -1221,11 +1209,13 @@
   }
   .ds-sheet--sm { width: min(400px, 100%); }
   .ds-sheet--lg { width: min(640px, 100%); }
-  .ds-sheet__head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 4px 12px; padding: 16px 16px 12px 20px; }
+  /* title and close button share one centre line (the heading block stays top-aligned when it has a description) */
+  .ds-sheet__head { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 16px 16px 12px 20px; }
+  .ds-sheet__head:has(.ds-sheet__desc) { align-items: start; }
   .ds-sheet__heading { display: grid; gap: 2px; min-width: 0; }
   .ds-sheet__title { font: var(--ds-weight-semibold) var(--ds-text-lg)/1.3 var(--ds-font-sans); color: var(--ds-ink); }
   .ds-sheet__desc { font-size: var(--ds-text-sm); color: var(--ds-ink-muted); }
-  .ds-sheet__close { margin: -4px -4px 0 0; }
+  .ds-sheet__close { margin: -6px -6px -6px 0; }
   .ds-sheet__body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 20px 16px; }
   .ds-sheet__foot {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
@@ -1335,7 +1325,15 @@
   .ds-more__item[aria-current='page'] > .ds-icon:first-child { color: var(--ds-accent-graphic); }
   .ds-more__chev { width: 16px; height: 16px; color: var(--ds-ink-subtle); }
   .ds-more__lock { display: inline-flex; align-items: center; gap: 4px; font-size: var(--ds-text-xs); color: var(--ds-ink-muted); }
-  .ds-more__theme { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 0 8px 0 10px; }
+  .ds-more__theme { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 0 4px 0 10px; font: var(--ds-weight-medium) var(--ds-text-md)/1.2 var(--ds-font-sans); color: var(--ds-ink); }
+  .ds-more__group > ul { display: grid; gap: 2px; }
+  .ds-more__item--danger { color: var(--ds-danger); }
+  .ds-more__item--danger > .ds-icon:first-child { color: var(--ds-danger); }
+  .ds-accountsheet .ds-profilemenu__id { padding: 0 2px 12px; margin-bottom: 8px; border-bottom: 1px solid var(--ds-line); }
+  .ds-accountsheet .ds-more__group { margin-bottom: 4px; }
+  .ds-accountsheet__legal { display: flex; flex-wrap: wrap; gap: 4px 18px; padding: 14px 10px 2px; font-size: var(--ds-text-xs); color: var(--ds-ink-muted); }
+  .ds-accountsheet__legal a { color: inherit; }
+  .ds-notifsheet .ds-notif__item { padding-inline: 0; }
 
   /* the floating assistant and anything pinned to the bottom sit above this inset (set on phones) */
   .ds-shell { --ds-bottom-inset: 0px; }

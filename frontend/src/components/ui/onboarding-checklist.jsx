@@ -43,7 +43,7 @@ export function OnboardingChecklist({ accounts = [], posts = [], onNavigate, var
       </h2>
       <p className="dash-onboard__text">
         {isEmpty
-          ? 'Nenhuma conta, publicação ou métrica aparece aqui até você começar a usar a plataforma. Siga os passos ao lado.'
+          ? 'Nenhuma conta, publicação ou métrica aparece aqui até você começar a usar a plataforma. Siga estes passos para começar.'
           : 'Complete o checklist para aproveitar melhor o Meu Ecoo Mídia.'}
       </p>
       <div className="dash-onboard__progress">

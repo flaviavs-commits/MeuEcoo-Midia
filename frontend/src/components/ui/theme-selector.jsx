@@ -18,6 +18,19 @@ export function applyTheme(theme) {
   return nextTheme
 }
 
+// Troca o tema de qualquer lugar (menu da conta, folha da conta no celular):
+// aplica, guarda e avisa os demais controles pelo mesmo evento global.
+export function setAppTheme(theme) {
+  const nextTheme = applyTheme(theme)
+  try {
+    localStorage.setItem(THEME_STORAGE_KEY, nextTheme)
+  } catch {
+    // A preferência continua funcionando mesmo quando o storage está indisponível.
+  }
+  window.dispatchEvent(new CustomEvent('meu-ecoo:themechange', { detail: nextTheme }))
+  return nextTheme
+}
+
 export function useTheme() {
   const [theme, setTheme] = useState(getStoredTheme)
 
