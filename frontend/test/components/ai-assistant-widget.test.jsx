@@ -115,6 +115,53 @@ describe('AiAssistantWidget', () => {
     expect(agentCall[1]).toEqual(expect.objectContaining({ timeoutMs: 120000 }))
   })
 
+  it('leva o foco para o campo ao abrir e devolve ao botão ao fechar com Escape', () => {
+    render(<AiAssistantWidget />)
+    const toggle = screen.getByRole('button', { name: 'Abrir assistente inteligente' })
+    fireEvent.click(toggle)
+    expect(screen.getByLabelText('Mensagem para o Assistente inteligente')).toHaveFocus()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Abrir assistente inteligente' })).toHaveFocus()
+  })
+
+  describe('no celular', () => {
+    let original
+    beforeEach(() => {
+      original = window.matchMedia
+      window.matchMedia = query => ({ matches: query === '(max-width: 767px)' || query === '(max-width: 1023px)', media: query, addEventListener() {}, removeEventListener() {} })
+    })
+    afterEach(() => { window.matchMedia = original })
+
+    it('abre como folha modal e devolve o foco ao botão ao fechar', async () => {
+      render(<AiAssistantWidget />)
+      const toggle = screen.getByRole('button', { name: 'Abrir assistente inteligente' })
+      toggle.focus()
+      fireEvent.click(toggle)
+
+      const sheet = await screen.findByRole('dialog', { name: 'Assistente inteligente' })
+      expect(sheet).toHaveAttribute('aria-modal', 'true')
+      expect(sheet).toContainElement(screen.getByLabelText('Mensagem para o Assistente inteligente'))
+
+      fireEvent.click(screen.getByRole('button', { name: 'Fechar assistente' }))
+      await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      expect(screen.getByRole('button', { name: 'Abrir assistente inteligente' })).toHaveFocus()
+    })
+
+    it('recolhe o botão enquanto um campo da página está em foco', () => {
+      const { container } = render(<><input aria-label="Campo da página" /><AiAssistantWidget /></>)
+      const widget = container.querySelector('.aiw')
+      expect(widget).not.toHaveAttribute('data-away')
+
+      fireEvent.focusIn(screen.getByLabelText('Campo da página'))
+      expect(widget).toHaveAttribute('data-away', 'true')
+
+      fireEvent.focusOut(screen.getByLabelText('Campo da página'), { relatedTarget: document.body })
+      expect(widget).not.toHaveAttribute('data-away')
+    })
+  })
+
   it('does not submit an empty or whitespace-only message', () => {
     const apiFetchMock = vi.spyOn(api, 'apiFetch')
     render(<AiAssistantWidget />)

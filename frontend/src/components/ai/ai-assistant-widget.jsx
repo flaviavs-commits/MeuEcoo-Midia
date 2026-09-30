@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../../lib/api.js'
+import { MEDIA, mediaMatches, useIsPhone } from '../../lib/breakpoints.js'
+import { Sheet } from '../ui/floating.jsx'
 import { Icon } from '../ui/icon.jsx'
 
 function persistMessage(contexto, role, conteudo) {
@@ -81,25 +83,76 @@ function AgentMessage({ message, index, onConfirm, onEdit, editingIndex, onChang
   )
 }
 
-function AiWidgetPanel({ messages, editingIndex, onEdit, onChangeMessage, sending, processingMessage, error, input, onInputChange, onSend, onConfirm, onClose, messagesRef, onContinueToPost }) {
+function ChatLog({ messages, editingIndex, onEdit, onChangeMessage, sending, processingMessage, error, onConfirm, messagesRef, onContinueToPost }) {
+  return <div ref={messagesRef} className="aiw-log">
+    {messages.length === 0 && <div className="aiw-hello"><RobotAvatar size="large" /><p>Peça uma ideia, uma imagem ou consulte seus posts. Revise antes de publicar.</p></div>}
+    {messages.map((message, index) => <AgentMessage key={index} message={message} index={index} editingIndex={editingIndex} onEdit={onEdit} onChangeMessage={onChangeMessage} onConfirm={onConfirm} onContinueToPost={onContinueToPost} />)}
+    {sending && <div className="aiw-msg aiw-msg--wait" aria-live="polite"><span className="ds-spinner" aria-hidden="true" />{processingMessage}</div>}
+    {error && <p className="aiw-error" role="alert"><Icon name="alertCircle" size={16} />{error}</p>}
+  </div>
+}
+
+function ChatCompose({ input, onInputChange, onSend, sending, inputRef }) {
+  return <form onSubmit={onSend} className="aiw-compose">
+    <input ref={inputRef} value={input} onChange={onInputChange} placeholder="Digite o que você precisa..." aria-label="Mensagem para o Assistente inteligente" className="ds-input aiw-compose__input" enterKeyHint="send" />
+    <button type="submit" disabled={sending || !input.trim()} className="ds-btn ds-btn--primary aiw-compose__send"><Icon name="send" size={16} />Enviar</button>
+  </form>
+}
+
+// Desktop: painel flutuante ao lado do botão, sem bloquear a página.
+function AiWidgetPanel({ panelId, onClose, inputRef, ...chat }) {
   return (
-    <section role="dialog" aria-label="Assistente inteligente" className="aiw-panel">
+    <section id={panelId} role="dialog" aria-label="Assistente inteligente" className="aiw-panel">
       <header className="aiw-head">
         <div className="aiw-head__id"><RobotAvatar /><div><p className="aiw-head__title">Assistente inteligente</p><p className="aiw-head__sub">Ajuda para agilizar sua rotina</p></div></div>
         <button type="button" aria-label="Fechar assistente" onClick={onClose} className="ds-btn ds-btn--quiet ds-btn--icon ds-btn--sm"><Icon name="close" size={18} /></button>
       </header>
-      <div ref={messagesRef} className="aiw-log">
-        {messages.length === 0 && <div className="aiw-hello"><RobotAvatar size="large" /><p>Peça uma ideia, uma imagem ou consulte seus posts. Revise antes de publicar.</p></div>}
-        {messages.map((message, index) => <AgentMessage key={index} message={message} index={index} editingIndex={editingIndex} onEdit={onEdit} onChangeMessage={onChangeMessage} onConfirm={onConfirm} onContinueToPost={onContinueToPost} />)}
-        {sending && <div className="aiw-msg aiw-msg--wait" aria-live="polite"><span className="ds-spinner" aria-hidden="true" />{processingMessage}</div>}
-        {error && <p className="aiw-error" role="alert"><Icon name="alertCircle" size={16} />{error}</p>}
-      </div>
-      <form onSubmit={onSend} className="aiw-compose">
-        <input value={input} onChange={onInputChange} placeholder="Digite o que você precisa..." aria-label="Mensagem para o Assistente inteligente" className="ds-input aiw-compose__input" />
-        <button type="submit" disabled={sending || !input.trim()} className="ds-btn ds-btn--primary aiw-compose__send"><Icon name="send" size={16} />Enviar</button>
-      </form>
+      <ChatLog {...chat} />
+      <ChatCompose {...chat} inputRef={inputRef} />
     </section>
   )
+}
+
+// Elementos em que a pessoa digita: com o teclado virtual aberto, o botão
+// flutuante sai de cena para não ficar por cima do campo ou do botão de enviar.
+const TYPING_FIELD = 'input:not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="file"]):not([type="range"]):not([type="color"]), textarea, select, [contenteditable="true"]'
+
+// O botão flutuante não pode esconder o botão principal do fim da página: ao
+// rolar para baixo ele recolhe, ao subir ele volta. No celular e no tablet
+// também recolhe enquanto um campo da página tem foco.
+function useFabAway(active, rootRef) {
+  const [scrolledAway, setScrolledAway] = useState(false)
+  const [typing, setTyping] = useState(false)
+
+  useEffect(() => {
+    if (!active) { setScrolledAway(false); return undefined }
+    let lastY = window.scrollY
+    let frame = 0
+    const onScroll = () => {
+      if (frame) return
+      frame = window.requestAnimationFrame(() => {
+        frame = 0
+        const y = window.scrollY
+        if (Math.abs(y - lastY) < 8) return
+        const ownFocus = rootRef.current?.contains(document.activeElement)
+        setScrolledAway(y > lastY && y > 120 && !ownFocus)
+        lastY = y
+      })
+    }
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => { window.removeEventListener('scroll', onScroll); if (frame) window.cancelAnimationFrame(frame) }
+  }, [active, rootRef])
+
+  useEffect(() => {
+    const isPageField = element => Boolean(element?.matches?.(TYPING_FIELD)) && !rootRef.current?.contains(element) && !element.closest('.aiw-sheet')
+    const onFocusIn = event => setTyping(isPageField(event.target) && mediaMatches(MEDIA.compact))
+    const onFocusOut = event => { if (!isPageField(event.relatedTarget)) setTyping(false) }
+    document.addEventListener('focusin', onFocusIn)
+    document.addEventListener('focusout', onFocusOut)
+    return () => { document.removeEventListener('focusin', onFocusIn); document.removeEventListener('focusout', onFocusOut) }
+  }, [rootRef])
+
+  return active && (scrolledAway || typing)
 }
 
 export function AiAssistantWidget({ hidden = false, currentPage = null, onNavigate }) {
@@ -112,16 +165,32 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
   const [editingIndex, setEditingIndex] = useState(null)
   const [pendingPlan, setPendingPlan] = useState(null)
   const messagesRef = useRef(null)
+  const rootRef = useRef(null)
+  const toggleRef = useRef(null)
+  const inputRef = useRef(null)
+  const phone = useIsPhone()
+  const away = useFabAway(!open && !hidden, rootRef)
+  const panelId = 'aiw-panel'
 
   useEffect(() => {
     if (messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight
-  }, [messages, sending])
+  }, [messages, sending, open])
+
+  // Desktop: o painel não é modal; ao abrir, o foco vai para o campo; ao fechar
+  // (Escape ou X), volta para o botão. No celular quem cuida disso é o Sheet.
+  function close() {
+    setOpen(false)
+    if (!phone) toggleRef.current?.focus()
+  }
 
   useEffect(() => {
-    function onKeyDown(event) { if (event.key === 'Escape') setOpen(false) }
-    if (open) window.addEventListener('keydown', onKeyDown)
+    if (!open || phone) return undefined
+    inputRef.current?.focus()
+    function onKeyDown(event) { if (event.key === 'Escape') close() }
+    window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, phone])
 
   if (hidden) return null
 
@@ -137,7 +206,7 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
         action: plan?.actionId || null,
         contexto: summarizeData(data).slice(0, 1500),
       }))
-      const data = await apiFetch('/api/ai/agent', { method: 'POST', timeoutMs: AI_REQUEST_TIMEOUT_MS, body: JSON.stringify({ message: text, currentPage, history, pendingPlan }) })
+      const data = await apiFetch('/api/ai/agent', { method: 'POST', timeoutMs: AI_REQUEST_TIMEOUT_MS, body: JSON.stringify({ message: text, currentPage, history, pendingPlan }) }) || {}
       const reply = data.message || 'Solicitação processada.'
       setMessages(value => [...value, { role: 'agent', text: reply, data: data.data, plan: data.plan || null, confirmationToken: data.confirmationToken || null }])
       setPendingPlan(data.requiresInput ? data.plan : null)
@@ -150,7 +219,7 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
     if (sending) return
     setError(''); setProcessingMessage('Estou executando a ação confirmada. Aguarde só mais um momento...'); setSending(true)
     try {
-      const data = await apiFetch('/api/ai/agent', { method: 'POST', timeoutMs: AI_REQUEST_TIMEOUT_MS, body: JSON.stringify({ approvalToken: token }) })
+      const data = await apiFetch('/api/ai/agent', { method: 'POST', timeoutMs: AI_REQUEST_TIMEOUT_MS, body: JSON.stringify({ approvalToken: token }) }) || {}
       const reply = data.message || 'Ação concluída.'
       setMessages(value => value.map((message, messageIndex) => messageIndex === index ? { ...message, text: `${message.text}\n${reply}`, data: data.data, confirmationToken: null } : message))
       setPendingPlan(null)
@@ -164,8 +233,18 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
     onNavigate?.('agendador')
   }
 
-  return <div className="ai-assistant-widget aiw" data-ds-root>
-    {open && <AiWidgetPanel messages={messages} editingIndex={editingIndex} onEdit={setEditingIndex} onChangeMessage={(index, text) => setMessages(value => value.map((message, messageIndex) => messageIndex === index ? { ...message, text } : message))} sending={sending} processingMessage={processingMessage} error={error} input={input} onInputChange={event => setInput(event.target.value)} onSend={send} onConfirm={confirm} onClose={() => setOpen(false)} messagesRef={messagesRef} onContinueToPost={continueToPost} />}
-    <button type="button" onClick={() => setOpen(value => !value)} aria-label={open ? 'Fechar assistente inteligente' : 'Abrir assistente inteligente'} aria-expanded={open} className="aiw-toggle" data-open={open || undefined}>{open ? <Icon name="close" size={22} /> : <RobotAvatar size="large" />}</button>
+  const chat = {
+    messages, editingIndex, onEdit: setEditingIndex, sending, processingMessage, error, input, messagesRef,
+    onChangeMessage: (index, text) => setMessages(value => value.map((message, messageIndex) => messageIndex === index ? { ...message, text } : message)),
+    onInputChange: event => setInput(event.target.value), onSend: send, onConfirm: confirm, onContinueToPost: continueToPost,
+  }
+
+  return <div ref={rootRef} className="ai-assistant-widget aiw" data-ds-root data-away={away || undefined}>
+    {open && !phone && <AiWidgetPanel panelId={panelId} onClose={close} inputRef={inputRef} {...chat} />}
+    {/* Celular: folha inferior do DS (acima da barra inferior, foco preso, Escape, rolagem só dentro do chat). */}
+    {phone && <Sheet open={open} onClose={close} title="Assistente inteligente" description="Ajuda para agilizar sua rotina" closeLabel="Fechar assistente" className="aiw-sheet" footer={<ChatCompose {...chat} inputRef={inputRef} />}>
+      <ChatLog {...chat} />
+    </Sheet>}
+    <button ref={toggleRef} type="button" onClick={() => (open ? close() : setOpen(true))} aria-label={open ? 'Fechar assistente inteligente' : 'Abrir assistente inteligente'} aria-expanded={open} aria-controls={open && !phone ? panelId : undefined} className="aiw-toggle" data-open={open || undefined}>{open ? <Icon name="close" size={22} /> : <RobotAvatar size="large" />}</button>
   </div>
 }
