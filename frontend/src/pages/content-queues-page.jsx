@@ -296,8 +296,10 @@ export function ContentQueuesPage() {
                         <p className="rep-routine__when">
                           <span><Icon name="clock" size={16} /><strong>{queue.recurrence?.time || '10:00'}</strong> · {formatQueueDays(queue)}</span>
                           <span className="rep-routine__next">{queue.active ? (nextRun ? <>Próxima: <strong>{nextRun}</strong></> : 'Próxima: a definir') : 'Pausada: ative para retomar'}</span>
-                          <span className="rep-routine__nets" aria-label={`Redes: ${queuePlatforms.map(platformLabelOf).join(', ') || 'nenhuma'}`}>
-                            {queuePlatforms.length ? queuePlatforms.map(platform => <NetworkGlyph key={platform} network={platform} size={18} />) : <span className="ds-meta">Nenhuma rede</span>}
+                          <span className="rep-routine__nets">
+                            {queuePlatforms.length
+                              ? <><span className="ds-sr-only">Redes: {queuePlatforms.map(platformLabelOf).join(', ')}</span>{queuePlatforms.map(platform => <span key={platform} aria-hidden="true"><NetworkGlyph network={platform} size={18} /></span>)}</>
+                              : <span className="ds-meta">Nenhuma rede</span>}
                           </span>
                         </p>
                         <button type="button" className={`ds-btn ds-btn--sm ${queue.active ? 'ds-btn--secondary' : 'ds-btn--primary'}`} onClick={() => toggle(queue)} disabled={busyId !== null}>

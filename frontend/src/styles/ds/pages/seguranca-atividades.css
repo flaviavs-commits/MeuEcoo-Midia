@@ -66,7 +66,8 @@
   .atv-tools { margin-bottom: 20px; }
   .atv-tools__search { flex: 1 1 280px; max-width: 420px; }
   .atv-types { flex-wrap: wrap; }
-  .atv-count { margin-left: 2px; font-weight: var(--ds-weight-regular); opacity: 0.7; }
+  /* no opacity: the count keeps the option's own (AA) text colour */
+  .atv-count { margin-left: 2px; font-weight: var(--ds-weight-regular); }
   .atv-skel { display: block; height: 68px; margin-bottom: 8px; border-radius: var(--ds-radius-lg); }
   .atv > .ds-alert { margin-bottom: 20px; }
   .atv-days { display: grid; gap: 24px; transition: opacity var(--ds-dur-base) var(--ds-ease-out); }
