@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { ProfilePage } from '../../src/pages/profile-page.jsx'
 import { ToastProvider } from '../../src/components/ui/toast.jsx'
 import * as api from '../../src/lib/api.js'
@@ -37,5 +37,72 @@ describe('ProfilePage', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('8 a 72 caracteres')
     expect(apiFetchMock.mock.calls.some(([path]) => path === '/api/me/password')).toBe(false)
+  })
+
+  it('usa o campo de senha com mostrar/ocultar nos três campos', async () => {
+    const profile = { id: 3, email: 'c@allowed.test', fullName: 'Cris', plan: 'pro', planActive: true }
+    mockApi(profile)
+    render(<ToastProvider><ProfilePage user={profile} /></ToastProvider>)
+
+    const nova = await screen.findByLabelText('Nova senha')
+    expect(nova).toHaveAttribute('type', 'password')
+    expect(screen.getAllByRole('button', { name: 'Mostrar senha' })).toHaveLength(3)
+    fireEvent.click(screen.getAllByRole('button', { name: 'Mostrar senha' })[1])
+    expect(nova).toHaveAttribute('type', 'text')
+  })
+
+  it('mostra a falha ao salvar uma vez só, junto do botão, e mantém o que foi digitado', async () => {
+    const profile = { id: 4, email: 'd@allowed.test', fullName: 'Duda', plan: 'pro', planActive: true }
+    const base = mockApi(profile).getMockImplementation()
+    vi.spyOn(api, 'apiFetch').mockImplementation((path, options) => {
+      if (path === '/api/me/profile' && options?.method === 'PATCH') return Promise.reject(new api.ApiError('Nome muito longo.', 400))
+      return base(path, options)
+    })
+    render(<ToastProvider><ProfilePage user={profile} /></ToastProvider>)
+
+    const nome = await screen.findByLabelText('Nome completo')
+    fireEvent.change(nome, { target: { value: 'Duda Nova' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar alterações' }))
+
+    await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(1))
+    expect(screen.getByRole('alert')).toHaveTextContent('Nome muito longo.')
+    expect(nome).toHaveValue('Duda Nova')
+  })
+
+  it('não mostra erro técnico quando o envio da foto falha na rede', async () => {
+    const profile = { id: 5, email: 'e@allowed.test', fullName: 'Eva', plan: 'pro', planActive: true }
+    const base = mockApi(profile).getMockImplementation()
+    vi.spyOn(api, 'apiFetch').mockImplementation((path, options) => {
+      if (path === '/api/posts/upload-url') return Promise.resolve({ uploadUrl: 'https://storage.test/upload', mediaUrl: 'https://cdn.test/a.png' })
+      return base(path, options)
+    })
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'))
+    const { container } = render(<ToastProvider><ProfilePage user={profile} /></ToastProvider>)
+    await screen.findByText('Alterar foto')
+
+    const file = new File(['x'], 'foto.png', { type: 'image/png' })
+    fireEvent.change(container.querySelector('input[type="file"]'), { target: { files: [file] } })
+
+    expect(await screen.findByText('Não foi possível enviar a foto agora. Tente de novo.')).toBeInTheDocument()
+    expect(screen.queryByText(/Failed to fetch/)).not.toBeInTheDocument()
+  })
+
+  it('não dispara "sair de todos os dispositivos" duas vezes enquanto a primeira está em andamento', async () => {
+    const profile = { id: 6, email: 'f@allowed.test', fullName: 'Fábio', plan: 'pro', planActive: true }
+    const base = mockApi(profile).getMockImplementation()
+    const apiFetch = vi.spyOn(api, 'apiFetch').mockImplementation((path, options) => {
+      if (path === '/api/me/logout-all') return new Promise(() => {})
+      return base(path, options)
+    })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    render(<ToastProvider><ProfilePage user={profile} /></ToastProvider>)
+
+    const botao = await screen.findByRole('button', { name: 'Sair de todos os dispositivos' })
+    fireEvent.click(botao)
+    fireEvent.click(botao)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Encerrando/ })).toBeDisabled())
+    expect(apiFetch.mock.calls.filter(([path]) => path === '/api/me/logout-all')).toHaveLength(1)
+    expect(window.confirm).toHaveBeenCalledTimes(1)
   })
 })

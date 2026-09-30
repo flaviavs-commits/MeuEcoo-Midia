@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { apiFetch, logout } from '../lib/api.js'
+import { apiFetch, ApiError, logout } from '../lib/api.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { Icon } from '../components/ui/icon.jsx'
+import { PasswordInput } from '../components/ui/password-input.jsx'
 import { getTutorialStatus, requestTutorialOpen, TUTORIAL_STATUS_EVENT } from '../lib/tutorial.js'
 import { DEFAULT_PLAN, PLANS, getMeuEcooPricing, getPlan, normalizePlan } from '../lib/plans.js'
 import { PASSWORD_MAX_LENGTH, PASSWORD_RULE_LABELS, passwordRules } from '../lib/password-rules.js'
@@ -34,8 +35,15 @@ function initials(profile) {
 }
 
 function formatDate(value) {
-  if (!value) return 'Não informado'
-  return new Date(value).toLocaleDateString('pt-BR', { dateStyle: 'long' })
+  const date = value ? new Date(value) : null
+  if (!date || Number.isNaN(date.getTime())) return 'Não informado'
+  return date.toLocaleDateString('pt-BR', { dateStyle: 'long' })
+}
+
+// Mensagem do backend quando existe; falha de rede, upload direto ou resposta
+// fora do formato vira o texto da ação, nunca o erro técnico ("Failed to fetch").
+function messageOf(error, fallback) {
+  return error instanceof ApiError ? error.message : fallback
 }
 
 function formatCurrency(priceCents) {
@@ -105,7 +113,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
         setProfile(current => ({ ...current, ...planPatch }))
         onUserChange?.(planPatch)
       }
-    }).catch(caught => setLoadError(caught.message || 'Não foi possível carregar seu perfil.')).finally(() => setLoading(false))
+    }).catch(caught => setLoadError(messageOf(caught, 'Verifique sua conexão e tente de novo.'))).finally(() => setLoading(false))
   }
 
   useEffect(() => { loadProfile() }, [])
@@ -166,8 +174,8 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
       onUserChange?.({ fullName: data.fullName, notificationPreferences: nextForm.notificationPreferences })
       notify('Perfil e preferências salvos.')
     } catch (caught) {
-      setFormError(caught.message)
-      notify(caught.message, 'error')
+      // O erro aparece junto do botão de salvar; um toast igual repetiria o anúncio.
+      setFormError(messageOf(caught, 'Não foi possível salvar agora. Suas alterações continuam aqui; tente de novo.'))
     } finally { setSaving(false) }
   }
 
@@ -182,8 +190,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
       setPassword({ currentPassword: '', newPassword: '', confirmation: '' })
       notify('Senha alterada com sucesso. Entre de novo com a nova senha.')
     } catch (caught) {
-      setPasswordError(caught.message)
-      notify(caught.message, 'error')
+      setPasswordError(messageOf(caught, 'Não foi possível alterar a senha agora. Tente de novo.'))
     } finally { setPasswordSaving(false) }
   }
 
@@ -204,7 +211,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
       setProfile(current => ({ ...current, avatarUrl }))
       onUserChange?.({ avatarUrl })
       notify('Foto de perfil atualizada.')
-    } catch (caught) { notify(caught.message, 'error') }
+    } catch (caught) { notify(messageOf(caught, 'Não foi possível enviar a foto agora. Tente de novo.'), 'error') }
     finally { setAvatarSaving(false) }
   }
 
@@ -215,16 +222,20 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
       setProfile(current => ({ ...current, avatarUrl: null }))
       onUserChange?.({ avatarUrl: null })
       notify('Foto de perfil removida.')
-    } catch (caught) { notify(caught.message, 'error') }
+    } catch (caught) { notify(messageOf(caught, 'Não foi possível remover a foto agora. Tente de novo.'), 'error') }
     finally { setAvatarSaving(false) }
   }
 
   async function logoutAll() {
-    if (!window.confirm('Isso encerrará todas as sessões desta conta. Deseja continuar?')) return
+    if (busyAction === 'logout-all' || !window.confirm('Isso encerrará todas as sessões desta conta. Deseja continuar?')) return
+    setBusyAction('logout-all')
     try {
       await apiFetch('/api/me/logout-all', { method: 'POST' })
       logout()
-    } catch (caught) { notify(caught.message, 'error') }
+    } catch (caught) {
+      notify(messageOf(caught, 'Não foi possível encerrar as sessões agora. Tente de novo.'), 'error')
+      setBusyAction('')
+    }
   }
 
   async function choosePlan(planId) {
@@ -256,7 +267,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
       if (status) setBilling(status)
       notify(result.status === 'updated' || result.status === 'paid' ? 'Plano atualizado com sucesso.' : 'Solicitação de troca registrada.')
     } catch (caught) {
-      notify(caught.message || 'Não foi possível trocar o plano agora.', 'error')
+      notify(messageOf(caught, 'Não foi possível trocar o plano agora.'), 'error')
     } finally {
       setBillingBusy(false)
       setBusyAction('')
@@ -273,7 +284,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
       const result = await apiFetch('/api/billing/portal', { method: 'POST' })
       window.location.assign(result.url)
     } catch (caught) {
-      notify(caught.message || 'Não foi possível abrir o portal de cobrança agora.', 'error')
+      notify(messageOf(caught, 'Não foi possível abrir o portal de cobrança agora.'), 'error')
       setBillingBusy(false)
       setBusyAction('')
     }
@@ -447,19 +458,19 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
         <form className="ds-disclosure__body pf-pass__body" onSubmit={changePassword} noValidate>
           <div className="ds-field">
             <label className="ds-label" htmlFor="pf-pass-current">Senha atual</label>
-            <input id="pf-pass-current" className="ds-input" type="password" value={password.currentPassword} onChange={event => setPassword(values => ({ ...values, currentPassword: event.target.value }))} autoComplete="current-password" placeholder="Digite sua senha atual" />
+            <PasswordInput id="pf-pass-current" value={password.currentPassword} onChange={event => setPassword(values => ({ ...values, currentPassword: event.target.value }))} autoComplete="current-password" placeholder="Digite sua senha atual" />
             {current.googleConnected && <p className="ds-hint">Se você só entra com o Google e nunca criou uma senha, deixe em branco.</p>}
           </div>
           <div className="ds-field">
             <label className="ds-label" htmlFor="pf-pass-new">Nova senha</label>
-            <input id="pf-pass-new" className="ds-input" type="password" value={password.newPassword} onChange={event => setPassword(values => ({ ...values, newPassword: event.target.value }))} autoComplete="new-password" placeholder="Mínimo de 8 caracteres" maxLength={PASSWORD_MAX_LENGTH} aria-describedby="pf-pass-rules" />
+            <PasswordInput id="pf-pass-new" value={password.newPassword} onChange={event => setPassword(values => ({ ...values, newPassword: event.target.value }))} autoComplete="new-password" placeholder="Mínimo de 8 caracteres" maxLength={PASSWORD_MAX_LENGTH} aria-describedby="pf-pass-rules" />
             <ul className="pf-rules" id="pf-pass-rules" aria-label="Requisitos da senha">
               {Object.entries(PASSWORD_RULE_LABELS).map(([key, label]) => <li key={key} data-state={rules[key] ? 'valid' : 'pending'}><Icon name={rules[key] ? 'checkCircle' : 'halfCircle'} size={14} />{label}<span className="ds-sr-only">{rules[key] ? ': atendido' : ': pendente'}</span></li>)}
             </ul>
           </div>
           <div className="ds-field">
             <label className="ds-label" htmlFor="pf-pass-confirm">Confirmar nova senha</label>
-            <input id="pf-pass-confirm" className="ds-input" type="password" value={password.confirmation} onChange={event => setPassword(values => ({ ...values, confirmation: event.target.value }))} autoComplete="new-password" placeholder="Repita a nova senha" maxLength={PASSWORD_MAX_LENGTH} aria-invalid={Boolean(password.confirmation) && password.confirmation !== password.newPassword ? 'true' : undefined} />
+            <PasswordInput id="pf-pass-confirm" value={password.confirmation} onChange={event => setPassword(values => ({ ...values, confirmation: event.target.value }))} autoComplete="new-password" placeholder="Repita a nova senha" maxLength={PASSWORD_MAX_LENGTH} aria-invalid={Boolean(password.confirmation) && password.confirmation !== password.newPassword ? 'true' : undefined} />
           </div>
           <p className="ds-hint pf-pass__note"><Icon name="info" size={16} />Depois da troca, todas as sessões são encerradas, inclusive esta. Você entra de novo com a nova senha.</p>
           {passwordError && <div className="ds-alert" data-tone="danger" role="alert"><Icon name="alertCircle" className="ds-alert__icon" /><p className="ds-alert__text">{passwordError}</p></div>}
@@ -488,7 +499,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
           <p className="pf-line__title">Outros dispositivos</p>
           <p className="ds-meta">Se você acessou a conta em outro computador, encerre todas as sessões por segurança.</p>
         </div>
-        <button type="button" className="ds-btn ds-btn--danger ds-btn--sm" onClick={logoutAll}>Sair de todos os dispositivos</button>
+        <button type="button" className="ds-btn ds-btn--danger ds-btn--sm" onClick={logoutAll} disabled={busyAction === 'logout-all'}>{busyAction === 'logout-all' ? <><span className="ds-spinner" aria-hidden="true" />Encerrando…</> : 'Sair de todos os dispositivos'}</button>
       </div>
       <button type="button" className="ds-go pf-well__go" onClick={() => onNavigate?.('atividade')}>Abrir histórico de atividades<Icon name="arrow" size={16} /></button>
     </div>
