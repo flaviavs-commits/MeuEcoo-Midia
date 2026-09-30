@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch, ApiError } from '../lib/api.js'
 import { useIsPhone } from '../lib/breakpoints.js'
 import { useToast } from '../components/ui/toast.jsx'
+import { useConfirm } from '../components/ui/confirm-dialog.jsx'
+import { Select } from '../components/ui/select.jsx'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { Sheet } from '../components/ui/floating.jsx'
@@ -19,6 +21,13 @@ function messageOf(error, fallback) {
   return error instanceof ApiError ? error.message : fallback
 }
 
+const TIKTOK_PRIVACY = [
+  { value: 'PUBLIC_TO_EVERYONE', label: 'Público' },
+  { value: 'MUTUAL_FOLLOW_FRIENDS', label: 'Amigos' },
+  { value: 'FOLLOWER_OF_CREATOR', label: 'Seguidores do criador' },
+  { value: 'SELF_ONLY', label: 'Somente eu' },
+]
+
 export function ContentQueuesPage() {
   const [queues, setQueues] = useState([])
   const [search, setSearch] = useState('')
@@ -35,6 +44,7 @@ export function ContentQueuesPage() {
   const [formOpen, setFormOpen] = useState(false)
   const mediaRef = useRef(null)
   const notify = useToast()
+  const { confirm, confirmDialog } = useConfirm()
   const phone = useIsPhone()
 
   const load = useCallback(async () => {
@@ -120,7 +130,13 @@ export function ContentQueuesPage() {
     finally { setBusyId(null) }
   }
   async function remove(queue) {
-    if (busyId !== null || !window.confirm(`Excluir a rotina ${queue.name}?`)) return
+    if (busyId !== null) return
+    const ok = await confirm({
+      title: `Excluir a rotina “${queue.name}”?`,
+      description: 'Ela para de criar publicações. O que já foi publicado continua nas redes.',
+      confirmLabel: 'Excluir rotina',
+    })
+    if (!ok) return
     setBusyId(queue.id)
     try { await apiFetch(`/api/content-queues/${queue.id}`, { method: 'DELETE' }); setQueues(current => current.filter(item => item.id !== queue.id)); notify('Rotina removida.') }
     catch (error) { notify(messageOf(error, 'Não foi possível excluir a rotina agora.'), 'error') }
@@ -200,15 +216,7 @@ export function ContentQueuesPage() {
 
     {form.platforms.includes('tiktok') && <div className="ds-field">
       <label className="ds-label" htmlFor="rep-tiktok">Privacidade do TikTok</label>
-      <span className="ds-select">
-        <select id="rep-tiktok" className="ds-select__control" value={tiktokPrivacyLevel} onChange={event => setTiktokPrivacyLevel(event.target.value)}>
-          <option value="PUBLIC_TO_EVERYONE">Público</option>
-          <option value="MUTUAL_FOLLOW_FRIENDS">Amigos</option>
-          <option value="FOLLOWER_OF_CREATOR">Seguidores do criador</option>
-          <option value="SELF_ONLY">Somente eu</option>
-        </select>
-        <Icon name="chevronDown" className="ds-select__chev" />
-      </span>
+      <Select id="rep-tiktok" value={tiktokPrivacyLevel} onChange={setTiktokPrivacyLevel} options={TIKTOK_PRIVACY} sheetTitle="Privacidade do TikTok" />
     </div>}
 
     <fieldset className="rep-group">
@@ -337,5 +345,6 @@ export function ContentQueuesPage() {
     >
       {createForm}
     </Sheet>}
+    {confirmDialog}
   </div>
 }

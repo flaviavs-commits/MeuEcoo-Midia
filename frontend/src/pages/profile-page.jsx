@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { apiFetch, ApiError, logout } from '../lib/api.js'
 import { useToast } from '../components/ui/toast.jsx'
+import { Select } from '../components/ui/select.jsx'
+import { useConfirm } from '../components/ui/confirm-dialog.jsx'
 import { Icon } from '../components/ui/icon.jsx'
 import { PasswordInput } from '../components/ui/password-input.jsx'
 import { getTutorialStatus, requestTutorialOpen, TUTORIAL_STATUS_EVENT } from '../lib/tutorial.js'
@@ -68,6 +70,14 @@ function scrollToSection(id) {
   target.querySelector('h2')?.focus({ preventScroll: true })
 }
 
+const LANGUAGES = [{ value: 'pt-BR', label: 'Português (Brasil)' }, { value: 'en-US', label: 'English (United States)' }]
+const TIMEZONES = [
+  { value: 'America/Sao_Paulo', label: 'Brasília (GMT-3)' },
+  { value: 'America/Manaus', label: 'Manaus (GMT-4)' },
+  { value: 'America/Belem', label: 'Belém (GMT-3)' },
+  { value: 'UTC', label: 'UTC' },
+]
+
 export function ProfilePage({ user, onNavigate, onUserChange }) {
   const [profile, setProfile] = useState(null)
   const [form, setForm] = useState({ fullName: user?.fullName || '', timezone: 'America/Sao_Paulo', language: 'pt-BR', defaultPlatform: '', notificationPreferences: DEFAULT_NOTIFICATIONS })
@@ -88,6 +98,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
   const [tutorialStatus, setTutorialStatus] = useState(() => getTutorialStatus())
 
   const notify = useToast()
+  const { confirm, confirmDialog } = useConfirm()
 
   useEffect(() => {
     const handleStatusChange = event => setTutorialStatus(event.detail || getTutorialStatus())
@@ -227,7 +238,15 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
   }
 
   async function logoutAll() {
-    if (busyAction === 'logout-all' || !window.confirm('Isso encerrará todas as sessões desta conta. Deseja continuar?')) return
+    if (busyAction === 'logout-all') return
+    const ok = await confirm({
+      title: 'Sair de todos os dispositivos?',
+      description: 'Isso encerrará todas as sessões desta conta, inclusive esta. Você precisará entrar de novo.',
+      confirmLabel: 'Sair de todos',
+      tone: 'warning',
+      icon: 'logout',
+    })
+    if (!ok) return
     setBusyAction('logout-all')
     try {
       await apiFetch('/api/me/logout-all', { method: 'POST' })
@@ -246,10 +265,12 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
     // Com assinatura ativa o servidor troca o plano na hora, com cobrança
     // proporcional; sem ela, abre o checkout.
     const immediateChange = planActive !== false && billing?.subscription?.manageable
-    const confirmText = immediateChange
-      ? `Trocar para o plano ${target.name} agora? A mudança vale na hora e a cobrança da sua assinatura é ajustada de forma proporcional.`
-      : `A troca para o plano ${target.name} abrirá o checkout seguro e poderá gerar uma única cobrança neste mês. Continuar?`
-    if (Number(target.priceCents) > 0 && !window.confirm(confirmText)) return
+    if (Number(target.priceCents) > 0) {
+      const ok = await confirm(immediateChange
+        ? { title: `Trocar para o plano ${target.name} agora?`, description: 'A mudança vale na hora e a cobrança da sua assinatura é ajustada de forma proporcional.', confirmLabel: 'Trocar plano', tone: 'neutral', icon: 'crown' }
+        : { title: `Trocar para o plano ${target.name}?`, description: 'A troca abrirá o checkout seguro e poderá gerar uma única cobrança neste mês.', confirmLabel: 'Continuar para o checkout', tone: 'neutral', icon: 'crown' })
+      if (!ok) return
+    }
 
     setBillingBusy(true)
     setBusyAction(`plan:${planId}`)
@@ -407,15 +428,15 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
         <div className="pf-fields pf-fields--3">
           <div className="ds-field">
             <label className="ds-label" htmlFor="pf-language">Idioma</label>
-            <span className="ds-select"><select id="pf-language" className="ds-select__control" value={form.language} onChange={event => updateForm('language', event.target.value)}><option value="pt-BR">Português (Brasil)</option><option value="en-US">English (United States)</option></select><Icon name="chevronDown" className="ds-select__chev" /></span>
+            <Select id="pf-language" value={form.language} onChange={value => updateForm('language', value)} sheetTitle="Idioma" options={LANGUAGES} />
           </div>
           <div className="ds-field">
             <label className="ds-label" htmlFor="pf-timezone">Fuso horário</label>
-            <span className="ds-select"><select id="pf-timezone" className="ds-select__control" value={form.timezone} onChange={event => updateForm('timezone', event.target.value)}><option value="America/Sao_Paulo">Brasília (GMT-3)</option><option value="America/Manaus">Manaus (GMT-4)</option><option value="America/Belem">Belém (GMT-3)</option><option value="UTC">UTC</option></select><Icon name="chevronDown" className="ds-select__chev" /></span>
+            <Select id="pf-timezone" value={form.timezone} onChange={value => updateForm('timezone', value)} sheetTitle="Fuso horário" options={TIMEZONES} />
           </div>
           <div className="ds-field">
             <label className="ds-label" htmlFor="pf-network">Rede padrão para publicar</label>
-            <span className="ds-select"><select id="pf-network" className="ds-select__control" value={form.defaultPlatform} onChange={event => updateForm('defaultPlatform', event.target.value)}><option value="">Escolher depois</option>{Object.entries(PLATFORM_LABELS).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select><Icon name="chevronDown" className="ds-select__chev" /></span>
+            <Select id="pf-network" value={form.defaultPlatform} onChange={value => updateForm('defaultPlatform', value)} sheetTitle="Rede padrão para publicar" options={[{ value: '', label: 'Escolher depois' }, ...Object.entries(PLATFORM_LABELS).map(([value, label]) => ({ value, label }))]} />
           </div>
         </div>
       </fieldset>
@@ -570,5 +591,6 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
         {orderedSections.map(section => sectionContent[section.id])}
       </div>
     </div>
+    {confirmDialog}
   </div>
 }

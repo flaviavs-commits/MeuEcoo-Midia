@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { ProfilePage } from '../../src/pages/profile-page.jsx'
 import { ToastProvider } from '../../src/components/ui/toast.jsx'
 import * as api from '../../src/lib/api.js'
@@ -94,15 +94,17 @@ describe('ProfilePage', () => {
       if (path === '/api/me/logout-all') return new Promise(() => {})
       return base(path, options)
     })
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<ToastProvider><ProfilePage user={profile} /></ToastProvider>)
 
     const botao = await screen.findByRole('button', { name: 'Sair de todos os dispositivos' })
     fireEvent.click(botao)
     fireEvent.click(botao)
+    const dialog = await screen.findByRole('dialog', { name: 'Sair de todos os dispositivos?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Sair de todos' }))
 
     await waitFor(() => expect(screen.getByRole('button', { name: /Encerrando/ })).toBeDisabled())
+    fireEvent.click(screen.getByRole('button', { name: /Encerrando/ }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(apiFetch.mock.calls.filter(([path]) => path === '/api/me/logout-all')).toHaveLength(1)
-    expect(window.confirm).toHaveBeenCalledTimes(1)
   })
 })

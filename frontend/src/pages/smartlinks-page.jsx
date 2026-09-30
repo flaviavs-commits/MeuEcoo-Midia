@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { apiFetch, ApiError } from '../lib/api.js'
 import { useToast } from '../components/ui/toast.jsx'
+import { useConfirm } from '../components/ui/confirm-dialog.jsx'
 import { Icon } from '../components/ui/icon.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { Sheet } from '../components/ui/floating.jsx'
@@ -124,6 +125,7 @@ export function SmartlinksPage() {
   const linksRef = useRef(null)
   const copiedTimer = useRef(null)
   const notify = useToast()
+  const { confirm, confirmDialog } = useConfirm()
   const load = useCallback(() => apiFetch('/api/smartlinks').then(data => setSmartlinks(data?.smartlinks || [])), [])
 
   // Uma falha de carga não pode virar o formulário de "primeira página": a
@@ -194,7 +196,13 @@ export function SmartlinksPage() {
   }
 
   async function remove(id, label = '') {
-    if (removingId !== null || !window.confirm(label ? `Excluir o Smartlink “${label}”?` : 'Excluir este Smartlink?')) return
+    if (removingId !== null) return
+    const ok = await confirm({
+      title: label ? `Excluir o Smartlink “${label}”?` : 'Excluir este Smartlink?',
+      description: 'O endereço público deixa de abrir.',
+      confirmLabel: 'Excluir',
+    })
+    if (!ok) return
     setRemovingId(id)
     try {
       await apiFetch(`/api/smartlinks/${id}`, { method: 'DELETE' })
@@ -377,6 +385,7 @@ export function SmartlinksPage() {
       >
         {createForm}
       </Sheet>}
+      {confirmDialog}
     </div>
   )
 }

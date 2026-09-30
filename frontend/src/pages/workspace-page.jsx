@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react'
 import { apiFetch, ApiError } from '../lib/api.js'
 import { useToast } from '../components/ui/toast.jsx'
+import { useConfirm } from '../components/ui/confirm-dialog.jsx'
+import { Select } from '../components/ui/select.jsx'
 import { Icon } from '../components/ui/icon.jsx'
 
 const roleLabels = {
@@ -41,6 +43,12 @@ function messageOf(error, fallback) {
   return error instanceof ApiError ? error.message : fallback
 }
 
+const MEMBER_ROLES = [
+  { value: 'editor', label: 'Editor' },
+  { value: 'reviewer', label: 'Aprovador' },
+  { value: 'admin', label: 'Administrador' },
+]
+
 export function WorkspacePage({ onNavigate } = {}) {
   const [workspaces, setWorkspaces] = useState([])
   const [posts, setPosts] = useState([])
@@ -54,6 +62,7 @@ export function WorkspacePage({ onNavigate } = {}) {
   const [tab, setTab] = useState('aprovacoes')
   const [busy, setBusy] = useState('')
   const notify = useToast()
+  const { confirm, confirmDialog } = useConfirm()
 
   const load = useCallback(async (preferId = null) => {
     setLoading(true)
@@ -155,7 +164,7 @@ export function WorkspacePage({ onNavigate } = {}) {
   }
 
   async function review(approval, status) {
-    if (status === 'rejected' && !window.confirm(`Rejeitar o post #${approval.postId}?`)) return
+    if (status === 'rejected' && !(await confirm({ title: `Rejeitar o post #${approval.postId}?`, confirmLabel: 'Rejeitar' }))) return
     setBusy(`review:${approval.id}`)
     try {
       await apiFetch(`/api/workspaces/approvals/${approval.id}`, { method: 'PATCH', body: JSON.stringify({ status }) })
@@ -211,13 +220,16 @@ export function WorkspacePage({ onNavigate } = {}) {
       <div className="ds-field">
         <label className="ds-label" htmlFor="approval-post">Publicação para revisão</label>
         <div className="eq-ask__line">
-          <span className="ds-select">
-            <select id="approval-post" className="ds-select__control" value={form.postId} onChange={event => setForm(current => ({ ...current, postId: event.target.value }))} required disabled={!reviewablePosts.length}>
-              <option value="">{reviewablePosts.length ? 'Selecione uma publicação...' : 'Nenhuma publicação disponível para revisão'}</option>
-              {reviewablePosts.slice(0, 30).map(post => <option key={post.id} value={post.id}>#{post.id} · {(post.text || 'Publicação').slice(0, 54)}</option>)}
-            </select>
-            <Icon name="chevronDown" className="ds-select__chev" />
-          </span>
+          <Select
+            id="approval-post"
+            className="eq-ask__select"
+            value={form.postId}
+            onChange={postId => setForm(current => ({ ...current, postId: String(postId) }))}
+            disabled={!reviewablePosts.length}
+            placeholder={reviewablePosts.length ? 'Selecione uma publicação...' : 'Nenhuma publicação disponível para revisão'}
+            sheetTitle="Publicação para revisão"
+            options={reviewablePosts.slice(0, 30).map(post => ({ value: String(post.id), label: `#${post.id} · ${(post.text || 'Publicação').slice(0, 54)}` }))}
+          />
           <button className="ds-btn ds-btn--primary" type="submit" disabled={!form.postId || !reviewablePosts.length || busy === 'approval'}>{busy === 'approval' ? <span className="ds-spinner" aria-hidden="true" /> : <Icon name="send" />}Enviar para revisão</button>
         </div>
         <p className="ds-hint">{reviewablePosts.length ? 'Só aparecem publicações agendadas ou aguardando aprovação. Ela fica esperando a decisão de quem aprova.' : 'Agende uma publicação no Meu Post para poder enviá-la para revisão.'}</p>
@@ -251,10 +263,7 @@ export function WorkspacePage({ onNavigate } = {}) {
       </div>
       <div className="ds-field eq-invite__role">
         <label className="ds-label" htmlFor="member-role">Papel</label>
-        <span className="ds-select">
-          <select id="member-role" className="ds-select__control" value={form.role} onChange={event => setForm(current => ({ ...current, role: event.target.value }))} aria-label="Papel do colaborador"><option value="editor">Editor</option><option value="reviewer">Aprovador</option><option value="admin">Administrador</option></select>
-          <Icon name="chevronDown" className="ds-select__chev" />
-        </span>
+        <Select id="member-role" value={form.role} onChange={role => setForm(current => ({ ...current, role }))} aria-label="Papel do colaborador" sheetTitle="Papel" options={MEMBER_ROLES} />
       </div>
       <button className="ds-btn ds-btn--secondary" type="submit" disabled={busy === 'member'}>{busy === 'member' && <span className="ds-spinner" aria-hidden="true" />}Adicionar</button>
       <p className="ds-hint eq-invite__hint">O colaborador precisa criar uma conta antes de ser adicionado.</p>
@@ -363,5 +372,6 @@ export function WorkspacePage({ onNavigate } = {}) {
             </div>
           </section>}
         </div>}
+    {confirmDialog}
   </div>
 }

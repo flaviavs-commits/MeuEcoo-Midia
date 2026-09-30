@@ -3,6 +3,8 @@ import { apiFetch, ApiError } from '../lib/api.js'
 import { PublicationStatusModal } from '../components/ui/publication-status-modal.jsx'
 import { Sheet } from '../components/ui/floating.jsx'
 import { useToast } from '../components/ui/toast.jsx'
+import { Select } from '../components/ui/select.jsx'
+import { useConfirm } from '../components/ui/confirm-dialog.jsx'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { findPublicationResult, latestPublicationEventId, processingPublicationMessage, publicationResultMessage } from '../lib/publicationEvents.js'
 
@@ -82,6 +84,14 @@ async function fetchOrExplain(url, options, message) {
   catch { throw new Error(message) }
 }
 
+const SLIDE_COUNTS = [3, 4, 5, 6, 7, 8].map(count => ({ value: count, label: `${count} slides` }))
+const TIKTOK_PRIVACY = [
+  { value: 'PUBLIC_TO_EVERYONE', label: 'Público' },
+  { value: 'MUTUAL_FOLLOW_FRIENDS', label: 'Amigos' },
+  { value: 'FOLLOWER_OF_CREATOR', label: 'Seguidores do criador' },
+  { value: 'SELF_ONLY', label: 'Somente eu' },
+]
+
 export function AiPage() {
   const [tab, setTab] = useState('criar')
   const [instruction, setInstruction] = useState('')
@@ -118,6 +128,7 @@ export function AiPage() {
   const publicationPollTimer = useRef(null)
   const mountedRef = useRef(true)
   const notify = useToast()
+  const { confirm, confirmDialog } = useConfirm()
 
   function loadActivityLogs() {
     setLogsLoading(true); setLogsError('')
@@ -436,7 +447,14 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
       } catch (confirmationError) {
         const token = confirmationError.body?.confirmationToken
         if (confirmationError.status !== 409 || !confirmationError.body?.requiresConfirmation || !token) throw confirmationError
-        if (!window.confirm('Confirma a publicação desta imagem na rede selecionada?')) throw new Error('Publicação cancelada.')
+        const approved = await confirm({
+          title: 'Publicar esta imagem na rede selecionada?',
+          description: 'A publicação sai agora e não pode ser desfeita pelo Meu Ecoo.',
+          confirmLabel: 'Publicar agora',
+          tone: 'warning',
+          icon: 'send',
+        })
+        if (!approved) throw new Error('Publicação cancelada.')
         data = await apiFetch('/api/ai/schedule', {
           method: 'POST',
           timeoutMs: 60_000,
@@ -475,7 +493,12 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
 
   async function clearActivityLogs() {
     if (!activityLogs.length || clearingLogs) return
-    if (!window.confirm('Limpar o histórico de atividade do Assistente inteligente?')) return
+    const ok = await confirm({
+      title: 'Limpar o histórico de atividade do Assistente inteligente?',
+      description: 'Os registros desta lista serão apagados.',
+      confirmLabel: 'Limpar histórico',
+    })
+    if (!ok) return
     setClearingLogs(true)
     try {
       await apiFetch('/api/ai/activity-log', { method: 'DELETE' })
@@ -583,12 +606,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
               <Icon name="copy" size={16} />Carrossel de fotos
             </label>
           </div>
-          {visualFormat === 'carousel' && <span className="ds-select as-slides">
-            <select id="as-slides" className="ds-select__control" value={carouselCount} onChange={event => setCarouselCount(Number(event.target.value))} aria-label="Quantidade de slides">
-              {[3, 4, 5, 6, 7, 8].map(count => <option key={count} value={count}>{count} slides</option>)}
-            </select>
-            <Icon name="chevronDown" className="ds-select__chev" />
-          </span>}
+          {visualFormat === 'carousel' && <Select id="as-slides" className="as-slides" value={carouselCount} onChange={count => setCarouselCount(Number(count))} aria-label="Quantidade de slides" options={SLIDE_COUNTS} />}
         </div>
         <p className="ds-hint">{visualFormat === 'carousel'
           ? 'De 3 a 8 fotos, para Instagram ou TikTok. Cada slide usa uma imagem do limite do mês.'
@@ -687,12 +705,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
     <div className="ds-filterbar as-perf__bar">
       <div className="ds-field as-perf__period">
         <label className="ds-label" htmlFor="as-period">Período</label>
-        <span className="ds-select">
-          <select id="as-period" className="ds-select__control" value={analyticsDays} onChange={event => setAnalyticsDays(Number(event.target.value))}>
-            {ANALYTICS_PERIODS.map(days => <option key={days} value={days}>Últimos {days} dias</option>)}
-          </select>
-          <Icon name="chevronDown" className="ds-select__chev" />
-        </span>
+        <Select id="as-period" value={analyticsDays} onChange={days => setAnalyticsDays(Number(days))} sheetTitle="Período" options={ANALYTICS_PERIODS.map(days => ({ value: days, label: `Últimos ${days} dias` }))} />
       </div>
       <button type="button" className="ds-btn ds-btn--primary" onClick={loadAnalyticsInsights} disabled={analyticsLoading}>
         {analyticsLoading ? <><span className="ds-spinner" aria-hidden="true" />Analisando…</> : <><Icon name="sparkle" />{insights ? 'Analisar de novo' : 'Analisar resultados'}</>}
@@ -881,22 +894,14 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
 
             {publishPlatform === 'tiktok' && <div className="ds-field">
               <label className="ds-label" htmlFor="as-tiktok">Privacidade do TikTok</label>
-              <span className="ds-select">
-                <select id="as-tiktok" className="ds-select__control" value={tiktokPrivacyLevel} onChange={event => setTiktokPrivacyLevel(event.target.value)} aria-invalid={!tiktokPrivacyLevel || undefined}>
-                  <option value="">Selecione...</option>
-                  <option value="PUBLIC_TO_EVERYONE">Público</option>
-                  <option value="MUTUAL_FOLLOW_FRIENDS">Amigos</option>
-                  <option value="FOLLOWER_OF_CREATOR">Seguidores do criador</option>
-                  <option value="SELF_ONLY">Somente eu</option>
-                </select>
-                <Icon name="chevronDown" className="ds-select__chev" />
-              </span>
+              <Select id="as-tiktok" value={tiktokPrivacyLevel} onChange={setTiktokPrivacyLevel} aria-invalid={!tiktokPrivacyLevel || undefined} placeholder="Selecione..." sheetTitle="Privacidade do TikTok" options={TIKTOK_PRIVACY} />
               {!tiktokPrivacyLevel && <p className="ds-fieldmsg" data-tone="danger"><Icon name="alertCircle" />Escolha quem pode ver o vídeo para publicar no TikTok.</p>}
             </div>}
           </div>
       </Sheet>}
 
       {publicationDialog && <PublicationStatusModal status={publicationDialog.status} platforms={publicationDialog.platforms} progress={publicationProgress} onClose={() => setPublicationDialog(null)} />}
+      {confirmDialog}
     </div>
   )
 }

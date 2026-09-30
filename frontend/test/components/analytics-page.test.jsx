@@ -92,15 +92,18 @@ describe('ReportSchedulePanel', () => {
   afterEach(() => vi.restoreAllMocks())
 
   it('não remove o mesmo agendamento duas vezes com dois cliques seguidos', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const apiFetch = mockApi({ schedules: [{ id: 3, name: 'Relatório mensal', frequency: 'monthly' }], remove: () => new Promise(() => {}) })
     render(<ToastProvider><ReportSchedulePanel /></ToastProvider>)
 
     const remove = await screen.findByRole('button', { name: 'Remover Relatório mensal' })
     fireEvent.click(remove)
     fireEvent.click(remove)
+    const dialog = await screen.findByRole('dialog', { name: 'Remover o agendamento “Relatório mensal”?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remover' }))
 
     await waitFor(() => expect(remove).toBeDisabled())
+    fireEvent.click(remove)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(apiFetch.mock.calls.filter(([, options]) => options?.method === 'DELETE')).toHaveLength(1)
   })
 })

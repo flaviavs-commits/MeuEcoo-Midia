@@ -2,6 +2,10 @@ import { useCallback, useEffect, useState } from 'react'
 import { apiFetch } from '../../lib/api.js'
 import { useToast } from '../ui/toast.jsx'
 import { Icon } from '../ui/icon.jsx'
+import { Select } from '../ui/select.jsx'
+import { useConfirm } from '../ui/confirm-dialog.jsx'
+
+const FREQUENCIES = [{ value: 'monthly', label: 'Mensal' }, { value: 'weekly', label: 'Semanal' }]
 
 export function ReportSchedulePanel() {
   const [schedules, setSchedules] = useState([])
@@ -11,6 +15,7 @@ export function ReportSchedulePanel() {
   const [removingId, setRemovingId] = useState(null)
   const [form, setForm] = useState({ name: 'Relatório mensal', email: '', frequency: 'monthly' })
   const notify = useToast()
+  const { confirm, confirmDialog } = useConfirm()
   const load = useCallback(() => apiFetch('/api/report-schedules')
     .then(data => { setSchedules(data.schedules || []); setLoadError(false) })
     .catch(error => { setLoadError(true); throw error })
@@ -45,7 +50,12 @@ export function ReportSchedulePanel() {
 
   async function remove(schedule) {
     if (removingId) return
-    if (!window.confirm(`Remover o agendamento “${schedule.name}”?\n\nOs próximos envios deste relatório serão cancelados.`)) return
+    const ok = await confirm({
+      title: `Remover o agendamento “${schedule.name}”?`,
+      description: 'Os próximos envios deste relatório serão cancelados.',
+      confirmLabel: 'Remover',
+    })
+    if (!ok) return
     setRemovingId(schedule.id)
     try {
       await apiFetch(`/api/report-schedules/${schedule.id}`, { method: 'DELETE' })
@@ -74,13 +84,7 @@ export function ReportSchedulePanel() {
       </div>
       <div className="ds-field">
         <label className="ds-label" htmlFor="rel-mail-frequency">Frequência do relatório</label>
-        <span className="ds-select">
-          <select id="rel-mail-frequency" className="ds-select__control" value={form.frequency} onChange={event => setForm(current => ({ ...current, frequency: event.target.value }))}>
-            <option value="monthly">Mensal</option>
-            <option value="weekly">Semanal</option>
-          </select>
-          <Icon name="chevronDown" className="ds-select__chev" />
-        </span>
+        <Select id="rel-mail-frequency" value={form.frequency} onChange={frequency => setForm(current => ({ ...current, frequency }))} options={FREQUENCIES} sheetTitle="Frequência do relatório" />
       </div>
       <button type="submit" className="ds-btn ds-btn--primary ds-btn--block" disabled={saving}>
         {saving ? <><span className="ds-spinner" aria-hidden="true" />Agendando e enviando…</> : <><Icon name="send" />Agendar</>}
@@ -105,5 +109,6 @@ export function ReportSchedulePanel() {
           </li>)}</ul>
           : loaded && <p className="ds-hint">Nenhum agendamento ainda.</p>}
     </div>
+    {confirmDialog}
   </div>
 }

@@ -48,8 +48,8 @@ describe('AdminPage — link de pagamento para um cliente (busca por e-mail)', (
     await userEvent.click(screen.getByRole('button', { name: 'Buscar' }))
     await waitFor(() => expect(screen.getByText(/Cliente encontrado/)).toBeInTheDocument())
 
-    const select = screen.getByLabelText('Plano do link de pagamento para cliente@allowed.test')
-    await userEvent.selectOptions(select, 'basico')
+    await userEvent.click(screen.getByRole('combobox', { name: 'Plano do link de pagamento para cliente@allowed.test' }))
+    await userEvent.click(screen.getByRole('option', { name: 'EcooMidia Básico' }))
     await userEvent.click(screen.getByRole('button', { name: 'Gerar link' }))
 
     await waitFor(() => expect(screen.getByRole('button', { name: 'Copiar link' })).toBeInTheDocument())
@@ -188,7 +188,7 @@ describe('AdminPage — reconciliação de pagamentos não vinculados', () => {
     // usuário; getByRole('cell', ...) ignora a segunda.
     await waitFor(() => expect(screen.getByRole('cell', { name: 'cliente@allowed.test' })).toBeInTheDocument())
     expect(screen.getByText('R$ 123,50')).toBeInTheDocument()
-    expect(screen.getByLabelText('Plano para vincular a sessão cs_sem_match')).toHaveValue('pro')
+    expect(screen.getByRole('combobox', { name: 'Plano para vincular a sessão cs_sem_match' })).toHaveTextContent('EcooMidia Pro')
   })
 
   it('busca automaticamente pelo e-mail que a Stripe informou e vincula, removendo a linha da lista', async () => {
@@ -255,7 +255,10 @@ describe('AdminPage — reconciliação de pagamentos não vinculados', () => {
     await renderNaAbaConciliacao()
     await waitFor(() => expect(screen.getByText(/Nenhum pagamento sem conciliação/)).toBeInTheDocument())
 
-    await userEvent.selectOptions(screen.getByDisplayValue('Últimos 7 dias'), '30')
+    const period = screen.getByRole('combobox', { name: 'Período' })
+    expect(period).toHaveTextContent('Últimos 7 dias')
+    await userEvent.click(period)
+    await userEvent.click(screen.getByRole('option', { name: 'Últimos 30 dias' }))
 
     await waitFor(() => expect(apiFetch).toHaveBeenCalledWith('/api/admin/billing/reconciliation?days=30'))
   })
@@ -295,7 +298,8 @@ describe('AdminPage — histórico de ações administrativas', () => {
     await renderNaAbaHistorico()
     await waitFor(() => expect(screen.getByText('Papel alterado para "user".')).toBeInTheDocument())
 
-    await userEvent.selectOptions(screen.getByLabelText('Filtrar tipo de atividade'), 'err')
+    await userEvent.click(screen.getByRole('combobox', { name: 'Filtrar tipo de atividade' }))
+    await userEvent.click(screen.getByRole('option', { name: 'Erro' }))
 
     expect(screen.queryByText('Papel alterado para "user".')).not.toBeInTheDocument()
     expect(screen.getByText(/Falha ao enviar alerta/)).toBeInTheDocument()

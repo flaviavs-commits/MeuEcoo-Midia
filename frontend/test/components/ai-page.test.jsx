@@ -79,7 +79,6 @@ describe('AiPage', () => {
   it('não limpa a atividade duas vezes enquanto a primeira limpeza está em andamento', async () => {
     const base = mockApi().getMockImplementation()
     const apiFetch = vi.spyOn(api, 'apiFetch').mockImplementation((path, options) => options?.method === 'DELETE' ? new Promise(() => {}) : base(path, options))
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<ToastProvider><AiPage /></ToastProvider>)
     fireEvent.click(screen.getByRole('tab', { name: /Atividade/ }))
     await screen.findByText('Concluído')
@@ -87,9 +86,12 @@ describe('AiPage', () => {
     const clear = screen.getByRole('button', { name: /Limpar histórico/ })
     fireEvent.click(clear)
     fireEvent.click(clear)
+    const dialog = await screen.findByRole('dialog', { name: 'Limpar o histórico de atividade do Assistente inteligente?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Limpar histórico' }))
 
     await waitFor(() => expect(screen.getByRole('button', { name: /Limpando/ })).toBeDisabled())
+    fireEvent.click(screen.getByRole('button', { name: /Limpando/ }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(apiFetch.mock.calls.filter(([, options]) => options?.method === 'DELETE')).toHaveLength(1)
-    expect(window.confirm).toHaveBeenCalledTimes(1)
   })
 })

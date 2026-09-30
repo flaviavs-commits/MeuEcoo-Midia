@@ -5,9 +5,11 @@ import { useApiResource } from '../hooks/use-api-resource.js'
 import { ThemeSelector } from '../components/ui/theme-selector.jsx'
 import { CopyrightNotice } from '../components/ui/copyright-notice.jsx'
 import { Icon } from '../components/ui/icon.jsx'
+import { Select } from '../components/ui/select.jsx'
 
 const roleLabels = { admin: 'Administrador', user: 'Usuário' }
 const planOptions = Object.values(PLANS)
+const PLAN_CHOICES = planOptions.map(option => ({ value: option.id, label: option.name }))
 const reconciliationDaysOptions = [7, 15, 30]
 
 // Mesmo formatador de profile-page.jsx (não exportado de lá para não acoplar
@@ -136,10 +138,7 @@ function GeneratePlanLinkTool({ onError }) {
         <p className="adm-found"><Icon name="checkCircle" size={16} /><span>Cliente encontrado: <strong>{lookup.user.fullName || lookup.user.email}</strong> ({lookup.user.email})</span></p>
         <div className="adm-step">
           <span className="adm-step__num" aria-hidden="true">2</span>
-          <span className="ds-select adm-step__grow">
-            <select className="ds-select__control" value={plan} onChange={event => setPlan(event.target.value)} disabled={state.busy} aria-label={`Plano do link de pagamento para ${lookup.user.email}`}>{planOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
-            <Icon name="chevronDown" className="ds-select__chev" />
-          </span>
+          <Select className="adm-step__grow" value={plan} onChange={setPlan} disabled={state.busy} aria-label={`Plano do link de pagamento para ${lookup.user.email}`} options={PLAN_CHOICES} />
           <button type="button" className="ds-btn ds-btn--primary" onClick={generate} disabled={state.busy}>{state.busy ? '…' : 'Gerar link'}</button>
         </div>
       </>}
@@ -195,10 +194,7 @@ function LinkPaymentAction({ item, onLinked, onError }) {
       <button type="submit" className="ds-btn ds-btn--secondary ds-btn--sm" disabled={lookup.busy || busy || !lookup.email.trim()}>{lookup.busy ? '…' : 'Buscar'}</button>
     </form>
     <div className="adm-link__line">
-      <span className="ds-select">
-        <select className="ds-select__control" value={plan} onChange={event => setPlan(event.target.value)} disabled={busy} aria-label={`Plano para vincular a sessão ${item.sessionId}`}>{planOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
-        <Icon name="chevronDown" className="ds-select__chev" />
-      </span>
+      <Select size="sm" value={plan} onChange={setPlan} disabled={busy} aria-label={`Plano para vincular a sessão ${item.sessionId}`} options={PLAN_CHOICES} />
       <button type="button" className="ds-btn ds-btn--primary ds-btn--sm" onClick={link} disabled={busy || lookup.busy || !lookup.user}>{busy ? '…' : 'Vincular'}</button>
     </div>
     {linkError && <span className="adm-link__msg" data-tone="danger" role="alert"><Icon name="alertCircle" size={14} />{linkError}</span>}
@@ -239,12 +235,9 @@ function ReconciliationSection({ onError, onSuccess }) {
 
   return <section className="adm-sec">
     <SectionHead title="Pagamentos não conciliados" description="Sessões pagas na Stripe sem cobrança correspondente no sistema. Confira o e-mail e o plano antes de vincular.">
-      <label className="adm-inline"><span className="ds-label">Período</span>
-        <span className="ds-select">
-          <select className="ds-select__control" value={days} onChange={event => setDays(Number(event.target.value))} disabled={loading}>{reconciliationDaysOptions.map(option => <option key={option} value={option}>Últimos {option} dias</option>)}</select>
-          <Icon name="chevronDown" className="ds-select__chev" />
-        </span>
-      </label>
+      <div className="adm-inline"><span className="ds-label" id="adm-rec-days">Período</span>
+        <Select value={days} onChange={value => setDays(Number(value))} disabled={loading} aria-labelledby="adm-rec-days" options={reconciliationDaysOptions.map(option => ({ value: option, label: `Últimos ${option} dias` }))} />
+      </div>
       <button type="button" className="ds-btn ds-btn--secondary" onClick={load} disabled={loading}>{loading ? 'Atualizando…' : 'Atualizar'}</button>
     </SectionHead>
     {report?.truncated && <div className="ds-alert" data-tone="warning" role="status"><Icon name="alertTriangle" className="ds-alert__icon" /><p className="ds-alert__text">A lista foi cortada em {report.checked} sessões — reduza o período para ver tudo.</p></div>}
@@ -340,10 +333,7 @@ function HistorySection() {
   return <section className="adm-sec">
     <SectionHead title="Histórico de ações administrativas" description="Eventos da sua conta, incluindo links gerados, buscas e vínculos de pagamento.">
       <label className="ds-inputwrap adm-search"><Icon name="search" /><input className="ds-input" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar…" aria-label="Buscar no histórico" /></label>
-      <span className="ds-select adm-type">
-        <select className="ds-select__control" value={type} onChange={event => setType(event.target.value)} aria-label="Filtrar tipo de atividade"><option value="all">Todos os tipos</option>{Object.entries(LOG_TYPE_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
-        <Icon name="chevronDown" className="ds-select__chev" />
-      </span>
+      <Select className="adm-type" value={type} onChange={setType} aria-label="Filtrar tipo de atividade" options={[{ value: 'all', label: 'Todos os tipos' }, ...Object.entries(LOG_TYPE_LABELS).map(([value, label]) => ({ value, label }))]} />
       <button type="button" className="ds-btn ds-btn--secondary" onClick={() => reload().catch(() => {})} disabled={loading}>{loading ? 'Atualizando…' : 'Atualizar'}</button>
     </SectionHead>
     {error && <LoadFailure message={error} onRetry={() => reload().catch(() => {})} busy={loading} />}

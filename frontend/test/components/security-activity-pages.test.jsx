@@ -99,12 +99,13 @@ describe('ActivityPage', () => {
     vi.spyOn(api, 'apiFetch').mockImplementation((path, options) => options?.method === 'DELETE'
       ? Promise.reject(new api.ApiError('Não foi possível limpar agora.', 500))
       : Promise.resolve({ logs: [{ id: 1, type: 'ok', message: 'Post #1 publicado', timestamp: '2026-09-20T10:00:00Z' }] }))
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<ToastProvider><ActivityPage /></ToastProvider>)
     await screen.findByText('Post #1 publicado')
 
     fireEvent.click(screen.getByRole('button', { name: 'Mais ações do histórico' }))
     fireEvent.click(await screen.findByRole('menuitem', { name: /Limpar histórico/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Limpar todo o histórico de atividades?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Limpar histórico' }))
 
     expect(await screen.findByText('Não foi possível limpar agora.')).toBeInTheDocument()
     expect(screen.queryByText('Não foi possível carregar o histórico')).not.toBeInTheDocument()

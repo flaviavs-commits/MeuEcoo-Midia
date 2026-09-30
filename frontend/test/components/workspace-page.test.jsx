@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { WorkspacePage } from '../../src/pages/workspace-page.jsx'
 import { ToastProvider } from '../../src/components/ui/toast.jsx'
@@ -24,8 +24,10 @@ describe('WorkspacePage', () => {
     mockApi('owner')
     render(<ToastProvider><WorkspacePage /></ToastProvider>)
 
-    const picker = await screen.findByLabelText('Publicação para revisão')
-    const options = within(picker).getAllByRole('option').map(option => option.textContent)
+    const picker = await screen.findByRole('combobox', { name: 'Publicação para revisão' })
+    await waitFor(() => expect(picker).toBeEnabled())
+    fireEvent.click(picker)
+    const options = within(screen.getByRole('listbox')).getAllByRole('option').map(option => option.textContent)
     expect(options).toContain('#10 · Post agendado')
     expect(options).not.toContain('#11 · Post publicado')
     expect(await screen.findByRole('button', { name: 'Aprovar' })).toBeInTheDocument()

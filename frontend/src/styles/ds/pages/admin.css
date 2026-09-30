@@ -76,11 +76,11 @@
 
   .adm-link { display: grid; gap: 6px; min-width: 300px; }
   .adm-link__line { display: flex; gap: 6px; }
-  .adm-link__line > .ds-input, .adm-link__line > .ds-select { flex: 1; min-width: 0; }
+  .adm-link__line > .ds-input, .adm-link__line > .ds-selectx { flex: 1; min-width: 0; }
   /* Compact controls only where the reconciliation is a real table (>= 1100px, see below);
      stacked rows keep the DS field sizes (44px/16px on phones). */
   @media (min-width: 1100px) {
-    .adm-link__line .ds-input, .adm-link__line .ds-select__control { height: 36px; font-size: var(--ds-text-sm); }
+    .adm-link__line .ds-input, .adm-link__line .ds-selectx { height: 36px; min-height: 36px; font-size: var(--ds-text-sm); }
   }
   .adm-link__msg { display: inline-flex; align-items: center; gap: 5px; font-size: var(--ds-text-xs); }
   .adm-link__msg[data-tone='danger'] { color: var(--ds-danger); }

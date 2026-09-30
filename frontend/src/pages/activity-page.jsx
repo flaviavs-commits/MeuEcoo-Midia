@@ -3,6 +3,7 @@ import { apiFetch, ApiError } from '../lib/api.js'
 import { useApiResource } from '../hooks/use-api-resource.js'
 import { useIsPhone } from '../lib/breakpoints.js'
 import { useToast } from '../components/ui/toast.jsx'
+import { useConfirm } from '../components/ui/confirm-dialog.jsx'
 import { Icon } from '../components/ui/icon.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { FilterGroup, FilterOption, FilterSheet, FiltersButton } from '../components/ui/filters.jsx'
@@ -73,6 +74,7 @@ export function ActivityPage() {
   const load = useCallback(() => apiFetch(`/api/logs?limit=${HISTORY_LIMIT}`).then(data => data?.logs || []), [])
   const { value: logs, loading, error, reload } = useApiResource(load, [])
   const notify = useToast()
+  const { confirm, confirmDialog } = useConfirm()
   const phone = useIsPhone()
   const width = useWidthBucket()
 
@@ -97,7 +99,13 @@ export function ActivityPage() {
   // Falhar ao limpar não é falha de carga: vira um aviso da ação, e o histórico
   // que já está na tela continua ali.
   async function clearHistory() {
-    if (clearing || !window.confirm('Limpar todo o histórico de atividades da sua conta?')) return
+    if (clearing) return
+    const ok = await confirm({
+      title: 'Limpar todo o histórico de atividades?',
+      description: 'Todos os registros de atividade da sua conta serão apagados.',
+      confirmLabel: 'Limpar histórico',
+    })
+    if (!ok) return
     setClearing(true)
     try { await apiFetch('/api/logs', { method: 'DELETE' }); await reload().catch(() => {}); notify('Histórico limpo.') }
     catch (caught) { notify(caught instanceof ApiError ? caught.message : 'Não foi possível limpar o histórico agora.', 'error') }
@@ -190,5 +198,6 @@ export function ActivityPage() {
               {filtered && <div className="ds-empty__actions"><button type="button" className="ds-btn ds-btn--secondary" onClick={clearFilters}>Limpar filtros</button></div>}
             </div>
           : null}
+    {confirmDialog}
   </div>
 }

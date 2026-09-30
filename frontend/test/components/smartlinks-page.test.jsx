@@ -103,19 +103,21 @@ describe('SmartlinksPage', () => {
 
   it('não exclui duas vezes enquanto a primeira exclusão está em andamento', async () => {
     const apiFetch = mockWithPages({ 'DELETE /api/smartlinks/5': () => new Promise(() => {}) })
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     render(<ToastProvider><SmartlinksPage /></ToastProvider>)
 
     const menu = await screen.findByRole('button', { name: 'Mais ações para Loja Ecoo' })
     fireEvent.click(menu)
     fireEvent.click(await screen.findByRole('menuitem', { name: /Excluir/ }))
+    const dialog = await screen.findByRole('dialog', { name: 'Excluir o Smartlink “Loja Ecoo”?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Excluir' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     fireEvent.click(menu)
     const segunda = await screen.findByRole('menuitem', { name: /Excluindo/ })
     expect(segunda).toBeDisabled()
     fireEvent.click(segunda)
 
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(apiFetch.mock.calls.filter(([, options]) => options?.method === 'DELETE')).toHaveLength(1)
-    expect(window.confirm).toHaveBeenCalledTimes(1)
   })
 
   it('abre o formulário de novo Smartlink numa folha modal que fecha no Escape', async () => {
