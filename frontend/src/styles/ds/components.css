@@ -244,6 +244,40 @@
     color: var(--ds-ink-muted); pointer-events: none;
   }
   .ds-inputwrap > .ds-input { padding-left: 34px; }
+
+  /* browser autofill keeps the DS surface, ink and edge; a faint gold wash says "filled for you".
+     The UA forces its own background with !important, so the wash is painted as an inset shadow. */
+  .ds-input:-webkit-autofill,
+  .ds-input:-webkit-autofill:hover,
+  .ds-input:-webkit-autofill:focus {
+    -webkit-text-fill-color: var(--ds-ink);
+    caret-color: var(--ds-ink);
+    -webkit-box-shadow: 0 0 0 200px color-mix(in srgb, var(--ds-accent) 7%, var(--ds-surface)) inset;
+    box-shadow: 0 0 0 200px color-mix(in srgb, var(--ds-accent) 7%, var(--ds-surface)) inset;
+    transition: background-color 0s 86400s, color 0s 86400s;
+  }
+  .ds-input:autofill {
+    -webkit-text-fill-color: var(--ds-ink);
+    box-shadow: 0 0 0 200px color-mix(in srgb, var(--ds-accent) 7%, var(--ds-surface)) inset;
+  }
+
+  /* password field: the show/hide control lives inside the field edge, never over the text */
+  .ds-password { position: relative; display: block; min-width: 0; }
+  .ds-password__input { display: block; padding-right: 44px; }
+  /* Edge draws its own reveal (and clear) button inside password fields */
+  .ds-password__input::-ms-reveal, .ds-password__input::-ms-clear { display: none; }
+  .ds-password__toggle {
+    position: absolute; top: 4px; right: 4px; bottom: 4px; width: 36px;
+    display: grid; place-items: center; padding: 0; border: 0;
+    border-radius: calc(var(--ds-radius-md) - 3px); background: transparent;
+    color: var(--ds-ink-muted); cursor: pointer; -webkit-tap-highlight-color: transparent;
+    transition: color var(--ds-dur-fast) var(--ds-ease-out), background-color var(--ds-dur-fast) var(--ds-ease-out);
+  }
+  .ds-password__toggle:hover { color: var(--ds-ink); background: var(--ds-wash-strong); }
+  .ds-password__toggle:active { background: var(--ds-wash-strong); }
+  .ds-password__toggle:focus-visible { outline-offset: -2px; }
+  .ds-password__toggle:disabled { cursor: not-allowed; color: var(--ds-disabled-ink); background: transparent; }
+  .ds-password__toggle > .ds-icon { width: 18px; height: 18px; }
   .ds-fieldrow { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: 16px 20px; }
 
   /* ======================================================== 5. CHOICES */
@@ -993,6 +1027,8 @@
     .ds-stat__value { font-size: var(--ds-text-3xl); }
     /* 16px keeps iOS from zooming into focused fields */
     .ds-input, .ds-textarea, .ds-select__control { min-height: 44px; font-size: 16px; }
+    .ds-password__input { padding-right: 48px; }
+    .ds-password__toggle { width: 40px; }
     .ds-btn { --btn-h: 42px; --btn-fs: var(--ds-text-base); }
     .ds-btn--sm { --btn-h: 36px; }
     .ds-btn--icon, .ds-btn--icon.ds-btn--sm { --btn-h: 44px; }
