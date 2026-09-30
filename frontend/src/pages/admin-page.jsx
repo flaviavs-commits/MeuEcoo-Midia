@@ -4,6 +4,7 @@ import { PLANS } from '../lib/plans.js'
 import { useApiResource } from '../hooks/use-api-resource.js'
 import { ThemeSelector } from '../components/ui/theme-selector.jsx'
 import { CopyrightNotice } from '../components/ui/copyright-notice.jsx'
+import { Icon } from '../components/ui/icon.jsx'
 
 const roleLabels = { admin: 'Administrador', user: 'Usuário' }
 const planOptions = Object.values(PLANS)
@@ -15,8 +16,15 @@ function formatCurrency(amountCents) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(amountCents || 0) / 100)
 }
 
-function Notice({ notice }) {
-  return <div className="admin-notice-area"><ThemeSelector />{notice ? <p className={`admin-notice admin-notice--${notice.type}`} role="alert">{notice.text}</p> : null}</div>
+// Erro é anunciado na hora (alert); sucesso entra como status, sem interromper.
+function Notice({ notice, onDismiss }) {
+  if (!notice) return null
+  const error = notice.type === 'error'
+  return <div className="ds-alert adm-notice" data-tone={error ? 'danger' : 'success'} role={error ? 'alert' : 'status'}>
+    <Icon name={error ? 'alertCircle' : 'checkCircle'} className="ds-alert__icon" />
+    <p className="ds-alert__text">{notice.text}</p>
+    <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-btn--sm ds-alert__close" onClick={onDismiss} aria-label="Fechar aviso"><Icon name="close" size={16} /></button>
+  </div>
 }
 
 // Abas do painel — cada entrega desta reformulação (10/09/2026, decisão
@@ -28,8 +36,10 @@ const TABS = [
   ['historico', 'Histórico'],
   ['dashboard', 'Dashboard'],
 ]
+const TAB_ICONS = { usuarios: 'users', conciliacao: 'refresh', historico: 'activity', dashboard: 'chart' }
 
 const LOG_TYPE_LABELS = { err: 'Erro', ok: 'Sucesso', info: 'Informação' }
+const LOG_TYPE_STATUS = { err: 'failed', ok: 'ok', info: 'muted' }
 
 function tabFromLocation(search = window.location.search) {
   const tab = new URLSearchParams(search).get('tab')
@@ -65,6 +75,13 @@ function useUserSearch(initialEmail = '') {
   return { email, setEmail, user, setUser, busy, error, search }
 }
 
+function SectionHead({ title, description, children }) {
+  return <div className="adm-sec__head">
+    <div className="adm-sec__text"><h2 className="adm-sec__title">{title}</h2>{description && <p className="ds-head__desc">{description}</p>}</div>
+    {children && <div className="adm-sec__tools">{children}</div>}
+  </div>
+}
+
 // Ferramenta independente (não presa a uma linha de tabela, já que a tabela
 // de usuários só lista a própria conta): busca um cliente pelo e-mail e gera
 // o Payment Link do plano escolhido já com o client_reference_id dele, para
@@ -93,7 +110,36 @@ function GeneratePlanLinkTool({ onError }) {
     catch { onError('Não foi possível copiar o link — copie manualmente.') }
   }
 
-  return <div className="admin-content"><div className="admin-section-heading"><h2>Gerar link de pagamento para um cliente</h2></div><div className="admin-reconciliation-controls"><input value={lookup.email} onChange={event => { lookup.setEmail(event.target.value); lookup.setUser(null) }} placeholder="E-mail do cliente" aria-label="E-mail do cliente para gerar link de pagamento" /><button type="button" onClick={() => lookup.search()} disabled={lookup.busy || !lookup.email.trim()}>{lookup.busy ? '…' : 'Buscar'}</button>{lookup.user && <><select value={plan} onChange={event => setPlan(event.target.value)} disabled={state.busy} aria-label={`Plano do link de pagamento para ${lookup.user.email}`}>{planOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select><button type="button" onClick={generate} disabled={state.busy}>{state.busy ? '…' : 'Gerar link'}</button>{state.url && <button type="button" onClick={copy}>{state.copied ? 'Copiado!' : 'Copiar link'}</button>}</>}</div>{lookup.error && <p className="admin-notice admin-notice--error" role="alert">{lookup.error}</p>}{lookup.user && <p className="admin-user-found">Cliente encontrado: <strong>{lookup.user.fullName || lookup.user.email}</strong> ({lookup.user.email})</p>}</div>
+  return <section className="adm-sec adm-well">
+    <SectionHead title="Gerar link de pagamento para um cliente" description="Busque o cliente pelo e-mail exato, escolha o plano e envie o link gerado. Cada link fica registrado no seu histórico." />
+    <form className="adm-steps" onSubmit={event => { event.preventDefault(); lookup.search() }}>
+      <div className="adm-step">
+        <span className="adm-step__num" aria-hidden="true">1</span>
+        <label className="ds-inputwrap adm-step__grow">
+          <Icon name="mail" />
+          <input className="ds-input" type="email" value={lookup.email} onChange={event => { lookup.setEmail(event.target.value); lookup.setUser(null) }} placeholder="E-mail do cliente" aria-label="E-mail do cliente para gerar link de pagamento" />
+        </label>
+        <button type="submit" className="ds-btn ds-btn--secondary" disabled={lookup.busy || !lookup.email.trim()}>{lookup.busy ? '…' : 'Buscar'}</button>
+      </div>
+      {lookup.error && <p className="ds-fieldmsg" data-tone="danger" role="alert"><Icon name="alertCircle" />{lookup.error}</p>}
+      {lookup.user && <>
+        <p className="adm-found"><Icon name="checkCircle" size={16} />Cliente encontrado: <strong>{lookup.user.fullName || lookup.user.email}</strong> ({lookup.user.email})</p>
+        <div className="adm-step">
+          <span className="adm-step__num" aria-hidden="true">2</span>
+          <span className="ds-select adm-step__grow">
+            <select className="ds-select__control" value={plan} onChange={event => setPlan(event.target.value)} disabled={state.busy} aria-label={`Plano do link de pagamento para ${lookup.user.email}`}>{planOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
+            <Icon name="chevronDown" className="ds-select__chev" />
+          </span>
+          <button type="button" className="ds-btn ds-btn--primary" onClick={generate} disabled={state.busy}>{state.busy ? '…' : 'Gerar link'}</button>
+        </div>
+      </>}
+      {state.url && <div className="adm-step">
+        <span className="adm-step__num" aria-hidden="true">3</span>
+        <code className="adm-url adm-step__grow">{state.url}</code>
+        <button type="button" className="ds-btn ds-btn--secondary" onClick={copy}><Icon name={state.copied ? 'check' : 'copy'} size={16} />{state.copied ? 'Copiado!' : 'Copiar link'}</button>
+      </div>}
+    </form>
+  </section>
 }
 
 // Vincula uma sessão paga (linha do relatório de conciliação) a uma conta e
@@ -122,20 +168,34 @@ function LinkPaymentAction({ item, onLinked, onError }) {
         method: 'POST',
         body: JSON.stringify({ userId: lookup.user.id, plan }),
       })
-      onLinked(item.sessionId)
+      onLinked(item.sessionId, { email: lookup.user.email, plan, amountCents: item.amountCents })
     } catch (error) {
       onError(error instanceof ApiError ? error.message : 'Não foi possível vincular esse pagamento.')
     } finally { setBusy(false) }
   }
 
-  return <div className="admin-plan-link"><input value={lookup.email} onChange={event => { lookup.setEmail(event.target.value); lookup.setUser(null) }} placeholder="E-mail do cliente" aria-label={`E-mail do cliente para vincular a sessão ${item.sessionId}`} /><button type="button" onClick={() => lookup.search()} disabled={lookup.busy || !lookup.email.trim()}>{lookup.busy ? '…' : 'Buscar'}</button><select value={plan} onChange={event => setPlan(event.target.value)} disabled={busy} aria-label={`Plano para vincular a sessão ${item.sessionId}`}>{planOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select><button type="button" onClick={link} disabled={busy || !lookup.user}>{busy ? '…' : 'Vincular'}</button>{lookup.error && <span className="admin-inline-error">{lookup.error}</span>}{lookup.user && <span className="admin-user-found">{lookup.user.email}</span>}</div>
+  return <div className="adm-link">
+    <div className="adm-link__line">
+      <input className="ds-input" type="email" value={lookup.email} onChange={event => { lookup.setEmail(event.target.value); lookup.setUser(null) }} placeholder="E-mail do cliente" aria-label={`E-mail do cliente para vincular a sessão ${item.sessionId}`} />
+      <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => lookup.search()} disabled={lookup.busy || !lookup.email.trim()}>{lookup.busy ? '…' : 'Buscar'}</button>
+    </div>
+    <div className="adm-link__line">
+      <span className="ds-select">
+        <select className="ds-select__control" value={plan} onChange={event => setPlan(event.target.value)} disabled={busy} aria-label={`Plano para vincular a sessão ${item.sessionId}`}>{planOptions.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}</select>
+        <Icon name="chevronDown" className="ds-select__chev" />
+      </span>
+      <button type="button" className="ds-btn ds-btn--primary ds-btn--sm" onClick={link} disabled={busy || !lookup.user}>{busy ? '…' : 'Vincular'}</button>
+    </div>
+    {lookup.error && <span className="adm-link__msg" data-tone="danger">{lookup.error}</span>}
+    {lookup.user && <span className="adm-link__msg" data-tone="success"><Icon name="checkCircle" size={14} />{lookup.user.email}</span>}
+  </div>
 }
 
 // Relatório de conciliação: cruza a Stripe com o banco e mostra os pagamentos
 // confirmados sem cobrança correspondente. O alerta imediato por e-mail para
 // todo admin já é disparado no backend (billingService.logUnlinkedPayment);
 // esta seção é onde o admin resolve o que o alerta apontou.
-function ReconciliationSection({ onError }) {
+function ReconciliationSection({ onError, onSuccess }) {
   const [days, setDays] = useState(7)
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -149,11 +209,40 @@ function ReconciliationSection({ onError }) {
 
   useEffect(() => { load() }, [load])
 
-  const handleLinked = sessionId => {
+  const handleLinked = (sessionId, detail) => {
     setReport(current => current ? { ...current, unmatched: current.unmatched.filter(item => item.sessionId !== sessionId) } : current)
+    if (detail) onSuccess(`Pagamento de ${formatCurrency(detail.amountCents)} vinculado a ${detail.email} no plano ${PLANS[detail.plan]?.name || detail.plan}.`)
   }
 
-  return <section className="admin-content"><div className="admin-section-heading"><h2>Pagamentos não conciliados</h2><div className="admin-reconciliation-controls"><select value={days} onChange={event => setDays(Number(event.target.value))} disabled={loading}>{reconciliationDaysOptions.map(option => <option key={option} value={option}>Últimos {option} dias</option>)}</select><button type="button" onClick={load} disabled={loading}>{loading ? 'Atualizando…' : 'Atualizar'}</button></div></div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Data</th><th>Valor</th><th>E-mail do comprador</th><th>Referência</th><th>Plano sugerido</th><th>Vincular</th></tr></thead><tbody>{loading ? <tr><td colSpan="6" className="admin-empty">Carregando…</td></tr> : !report?.unmatched?.length ? <tr><td colSpan="6" className="admin-empty">Nenhum pagamento sem conciliação nos últimos {days} dias.</td></tr> : report.unmatched.map(item => <tr key={item.sessionId}><td>{new Date(item.createdAt).toLocaleString('pt-BR')}</td><td>{formatCurrency(item.amountCents)}</td><td>{item.customerEmail || '—'}</td><td>{item.clientReferenceId || '—'}</td><td>{item.suggestedPlan ? PLANS[item.suggestedPlan]?.name : '—'}</td><td><LinkPaymentAction item={item} onLinked={handleLinked} onError={onError} /></td></tr>)}</tbody></table></div>{report?.truncated && <p className="admin-notice admin-notice--error" role="status">A lista foi cortada em {report.checked} sessões — reduza o período para ver tudo.</p>}</section>
+  return <section className="adm-sec">
+    <SectionHead title="Pagamentos não conciliados" description="Sessões pagas na Stripe sem cobrança correspondente no sistema. Confira o e-mail e o plano antes de vincular.">
+      <label className="adm-inline"><span className="ds-label">Período</span>
+        <span className="ds-select">
+          <select className="ds-select__control" value={days} onChange={event => setDays(Number(event.target.value))} disabled={loading}>{reconciliationDaysOptions.map(option => <option key={option} value={option}>Últimos {option} dias</option>)}</select>
+          <Icon name="chevronDown" className="ds-select__chev" />
+        </span>
+      </label>
+      <button type="button" className="ds-btn ds-btn--secondary" onClick={load} disabled={loading}>{loading ? 'Atualizando…' : 'Atualizar'}</button>
+    </SectionHead>
+    {report?.truncated && <div className="ds-alert" data-tone="warning" role="status"><Icon name="alertTriangle" className="ds-alert__icon" /><p className="ds-alert__text">A lista foi cortada em {report.checked} sessões — reduza o período para ver tudo.</p></div>}
+    <div className="ds-scrollx adm-tablewrap">
+      <table className="ds-datatable ds-datatable--stack adm-datatable">
+        <thead><tr><th>Data</th><th className="ds-cellnum">Valor</th><th>E-mail do comprador</th><th>Referência</th><th>Plano sugerido</th><th>Vincular</th></tr></thead>
+        <tbody>{loading
+          ? <tr><td colSpan="6" className="adm-empty">Carregando…</td></tr>
+          : !report?.unmatched?.length
+            ? <tr><td colSpan="6" className="adm-empty">Nenhum pagamento sem conciliação nos últimos {days} dias.</td></tr>
+            : report.unmatched.map(item => <tr key={item.sessionId}>
+                <td className="adm-nowrap" data-label="Data">{new Date(item.createdAt).toLocaleString('pt-BR')}</td>
+                <td className="ds-cellnum" data-label="Valor">{formatCurrency(item.amountCents)}</td>
+                <td data-label="E-mail do comprador">{item.customerEmail || '—'}</td>
+                <td className="adm-mono" data-label="Referência">{item.clientReferenceId || '—'}</td>
+                <td data-label="Plano sugerido">{item.suggestedPlan ? PLANS[item.suggestedPlan]?.name : '—'}</td>
+                <td className="adm-cellwide"><LinkPaymentAction item={item} onLinked={handleLinked} onError={onError} /></td>
+              </tr>)}</tbody>
+      </table>
+    </div>
+  </section>
 }
 
 // A tabela mostra só a própria conta do admin (listUsers/listarTodos é
@@ -162,13 +251,37 @@ function ReconciliationSection({ onError }) {
 // e-mail, porque não existe cliente nenhum nesta tabela para "escolher".
 function UsersSection({ currentUser, users, loading, updating, onError, onToggleRole, onToggleActive }) {
   return <>
-    <section className="admin-content"><div className="admin-section-heading"><h2>Sua conta</h2>{currentUser && <span>{currentUser.email}</span>}</div><div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>E-mail</th><th>Nome</th><th>Papel</th><th>Situação</th><th>Contas</th><th>Ações</th></tr></thead><tbody>{loading ? <tr><td colSpan="6" className="admin-empty">Carregando…</td></tr> : users.length === 0 ? <tr><td colSpan="6" className="admin-empty">Nenhum usuário encontrado.</td></tr> : users.map(user => { const isMe = user.id === currentUser?.id; const isSuperAdmin = user.role === 'super_admin'; const roleBusy = updating === `role-${user.id}`; const activeBusy = updating === `ativo-${user.id}`; return <tr key={user.id}><td>{user.email}</td><td>{user.fullName || '—'}</td><td><span className={`admin-pill admin-pill--${user.role}`}>{roleLabels[user.role] || user.role}</span></td><td><span className={`admin-pill admin-pill--${user.ativo ? 'active' : 'inactive'}`}>{user.ativo ? 'Ativo' : 'Desativado'}</span></td><td>{user.totalContas}</td><td className="admin-actions"><button type="button" disabled={isSuperAdmin || currentUser?.role !== 'super_admin' || roleBusy} onClick={() => onToggleRole(user)}>{roleBusy ? '…' : user.role === 'admin' ? 'Tornar usuário' : 'Tornar admin'}</button><button type="button" disabled={isMe || activeBusy || (user.role !== 'user' && currentUser?.role !== 'super_admin')} onClick={() => onToggleActive(user)}>{activeBusy ? '…' : user.ativo ? 'Desativar' : 'Ativar'}</button></td></tr> })}</tbody></table></div></section>
     <GeneratePlanLinkTool onError={onError} />
+    <section className="adm-sec">
+      <SectionHead title="Sua conta" description="O painel mostra só a sua própria conta. Clientes são encontrados pela busca por e-mail." />
+      <div className="ds-scrollx adm-tablewrap">
+        <table className="ds-datatable adm-datatable">
+          <thead><tr><th>E-mail</th><th>Nome</th><th>Papel</th><th>Situação</th><th className="ds-cellnum">Contas</th><th>Ações</th></tr></thead>
+          <tbody>{loading ? <tr><td colSpan="6" className="adm-empty">Carregando…</td></tr> : users.length === 0 ? <tr><td colSpan="6" className="adm-empty">Nenhum usuário encontrado.</td></tr> : users.map(user => {
+            const isMe = user.id === currentUser?.id
+            const isSuperAdmin = user.role === 'super_admin'
+            const roleBusy = updating === `role-${user.id}`
+            const activeBusy = updating === `ativo-${user.id}`
+            return <tr key={user.id}>
+              <td>{user.email}</td>
+              <td>{user.fullName || '—'}</td>
+              <td><span className="ds-badge" data-tone={user.role === 'user' ? 'outline' : 'gold'}>{roleLabels[user.role] || user.role}</span></td>
+              <td><span className="ds-status ds-status--soft" data-status={user.ativo ? 'ok' : 'failed'}>{user.ativo ? 'Ativo' : 'Desativado'}</span></td>
+              <td className="ds-cellnum">{user.totalContas}</td>
+              <td><div className="adm-actions">
+                <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" disabled={isSuperAdmin || currentUser?.role !== 'super_admin' || roleBusy} onClick={() => onToggleRole(user)}>{roleBusy ? '…' : user.role === 'admin' ? 'Tornar usuário' : 'Tornar admin'}</button>
+                <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm" disabled={isMe || activeBusy || (user.role !== 'user' && currentUser?.role !== 'super_admin')} onClick={() => onToggleActive(user)}>{activeBusy ? '…' : user.ativo ? 'Desativar' : 'Ativar'}</button>
+              </div></td>
+            </tr>
+          })}</tbody>
+        </table>
+      </div>
+    </section>
   </>
 }
 
 function AdminTabs({ tab, onChange }) {
-  return <nav className="admin-tabs" aria-label="Seções do painel admin">{TABS.map(([key, label]) => <button key={key} type="button" className={`admin-tab${tab === key ? ' is-active' : ''}`} aria-current={tab === key ? 'page' : undefined} onClick={() => onChange(key)}>{label}</button>)}</nav>
+  return <nav className="adm-tabs" aria-label="Seções do painel admin">{TABS.map(([key, label]) => <button key={key} type="button" className="adm-tab" aria-current={tab === key ? 'page' : undefined} onClick={() => onChange(key)}><Icon name={TAB_ICONS[key]} size={16} />{label}</button>)}</nav>
 }
 
 // Histórico de ações administrativas: reaproveita /api/logs, o mesmo
@@ -189,7 +302,27 @@ function HistorySection() {
     return logs.filter(log => (type === 'all' || log.type === type) && (!query || String(log.message).toLowerCase().includes(query)))
   }, [logs, search, type])
 
-  return <section className="admin-content"><div className="admin-section-heading"><h2>Histórico de ações administrativas</h2><div className="admin-reconciliation-controls"><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar…" aria-label="Buscar no histórico" /><select value={type} onChange={event => setType(event.target.value)} aria-label="Filtrar tipo de atividade"><option value="all">Todos os tipos</option>{Object.entries(LOG_TYPE_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select><button type="button" onClick={() => reload().catch(() => {})} disabled={loading}>{loading ? 'Atualizando…' : 'Atualizar'}</button></div></div>{error && <p className="admin-notice admin-notice--error" role="alert">{error}</p>}<div className="admin-table-wrap"><table className="admin-table"><thead><tr><th>Quando</th><th>Tipo</th><th>Ação</th></tr></thead><tbody>{loading ? <tr><td colSpan="3" className="admin-empty">Carregando…</td></tr> : !visibleLogs.length ? <tr><td colSpan="3" className="admin-empty">{search || type !== 'all' ? 'Nenhuma ação corresponde aos filtros.' : 'Nenhuma ação administrativa registrada ainda.'}</td></tr> : visibleLogs.map(log => <tr key={log.id}><td>{log.timestamp ? new Date(log.timestamp).toLocaleString('pt-BR') : '—'}</td><td><span className={`admin-pill admin-pill--${log.type === 'err' ? 'inactive' : log.type === 'ok' ? 'active' : 'user'}`}>{LOG_TYPE_LABELS[log.type] || 'Atividade'}</span></td><td>{log.message}</td></tr>)}</tbody></table></div></section>
+  return <section className="adm-sec">
+    <SectionHead title="Histórico de ações administrativas" description="Eventos da sua conta, incluindo links gerados, buscas e vínculos de pagamento.">
+      <label className="ds-inputwrap adm-search"><Icon name="search" /><input className="ds-input" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar…" aria-label="Buscar no histórico" /></label>
+      <span className="ds-select adm-type">
+        <select className="ds-select__control" value={type} onChange={event => setType(event.target.value)} aria-label="Filtrar tipo de atividade"><option value="all">Todos os tipos</option>{Object.entries(LOG_TYPE_LABELS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select>
+        <Icon name="chevronDown" className="ds-select__chev" />
+      </span>
+      <button type="button" className="ds-btn ds-btn--secondary" onClick={() => reload().catch(() => {})} disabled={loading}>{loading ? 'Atualizando…' : 'Atualizar'}</button>
+    </SectionHead>
+    {error && <div className="ds-alert" data-tone="danger" role="alert"><Icon name="alertCircle" className="ds-alert__icon" /><p className="ds-alert__text">{error}</p></div>}
+    <div className="ds-scrollx adm-tablewrap">
+      <table className="ds-datatable ds-datatable--stack adm-datatable">
+        <thead><tr><th>Quando</th><th>Tipo</th><th>Ação</th></tr></thead>
+        <tbody>{loading ? <tr><td colSpan="3" className="adm-empty">Carregando…</td></tr> : !visibleLogs.length ? <tr><td colSpan="3" className="adm-empty">{search || type !== 'all' ? 'Nenhuma ação corresponde aos filtros.' : 'Nenhuma ação administrativa registrada ainda.'}</td></tr> : visibleLogs.map(log => <tr key={log.id}>
+          <td className="adm-nowrap" data-label="Quando">{log.timestamp ? new Date(log.timestamp).toLocaleString('pt-BR') : '—'}</td>
+          <td data-label="Tipo"><span className="ds-status ds-status--soft" data-status={LOG_TYPE_STATUS[log.type] || 'muted'}>{LOG_TYPE_LABELS[log.type] || 'Atividade'}</span></td>
+          <td className="adm-wrap adm-cellwide" data-label="Ação">{log.message}</td>
+        </tr>)}</tbody>
+      </table>
+    </div>
+  </section>
 }
 
 // Dashboard: GET /api/admin/dashboard devolve só contagens agregadas, sem
@@ -197,13 +330,34 @@ function HistorySection() {
 // deliberada à política de "sem diretório global", decidida em 10/09/2026
 // (Trilha B, pergunta feita explicitamente antes de implementar; ver IA.md e
 // usersRepository.obterMetricasAgregadas).
-function DashboardSection() {
+function DashboardSection({ onOpenReconciliation }) {
   const loadMetrics = useCallback(() => apiFetch('/api/admin/dashboard'), [])
   const { value: metrics, loading, error, reload } = useApiResource(loadMetrics, null)
 
   const planEntries = metrics ? Object.entries(metrics.porPlano).sort(([, a], [, b]) => b - a) : []
 
-  return <section className="admin-content"><div className="admin-section-heading"><h2>Dashboard</h2><div className="admin-reconciliation-controls"><button type="button" onClick={() => reload().catch(() => {})} disabled={loading}>{loading ? 'Atualizando…' : 'Atualizar'}</button></div></div>{error && <p className="admin-notice admin-notice--error" role="alert">{error}</p>}{loading ? <p className="admin-empty">Carregando…</p> : metrics && <div className="admin-stats"><div className="admin-stat-card"><strong>{metrics.totalUsuarios}</strong><span>Usuários no total</span></div><div className="admin-stat-card"><strong>{metrics.ativos}</strong><span>Contas ativas</span></div><div className="admin-stat-card"><strong>{metrics.desativados}</strong><span>Contas desativadas</span></div><div className="admin-stat-card admin-stat-card--warning"><strong>{metrics.pagamentosNaoConciliados}</strong><span>Pagamentos não conciliados (7 dias)</span></div>{planEntries.map(([plan, total]) => <div className="admin-stat-card" key={plan}><strong>{total}</strong><span>{PLANS[plan]?.name || plan}</span></div>)}</div>}</section>
+  return <section className="adm-sec">
+    <SectionHead title="Dashboard" description="Somente contagens agregadas; nenhum dado individual aparece aqui.">
+      <button type="button" className="ds-btn ds-btn--secondary" onClick={() => reload().catch(() => {})} disabled={loading}>{loading ? 'Atualizando…' : 'Atualizar'}</button>
+    </SectionHead>
+    {error && <div className="ds-alert" data-tone="danger" role="alert"><Icon name="alertCircle" className="ds-alert__icon" /><p className="ds-alert__text">{error}</p></div>}
+    {loading ? <p className="adm-empty">Carregando…</p> : metrics && <>
+      <div className="ds-stats adm-stats" style={{ '--cols': 4 }}>
+        <div className="ds-stat"><p className="ds-stat__value">{metrics.totalUsuarios}</p><p className="ds-stat__label">Usuários no total</p></div>
+        <div className="ds-stat"><p className="ds-stat__value">{metrics.ativos}</p><p className="ds-stat__label">Contas ativas</p></div>
+        <div className="ds-stat"><p className="ds-stat__value">{metrics.desativados}</p><p className="ds-stat__label">Contas desativadas</p></div>
+        <div className="ds-stat adm-stat--warn" data-attention={Number(metrics.pagamentosNaoConciliados) > 0 || undefined}>
+          <p className="ds-stat__value">{metrics.pagamentosNaoConciliados}</p>
+          <p className="ds-stat__label">Pagamentos não conciliados (7 dias)</p>
+          {Number(metrics.pagamentosNaoConciliados) > 0 && <button type="button" className="ds-go" onClick={onOpenReconciliation}>Abrir conciliação<Icon name="arrow" size={16} /></button>}
+        </div>
+      </div>
+      {planEntries.length > 0 && <div className="adm-plans">
+        <h3 className="adm-plans__title">Assinantes por plano</h3>
+        <ul className="adm-plans__list">{planEntries.map(([plan, total]) => <li key={plan}><span className="adm-plans__name">{PLANS[plan]?.name || plan}</span><strong className="ds-num">{total}</strong></li>)}</ul>
+      </div>}
+    </>}
+  </section>
 }
 
 export function AdminPage() {
@@ -213,6 +367,12 @@ export function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(null)
   const [tab, setTab] = useState(() => tabFromLocation())
+
+  useEffect(() => {
+    const previous = document.title
+    document.title = 'Administração · Meu Ecoo Mídia'
+    return () => { document.title = previous }
+  }, [])
 
   const loadUsers = useCallback(async () => {
     setLoading(true)
@@ -256,6 +416,38 @@ export function AdminPage() {
   const toggleRole = user => update(user.id, 'role', { role: user.role === 'admin' ? 'user' : 'admin' }, 'Papel atualizado.')
   const toggleActive = user => update(user.id, 'ativo', { ativo: !user.ativo }, 'Situação atualizada.')
   const onError = text => setNotice({ type: 'error', text })
+  const onSuccess = text => setNotice({ type: 'success', text })
 
-  return <main className="admin-page"><header className="admin-header"><a className="admin-logo" href="/app/dashboard" aria-label="Meu Ecoo Mídia - ir para o dashboard"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a><div><p className="admin-eyebrow">GESTÃO DO SISTEMA</p><h1>Administração</h1></div><a href="/app.html" className="admin-back">← Voltar ao painel</a></header><Notice notice={notice} /><AdminTabs tab={tab} onChange={changeTab} />{tab === 'usuarios' && <UsersSection currentUser={currentUser} users={users} loading={loading} updating={updating} onError={onError} onToggleRole={toggleRole} onToggleActive={toggleActive} />}{tab === 'conciliacao' && !loading && <ReconciliationSection onError={onError} />}{tab === 'historico' && <HistorySection />}{tab === 'dashboard' && <DashboardSection />}<footer className="admin-footer"><CopyrightNotice /></footer></main>
+  return <div className="adm" data-ds-root>
+    <header className="adm-top">
+      <div className="adm-top__inner">
+        <a className="adm-logo" href="/app/dashboard" aria-label="Meu Ecoo Mídia - ir para o dashboard"><img src="/logo.png" alt="Meu Ecoo Mídia" /></a>
+        <span className="adm-top__divider" aria-hidden="true" />
+        <span className="adm-top__label"><Icon name="lock" size={16} />Área administrativa</span>
+        <div className="adm-top__end">
+          <ThemeSelector />
+          <a href="/app.html" className="ds-btn ds-btn--quiet ds-btn--sm adm-back"><Icon name="arrowLeft" size={16} />Voltar ao painel</a>
+        </div>
+      </div>
+    </header>
+
+    <main className="adm-main">
+      <header className="ds-pagehead adm-head">
+        <div className="ds-pagehead__text">
+          <p className="ds-eyebrow">Gestão do sistema</p>
+          <h1 className="ds-pagehead__title">Administração</h1>
+          <p className="ds-pagehead__lede">Links de pagamento, conciliação com a Stripe, seu histórico e os números gerais do sistema.</p>
+        </div>
+      </header>
+      <AdminTabs tab={tab} onChange={changeTab} />
+      <Notice notice={notice} onDismiss={() => setNotice(null)} />
+      <div className="adm-body">
+        {tab === 'usuarios' && <UsersSection currentUser={currentUser} users={users} loading={loading} updating={updating} onError={onError} onToggleRole={toggleRole} onToggleActive={toggleActive} />}
+        {tab === 'conciliacao' && (loading ? <div aria-busy="true"><span className="ds-skel adm-skel" /></div> : <ReconciliationSection onError={onError} onSuccess={onSuccess} />)}
+        {tab === 'historico' && <HistorySection />}
+        {tab === 'dashboard' && <DashboardSection onOpenReconciliation={() => changeTab('conciliacao')} />}
+      </div>
+    </main>
+    <footer className="adm-foot"><CopyrightNotice /></footer>
+  </div>
 }
