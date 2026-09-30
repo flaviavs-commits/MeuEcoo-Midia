@@ -35,8 +35,10 @@ describe('ContentQueuesPage', () => {
     render(<ToastProvider><ContentQueuesPage /></ToastProvider>)
 
     await fillFacebookRoutine()
-    fireEvent.change(screen.getByLabelText('Hora'), { target: { value: '14' } })
-    fireEvent.change(screen.getByLabelText('Minuto'), { target: { value: '35' } })
+    fireEvent.click(screen.getByRole('combobox', { name: 'Hora' }))
+    fireEvent.click(screen.getByRole('option', { name: '14' }))
+    fireEvent.click(screen.getByRole('combobox', { name: 'Minuto' }))
+    fireEvent.click(screen.getByRole('option', { name: '35' }))
     expect(screen.getByRole('status')).toHaveTextContent('às 14:35')
     fireEvent.click(screen.getByRole('button', { name: 'Criar rotina' }))
 

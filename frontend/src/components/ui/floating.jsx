@@ -105,7 +105,8 @@ export function Popover({
       size({
         padding: 8,
         apply({ availableHeight, elements }) {
-          elements.floating.style.maxHeight = `${Math.max(140, Math.floor(availableHeight))}px`
+          // the room left in the viewport; CSS caps it (.ds-popover) and a select caps it lower
+          elements.floating.style.setProperty('--ds-pop-room', `${Math.max(140, Math.floor(availableHeight))}px`)
         },
       }),
     ],

@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { Icon } from './icon.jsx'
 import { Popover, Sheet } from './floating.jsx'
+import { Select } from './select.jsx'
 import { useIsPhone } from '../../lib/breakpoints.js'
 
 // Values keep the <input type="datetime-local"> contract: "YYYY-MM-DDTHH:mm" in the
@@ -9,6 +10,8 @@ const WEEKDAYS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S']
 const WEEKDAY_NAMES = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado']
 const HOURS = Array.from({ length: 24 }, (_, hour) => String(hour).padStart(2, '0'))
 const MINUTES = Array.from({ length: 60 }, (_, minute) => String(minute).padStart(2, '0'))
+const HOUR_OPTIONS = HOURS.map(hour => ({ value: hour, label: hour }))
+const MINUTE_OPTIONS = MINUTES.map(minute => ({ value: minute, label: minute }))
 const pad = number => String(number).padStart(2, '0')
 
 export function toDateKey(date) {
@@ -151,21 +154,9 @@ function CalendarPanel({ value, onChange, onDone, disablePast, required, timeZon
     <div className="ds-dtp__time">
       <p className="ds-label" id={`${titleId}-time`}>Horário</p>
       <div className="ds-dtp__timefields" role="group" aria-labelledby={`${titleId}-time`}>
-        <span className="ds-select ds-dtp__select">
-          <select className="ds-select__control" aria-label="Hora" value={parsed?.hour ?? ''} onChange={event => setTime('hour', event.target.value)}>
-            {!parsed && <option value="">--</option>}
-            {HOURS.map(hour => <option key={hour} value={hour}>{hour}</option>)}
-          </select>
-          <Icon name="chevronDown" className="ds-select__chev" />
-        </span>
+        <Select size="sm" className="ds-dtp__select" aria-label="Hora" placeholder="--" value={parsed?.hour ?? ''} onChange={next => setTime('hour', next)} options={HOUR_OPTIONS} />
         <span className="ds-dtp__colon" aria-hidden="true">:</span>
-        <span className="ds-select ds-dtp__select">
-          <select className="ds-select__control" aria-label="Minuto" value={parsed?.minute ?? ''} onChange={event => setTime('minute', event.target.value)}>
-            {!parsed && <option value="">--</option>}
-            {MINUTES.map(minute => <option key={minute} value={minute}>{minute}</option>)}
-          </select>
-          <Icon name="chevronDown" className="ds-select__chev" />
-        </span>
+        <Select size="sm" className="ds-dtp__select" aria-label="Minuto" placeholder="--" value={parsed?.minute ?? ''} onChange={next => setTime('minute', next)} options={MINUTE_OPTIONS} />
       </div>
       {timeZone && <p className="ds-meta ds-dtp__tz">Fuso: {timeZone}</p>}
     </div>
@@ -226,25 +217,13 @@ export function DateTimeField({ id, value, onChange, required = false, invalid =
   </span>
 }
 
-// Time of day only (24h), for recurring routines: two compact selects.
+// Time of day only (24h), for recurring routines: two compact DS selects.
 export function TimeField({ id, value, onChange, labelledBy }) {
   const [hour = '', minute = ''] = String(value || '').split(':')
   const update = (nextHour, nextMinute) => onChange(`${nextHour || '09'}:${nextMinute || '00'}`)
   return <span className="ds-timefield" role="group" aria-labelledby={labelledBy}>
-    <span className="ds-select">
-      <select id={id} className="ds-select__control" aria-label="Hora" value={hour} onChange={event => update(event.target.value, minute)}>
-        {!hour && <option value="">--</option>}
-        {HOURS.map(item => <option key={item} value={item}>{item}</option>)}
-      </select>
-      <Icon name="chevronDown" className="ds-select__chev" />
-    </span>
+    <Select id={id} size="sm" className="ds-timefield__select" aria-label="Hora" placeholder="--" value={hour} onChange={next => update(next, minute)} options={HOUR_OPTIONS} />
     <span className="ds-dtp__colon" aria-hidden="true">:</span>
-    <span className="ds-select">
-      <select className="ds-select__control" aria-label="Minuto" value={minute} onChange={event => update(hour, event.target.value)}>
-        {!minute && <option value="">--</option>}
-        {MINUTES.map(item => <option key={item} value={item}>{item}</option>)}
-      </select>
-      <Icon name="chevronDown" className="ds-select__chev" />
-    </span>
+    <Select size="sm" className="ds-timefield__select" aria-label="Minuto" placeholder="--" value={minute} onChange={next => update(hour, next)} options={MINUTE_OPTIONS} />
   </span>
 }
