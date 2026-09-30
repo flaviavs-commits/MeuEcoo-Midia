@@ -16,29 +16,30 @@ O frontend usa navegação interna em `/app/<modulo>`. O `App` em `frontend/src/
 
 ## 2. Mapa de rotas
 
-| URL | Página | Finalidade |
+| URL | Página (nome no menu) | Finalidade |
 |---|---|---|
 | `/` | Landing page | Apresentar o produto e direcionar para login/painel. |
 | `/login.html` | Login e cadastro | Entrar, criar conta, recuperar senha e concluir 2FA. |
 | `/reset-password.html` | Redefinição de senha | Validar token e criar nova senha. |
 | `/verify-2fa.html` | Verificação 2FA | Confirmar o código temporário após o login. |
-| `/app.html` | Dashboard | Visão geral da operação do usuário. |
-| `/app/agendador` | Criador de Posts | Produzir, revisar, salvar, agendar e publicar posts. |
+| `/app.html` e `/app/dashboard` | Início | Visão geral da operação do usuário. |
+| `/app/agendador` | Meu Post | Produzir, revisar, salvar, agendar e publicar posts. |
 | `/app/calendario` | Calendário | Visualizar e reagendar publicações. |
-| `/app/rascunhos` | Rascunhos | Salvar e retomar conteúdos ainda não publicados. |
-| `/app/analytics` | Analytics | Analisar desempenho real das redes e publicações. |
+| `/app/rascunhos` | Baú de Ideias | Guardar ideias, rascunhos e modelos e gerar ideias novas. |
+| `/app/analytics` | Relatórios | Analisar desempenho real das redes e publicações. |
 | `/app/inbox` | Inbox | Acompanhar e responder comentários/interações. |
-| `/app/integracoes` | Contas conectadas | Conectar, reconectar e desconectar redes sociais. |
-| `/app/tokens` | Tokens | Consultar, renovar e revogar credenciais de integração. |
+| `/app/integracoes` | Contas | Conectar, reconectar e desconectar redes sociais. |
 | `/app/seguranca` | Segurança | Configurar ou remover autenticação em dois fatores. |
 | `/app/atividade` | Atividades | Consultar e limpar o histórico operacional. |
-| `/app/ai` | Assistente IA | Gerar ideias, imagens, análises e publicações assistidas. |
-| `/app/perfil` | Perfil | Editar dados pessoais, senha, avatar, preferências e sessões. |
-| `/app/biblioteca` | Biblioteca de mídia | Armazenar, buscar, organizar e reutilizar arquivos. |
-| `/app/filas` | Filas recorrentes | Criar rotinas automáticas de publicação. |
+| `/app/ai` | Assistente inteligente | Gerar ideias, imagens, análises e publicações assistidas. |
+| `/app/perfil` | Perfil | Editar dados pessoais, senha, avatar, preferências, plano e sessões. |
+| `/app/biblioteca` | Biblioteca | Armazenar, buscar, organizar e reutilizar arquivos. |
+| `/app/filas` | Repetidor de posts | Criar rotinas automáticas de publicação. |
 | `/app/smartlinks` | Smartlinks | Criar páginas públicas de links rastreáveis. |
-| `/app/equipe` | Equipe | Organizar clientes/marcas, membros, aprovações e identidade visual. |
-| `/admin.html` | Administração | Gerenciar usuários, papéis e situação das contas. |
+| `/app/equipe` | Equipe (atrás de flag) | Organizar clientes/marcas, membros, aprovações e identidade visual. |
+| `/admin.html` | Administração | Gerenciar usuários, cobrança, histórico e indicadores da plataforma. |
+
+A tela de Tokens (seção 7.2) existe no código, mas não tem rota no conjunto atual de páginas (`frontend/src/lib/app-pages.js`); decidir se volta é uma pendência de produto.
 
 `/app/automacoes` não faz parte do conjunto atual de módulos ativos. Existe uma compatibilidade que redireciona essa URL para o dashboard.
 
@@ -48,15 +49,25 @@ O frontend usa navegação interna em `/app/<modulo>`. O `App` em `frontend/src/
 
 Arquivo: `frontend/src/components/layout/app-shell.jsx`
 
-É a moldura das páginas autenticadas. Ela fornece:
+É a moldura das páginas autenticadas, no design system (DS) de `frontend/src/styles/ds/`. Ela fornece:
 
-- Menu lateral com todas as áreas do produto.
-- Topbar com página atual, tema, atalhos, notificações, criação rápida e perfil.
-- Navegação mobile inferior.
-- Botão de recolher/expandir sidebar.
-- Logout.
-- Atalhos de teclado: `C` para criar post, `D` para dashboard, `?` para ajuda e `Esc` para fechar janelas.
-- Widget do Assistente IA disponível durante a navegação.
+- Menu lateral com as áreas agrupadas (Criar, Conteúdo, Automações, Engajamento, Conta), que pode ser recolhido em trilho de ícones.
+- Topbar com página atual, atalhos, notificações, "Criar post" e menu da conta (tema, perfil, sair). No celular, a barra mostra a marca do app enquanto o título da página está visível e passa a mostrar o título quando a pessoa rola.
+- Barra inferior no celular (Início, Criar, Calendário, Inbox e "Mais", que abre uma folha com as outras áreas).
+- Link "Pular para o conteúdo" e foco levado ao conteúdo a cada troca de página.
+- Atalhos de teclado: `C` para criar post, `D` para o Início, `?` para ajuda e `Esc` para fechar janelas.
+- Tutorial guiado, que devolve o foco a quem o abriu.
+- Widget do Assistente IA disponível durante a navegação (folha no celular; recolhe ao rolar e, no celular, enquanto um campo tem foco).
+
+**Peças compartilhadas do DS** (`frontend/src/components/ui/`), usadas pelas páginas:
+
+- `Sheet` e `Popover` (`floating.jsx`): diálogo ou folha inferior no celular, com foco preso, `Esc` e retorno do foco. Camadas abertas uma sobre a outra formam uma pilha: só a de cima responde a `Esc` e `Tab`.
+- `OverflowMenu`: o "…" de cada item; menu ancorado no desktop, folha de ações no celular; devolve o foco ao "…".
+- `FiltersButton` + `FilterSheet`: filtros de celular num rascunho que só vale depois de "Aplicar filtros".
+- `DateTimeField` e `TimeField`: data e hora no fuso do aparelho (o fuso aparece na dica); calendário e hora lado a lado no desktop e folha no celular.
+- `NetworkGlyph`, `PasswordInput`, `useToast`, `useApiResource` (uma carga nova começa sem o erro da anterior).
+
+**Regras de layout:** uma única rolagem por tela; `sticky`/`fixed` só em elementos globais (topbar, sidebar, barra inferior, widget, toasts, camadas) e na barra de ação do Meu Post no celular; alvos de toque de 44 px no celular; campos com 16 px no celular.
 
 ### Navegação e carregamento
 
@@ -68,7 +79,7 @@ Arquivo: `frontend/src/components/layout/app-shell.jsx`
 - O histórico do navegador com `pushState` e `popstate`.
 - O carregamento inicial do tema.
 
-`frontend/src/pages/module-page.jsx` carrega os módulos com `lazy`/`Suspense`, reduzindo o bundle inicial. Se um tipo não possuir página registrada, exibe um placeholder de módulo.
+`frontend/src/pages/module-page.jsx` carrega os módulos com `lazy`/`Suspense`, reduzindo o bundle inicial. `/admin.html` também é carregada sob demanda (só administradores a abrem). Se um tipo não possuir página registrada, exibe um placeholder de módulo.
 
 ## 4. Páginas públicas e autenticação
 
@@ -179,7 +190,7 @@ Arquivo: `frontend/src/pages/auth-page.jsx` — componente `VerifyTwoFactorPage`
 
 **API:** `POST /auth/login/verify-2fa`.
 
-## 5. Dashboard
+## 5. Início (dashboard)
 
 Arquivo: `frontend/src/pages/dashboard-page.jsx`
 
@@ -189,21 +200,20 @@ Arquivo: `frontend/src/pages/dashboard-page.jsx`
 
 - Publicações em `GET /api/posts`.
 - Contas em `GET /api/accounts`.
-- Métricas em `GET /api/posts/analytics` (7 dias por padrão; `days` é opcional).
+- Métricas em `GET /api/posts/analytics?days=7|15|30` (tempo limite de 45 s e novas tentativas automáticas).
+
+**Ordem da tela:** números da conta → "Precisa de atenção" → "Próximos agendamentos" → "Desempenho" → "Publicações recentes" ao lado de "Redes conectadas".
 
 **Funções para usuários com dados:**
 
-- Mostrar total de publicações.
-- Mostrar publicações agendadas.
-- Mostrar falhas e permitir revisão no editor.
-- Mostrar total de contas conectadas e redes ativas.
-- Exibir performance dos últimos 7 dias por padrão.
-- Exibir visualizações, interações, taxa de interação e tendência diária.
-- Sugerir conteúdo com base no melhor post real.
-- Sugerir horário com base nos dados disponíveis.
+- Mostrar total de publicações, agendadas (com aviso das que estão sem horário), falhas (com atalho "Revisar abaixo") e contas conectadas.
+- "Precisa de atenção": falhas que podem ser corrigidas, com o motivo, "Como resolver", "Revisar no editor" e "Excluir alerta" no "…" (depois de excluir, o foco vai para o alerta seguinte); agendamentos sem horário com "Corrigir agenda".
+- "Próximos agendamentos": até 4, em faixa (4 colunas no desktop, 2 no tablet, lista no celular); vazio com "Agendar agora".
+- "Desempenho" por rede e por período (7, 15 ou 30 dias): visualizações, interações e taxa; gráficos e tabela "Ver valores" que cobrem o período inteiro (até 8 dias com publicação, uma coluna por dia; acima disso, uma por semana, a partir de segunda); destaques do período; "Leituras do período" (conteúdo, horário e próximo teste) só depois que as métricas chegam.
 - Listar publicações recentes com busca e filtros por status.
-- Mostrar próximos agendamentos.
-- Mostrar redes conectadas e atalhos para gerenciá-las.
+- Mostrar redes conectadas e atalho para Contas.
+
+**Estados:** cada seção mostra esqueleto enquanto carrega e erro próprio quando falha (nenhuma diz "vazio" antes de saber). As redes de cada item também vão em texto para leitor de tela.
 
 **Estado inicial sem dados:**
 
@@ -222,31 +232,32 @@ O checklist de onboarding continua orientando a sequência inicial.
 
 ## 6. Operação de conteúdo
 
-### 6.1 Criador de Posts
+### 6.1 Meu Post (criador de posts)
 
 Arquivo: `frontend/src/pages/scheduler-page.jsx`
 
 **Para que serve:** ser o centro de criação e publicação multiplataforma.
+
+**Interface:** quatro seções em sequência (Redes, Conteúdo, Mídia, Publicação). No desktop, a prévia fica ao lado; no celular, abre numa folha ("Prévia"), e uma barra de ação fixa no rodapé mostra o estado ("Pronto para agendar", pendências) e o botão principal. As pendências abrem numa folha que leva ao campo com problema.
 
 **Funções:**
 
 - Escrever texto por plataforma.
 - Escolher Instagram, Facebook, YouTube e TikTok.
 - Escolher contas conectadas específicas.
-- Publicar imediatamente ou agendar.
+- Publicar imediatamente ou agendar (data e hora no fuso do aparelho, com o fuso na dica).
 - Fazer upload de imagens e vídeos.
 - Pré-visualizar o conteúdo por rede.
 - Configurar título, visibilidade, categoria e público infantil no YouTube.
 - Configurar formato do Instagram.
 - Configurar privacidade e restrições de comentários, duetos e stitches no TikTok.
-- Adicionar primeiro comentário quando suportado.
 - Usar mídia da biblioteca.
-- Aplicar análise de imagem/vídeo com IA.
-- Receber sugestões de legenda, hashtags e estrutura.
+- Analisar imagem/vídeo com IA e receber sugestões de legenda e hashtags por rede.
 - Salvar rascunho local e autosave no servidor.
-- Salvar conteúdo como modelo.
+- Salvar conteúdo como modelo ("…" no celular).
+- Enviar para aprovação de uma equipe quando houver espaço de trabalho.
 - Acompanhar progresso da publicação e eventos do backend.
-- Exibir erros por etapa, sem perder o conteúdo digitado.
+- Exibir erros por etapa, sem perder o conteúdo digitado; um clique duplo não publica duas vezes.
 
 **APIs principais:**
 
@@ -256,24 +267,27 @@ Arquivo: `frontend/src/pages/scheduler-page.jsx`
 - `GET/POST/PATCH/DELETE /api/drafts...`
 - `GET /api/logs/events/since/:cursor`
 - `POST /api/ai/analyze-media`
+- `GET /api/workspaces` e `POST /api/workspaces/:id/approvals`
 
-### 6.2 Rascunhos
+### 6.2 Baú de Ideias (rascunhos e modelos)
 
 Arquivo: `frontend/src/pages/drafts-page.jsx`
 
-**Para que serve:** armazenar trabalhos em andamento sem publicar.
+**Para que serve:** guardar ideias, rascunhos automáticos e modelos, e gerar ideias novas com IA.
+
+**Interface:** cabeçalho com uma linha de contagem ("15 ideias salvas · 2 modelos · 4 com mídia"); logo abaixo, o composer "Gerar novas ideias" no fluxo da página (não acompanha a rolagem); depois as ideias em cartões (2 colunas a partir de 1200 px, 1 abaixo), cada um com tipo e "…" no topo, título, resumo de 3 linhas, redes e "Criar post".
 
 **Funções:**
 
-- Listar rascunhos.
-- Buscar por texto ou título.
-- Filtrar por plataforma e tipo.
-- Visualizar mídia associada.
-- Reabrir o conteúdo no Criador de Posts.
-- Excluir rascunhos.
-- Criar um rascunho rápido a partir de texto.
+- Gerar 3 ideias para o Instagram a partir de um tema (até 4000 caracteres, o limite do gerador); o campo cresce enquanto a pessoa escreve.
+- Listar ideias geradas, rascunhos automáticos e modelos.
+- Buscar por texto, título ou rede.
+- Filtrar por tipo (Todas, Em andamento, Modelos) — em folha no celular.
+- Ver o texto completo de uma ideia (links longos quebram a linha).
+- Reabrir a ideia no Meu Post.
+- Excluir uma ideia (o foco vai para a ideia seguinte) e esvaziar o Baú.
 
-**APIs:** `GET/POST/DELETE /api/drafts...`.
+**APIs:** `GET/POST/DELETE /api/drafts`, `DELETE /api/drafts/:id` e `POST /api/ai/generate`.
 
 ### 6.3 Calendário
 
@@ -283,39 +297,44 @@ Arquivo: `frontend/src/pages/calendar-page.jsx`
 
 **Funções:**
 
-- Navegar por mês.
-- Voltar para hoje.
-- Ir para mês anterior/próximo.
+- Navegar por mês (‹ Hoje ›).
 - Alternar entre calendário e lista.
-- Filtrar por rede.
-- Abrir o detalhe das publicações de um dia.
-- Ver mídia, texto, plataformas e status.
-- Editar o horário de uma publicação agendada.
+- Filtrar por rede (folha de filtros no celular).
+- Abrir as publicações de um dia numa folha.
+- Ver mídia, texto, plataformas e status em palavras (inclui "Aguardando confirmação" para publicações já vencidas sem retorno).
+- Editar a data e o horário de uma publicação agendada.
 - Arrastar uma publicação para outro dia.
+- Copiar uma publicação para outro dia e reagendar uma tentativa ("…" de cada publicação); uma cópia por clique.
+- Excluir uma publicação.
 - Exibir mensagens amigáveis de erro de publicação.
 
 **APIs:**
 
 - `GET /api/posts/calendar?year=...&month=...`
+- `GET /api/posts?status=scheduled&limit=100`
 - `PATCH /api/posts/:id` com `scheduledAt`.
+- `POST /api/posts/:id/repeat`
+- `DELETE /api/posts/:id`
 
-As preferências de visualização ficam salvas no `localStorage` do dispositivo.
+As preferências de visualização (calendário ou lista e rede) ficam salvas no `localStorage` do dispositivo.
 
-### 6.4 Filas recorrentes
+### 6.4 Repetidor (filas recorrentes)
 
 Arquivo: `frontend/src/pages/content-queues-page.jsx`
 
 **Para que serve:** automatizar conteúdos que se repetem em dias e horários definidos.
 
+**Interface:** cada rotina é um cartão com nome, estado em palavras e ícone e "…" no topo, um trecho de 2 linhas e, no rodapé, horário · dias, próxima publicação, redes e a ação principal (Ativar/Pausar). "Nova rotina" abre numa folha; a primeira rotina é criada na própria tela. No celular, busca + "Filtros" (situação).
+
 **Funções:**
 
-- Criar uma fila com nome.
-- Definir texto e redes.
+- Criar uma rotina com nome, texto, mídia opcional e redes.
 - Selecionar dias da semana.
-- Definir horário.
-- Ativar ou pausar uma fila.
-- Excluir uma fila.
+- Definir horário (`TimeField`, 24 h; o envio continua `HH:mm`).
+- Ativar ou pausar uma rotina (o estado muda depois da confirmação do servidor).
+- Excluir uma rotina, com confirmação.
 - Visualizar próxima execução e situação atual.
+- Buscar e filtrar por situação.
 
 **APIs:**
 
@@ -323,6 +342,7 @@ Arquivo: `frontend/src/pages/content-queues-page.jsx`
 - `POST /api/content-queues`
 - `PATCH /api/content-queues/:id`
 - `DELETE /api/content-queues/:id`
+- `POST /api/posts/upload-url` (mídia da rotina)
 
 ### 6.5 Biblioteca de mídia
 
@@ -330,18 +350,22 @@ Arquivo: `frontend/src/pages/media-library-page.jsx`
 
 **Para que serve:** centralizar arquivos reutilizáveis e reduzir retrabalho na criação.
 
+**Interface:** grade de mídias em que a imagem conduz o cartão (2 colunas no celular, até 320 px). Tocar a mídia abre uma prévia (imagem inteira ou vídeo com controles, pasta, tamanho, tags, "Remover" e "Usar no Meu Post"). O "…" de cada mídia tem "Visualizar" e "Remover da biblioteca" (e, no celular, "Usar no Meu Post").
+
 **Funções:**
 
-- Listar imagens e vídeos do usuário.
-- Buscar por nome.
-- Filtrar por pasta.
+- Listar imagens e vídeos do usuário, com "Carregar mais mídias".
+- Buscar por nome ou tag (a consulta espera uma pausa na digitação).
+- Filtrar por pasta (chips com contagem no desktop; folha de filtros no celular).
 - Criar pastas.
-- Fazer upload com URL assinada.
-- Associar a mídia a uma pasta.
-- Excluir mídia.
-- Selecionar mídia e devolvê-la ao Criador de Posts.
+- Fazer upload com URL assinada para a pasta escolhida (no celular, "Adicionar mídia" abre uma folha com a pasta de destino).
+- Visualizar a mídia.
+- Excluir mídia (o foco vai para a mídia seguinte).
+- Selecionar mídia e devolvê-la ao Meu Post.
 - Gerar sugestões de conteúdo a partir de nicho, período, redes e analytics.
-- Transformar uma sugestão da IA em rascunho.
+- Transformar uma sugestão da IA em ideia no Baú.
+
+**Estados:** falha ao carregar mostra erro com "Tentar novamente" (nunca a estante vazia); contagens das pastas só aparecem depois de carregadas.
 
 **APIs:**
 
@@ -361,19 +385,20 @@ Arquivo: `frontend/src/pages/accounts-page.jsx`
 
 **Para que serve:** gerenciar as contas sociais autorizadas a publicar e fornecer métricas.
 
+**Interface:** um bloco por rede (logo, contas conectadas dentro, ação de conectar/reconectar e saúde da API). Cada conta mostra avatar, data de conexão e o estado do token em palavras e ícone ("Válido até", "Expira em", "Expirou em", "Erro no token", "Sem token"). Abaixo, o formulário "Adicionar ou remover conta".
+
 **Funções:**
 
-- Exibir Instagram, Facebook, YouTube e TikTok.
-- Mostrar descrição e capacidade de cada provedor.
-- Conectar a primeira conta.
-- Adicionar outra conta da mesma rede.
-- Reconectar uma conta com token inválido ou expirado.
-- Pesquisar contas.
-- Filtrar por status do token.
+- Exibir Instagram, Facebook, YouTube e TikTok, com as redes fora do plano bloqueadas ("Ver planos").
+- Conectar a primeira conta, adicionar outra da mesma rede ou reconectar uma com token inválido (o link da conta a reconectar já vem preenchido).
+- Reconhecer a rede de um link colado e sugerir trocar a plataforma ("Usar TikTok").
+- Pesquisar contas e filtrar por status do token (folha de filtros no celular).
 - Ver saúde operacional da API de cada rede.
 - Abrir o perfil público da conta quando houver URL.
-- Desconectar uma conta.
-- Direcionar para Tokens quando o problema for credencial.
+- Desconectar uma conta (com confirmação).
+- Mostrar o resultado da autorização no topo da página ao voltar do provedor (sucesso, cancelada ou falha).
+
+**Estados:** falha ao carregar a lista mostra erro com "Tentar de novo" e mantém números e blocos em "—"; uma rede só fica verde quando todas as contas dela têm token válido.
 
 **APIs:**
 
@@ -415,11 +440,13 @@ Arquivo: `frontend/src/pages/security-page.jsx`
 **Funções:**
 
 - Mostrar se o 2FA está ativo.
-- Gerar QR Code e chave manual.
+- Gerar QR Code e chave manual (com "Copiar chave"); no celular e no tablet, "Abrir no app autenticador".
 - Confirmar o primeiro código do autenticador.
 - Ativar o 2FA.
-- Desativar o 2FA com um código atual.
+- Desativar o 2FA com um código atual, numa área neutra "Gerenciar 2FA" (o vermelho fica só no botão da ação).
 - Explicar o uso de Google Authenticator, Authy ou equivalente.
+
+Depois de ativar ou desativar, o foco vai para o título do bloco novo; cada erro aparece uma vez, junto do campo.
 
 **APIs:**
 
@@ -431,7 +458,7 @@ Arquivo: `frontend/src/pages/security-page.jsx`
 
 Arquivo: `frontend/src/pages/profile-page.jsx`
 
-**Para que serve:** administrar identidade, preferências e sessão do usuário.
+**Para que serve:** administrar identidade, preferências, plano e sessão do usuário.
 
 **Funções:**
 
@@ -439,11 +466,14 @@ Arquivo: `frontend/src/pages/profile-page.jsx`
 - Escolher fuso horário, idioma e plataforma padrão.
 - Configurar notificações de e-mail, publicação, falha e comentários.
 - Fazer upload ou remover avatar.
-- Alterar senha.
+- Alterar senha (campos com mostrar/ocultar, como no login).
+- Ver o plano, trocar de plano e abrir o portal de cobrança.
 - Consultar o limite diário de IA do plano gratuito.
 - Ir rapidamente para contas, tokens e atividades.
 - Encerrar a sessão atual.
-- Encerrar todas as sessões.
+- Encerrar todas as sessões (o botão fica desativado enquanto encerra).
+
+A navegação entre seções só acompanha a rolagem a partir de 1024 px (exceção aceita); no celular os atalhos têm 44 px. Cada erro aparece uma vez, junto do formulário, e o que foi digitado fica.
 
 **APIs:**
 
@@ -451,28 +481,31 @@ Arquivo: `frontend/src/pages/profile-page.jsx`
 - `POST /api/me/password`
 - `POST /api/me/avatar`
 - `POST /api/me/logout-all`
+- `GET /api/billing/status`, `POST /api/billing/plan-change`, `POST /api/billing/portal`
 - `GET /api/ai/demo-status`
 - `POST /api/posts/upload-url`
 
 ## 8. Monitoramento e relacionamento
 
-### 8.1 Analytics
+### 8.1 Relatórios (analytics)
 
 Arquivos: `frontend/src/pages/analytics-page.jsx`, `frontend/src/hooks/use-analytics.js` e `frontend/src/components/analytics/*`.
 
 **Para que serve:** transformar métricas reais das redes em leitura de desempenho.
+
+**Interface:** barra de filtros (rede, período, comparação, atualização e o recorte usado no CSV/PDF), resumo, relatório da rede escolhida, visão executiva e perfis conectados. Escolher uma rede pela lista do fim da página, pelo "Ver rede" do comparativo ou pelo "Ver relatório" de um perfil rola até o que abriu e leva o foco ao título. No celular: redes como logos de 44 px (nome para leitor de tela) e "Todas" curto; exportar (CSV, Imprimir/PDF) num único menu; o comparativo por rede vira um bloco por rede. Tabelas diárias rolam só na horizontal e as listas demográficas mostram todas as linhas.
 
 **Funções:**
 
 - Selecionar a rede analisada.
 - Alternar abas de comunidade, conteúdo e audiência.
 - Escolher período de 7, 30 ou 90 dias.
-- Comparar períodos quando disponível.
+- Comparar com o período anterior (até 30 dias; a comparação não fica salva — rede e período, sim).
 - Exibir resumo executivo.
 - Exibir métricas por conta.
 - Exibir visualizações, curtidas, comentários, compartilhamentos e salvamentos.
 - Exibir crescimento de seguidores/inscritos.
-- Exibir evolução diária.
+- Exibir evolução diária (cada gráfico tem nome acessível com os valores).
 - Exibir melhores horários.
 - Exibir decadência de conteúdo.
 - Exibir demografia agregada quando a API oficial fornece.
@@ -480,8 +513,10 @@ Arquivos: `frontend/src/pages/analytics-page.jsx`, `frontend/src/hooks/use-analy
 - Abrir relatório detalhado de uma conta.
 - Exportar CSV.
 - Gerar versão imprimível/PDF pelo navegador.
-- Configurar relatórios agendados por e-mail.
-- Atualizar automaticamente a cada 30 segundos enquanto a aba está visível.
+- Configurar relatórios agendados por e-mail (folha do DS, com foco preso e devolvido ao botão).
+- Atualizar automaticamente a cada 15 minutos enquanto a aba está visível, e por "Atualizar".
+
+**Estados:** sem redes porque uma fonte falhou (contas ou TikTok), a página diz que a conferência falhou, lista as fontes e oferece "Tentar novamente" (em vez de "Conecte uma rede"). Métrica ausente aparece como "—".
 
 **APIs e fontes:**
 
@@ -495,30 +530,28 @@ O módulo não deve inventar métricas. Sem conexão ou sem dados reais, mostra 
 
 ### 8.2 Inbox
 
-Arquivo: `frontend/src/pages/inbox-page.jsx`.
+Arquivo: `frontend/src/pages/inbox-page.jsx` (a conversa é `frontend/src/components/analytics/comments-modal.jsx`, também usada em Relatórios).
 
 **Para que serve:** concentrar comentários e interações que precisam de resposta.
 
+**Interface:** no desktop, lista de publicações ao lado da conversa (os dois painéis rolam separados — a exceção documentada à regra de uma rolagem). Em telas até 1023 px, a lista abre a conversa numa tela própria, com "Publicações" para voltar (o voltar do aparelho também funciona e devolve a lista na mesma posição e com os mesmos filtros).
+
 **Funções:**
 
-- Listar posts com comentários.
-- Filtrar por plataforma.
-- Filtrar por situação de leitura.
-- Pesquisar conteúdo ou comentário.
-- Selecionar uma ou várias publicações.
-- Abrir a conversa de uma publicação.
-- Marcar comentários como vistos.
-- Marcar várias publicações como vistas.
-- Responder comentários quando a plataforma permitir.
-- Visualizar mídia relacionada ao post.
-- Persistir filtros no dispositivo.
+- Listar publicações com comentários (inclusive publicações de fora do app, via redes conectadas).
+- Filtrar por plataforma e por situação de resposta; pesquisar (no celular, filtros numa folha).
+- Abrir a conversa de uma publicação, com a prévia da publicação e das mídias.
+- Marcar comentários como vistos ao abrir a conversa.
+- Responder comentários quando a plataforma permitir, e salvar respostas prontas para reutilizar.
+- Atualizar a conversa a cada minuto e ao voltar para a janela; se uma atualização falhar, a conversa carregada e os rascunhos de resposta continuam na tela, com um aviso discreto.
 
 **APIs:**
 
 - `GET /api/posts/inbox`
 - `GET /api/posts/inbox/unread`
-- `POST /api/posts/inbox/seen`
-- Endpoints de comentários do módulo de posts.
+- `GET /api/posts/:id/comments`, `POST /api/posts/:id/comments/seen`, `POST /api/posts/:id/comments/:commentId/reply`
+- `GET /api/posts/inbox/remote-comments` e `POST /api/posts/inbox/remote-comments/reply`
+- `GET/POST /api/saved-texts`
 
 ### 8.3 Central de atividades
 
@@ -529,10 +562,11 @@ Arquivo: `frontend/src/pages/activity-page.jsx`.
 **Funções:**
 
 - Listar até 200 eventos recentes.
-- Filtrar por tipo: sucesso, erro e informação.
+- Filtrar por tipo: sucesso, erro, aviso e informação (no celular, "Filtros" abre uma folha com as contagens).
 - Pesquisar mensagens.
+- Ler mensagens longas por inteiro ("Ver mais"/"Ver menos" só quando o texto foi cortado).
 - Atualizar o histórico.
-- Limpar todo o histórico após confirmação.
+- Limpar todo o histórico após confirmação (uma falha aparece como aviso da própria ação e a lista fica).
 - Identificar plataforma e horário do evento.
 
 **APIs:**
@@ -548,30 +582,35 @@ Arquivo: `frontend/src/pages/ai-page.jsx`.
 
 **Para que serve:** apoiar planejamento, produção e publicação de conteúdo.
 
+**Interface:** o compositor vem primeiro, sem acompanhar a rolagem, e as ideias depois, numa coluna de até 880 px. Depois de gerar, a página rola até "Sugestões" e leva o foco para lá. A escolha da rede para publicar abre numa folha.
+
 **Funções:**
 
-- Receber uma instrução de conteúdo.
+- Receber uma instrução de conteúdo (até 4000 caracteres).
 - Gerar até três ideias/postagens.
 - Gerar mais ideias sem apagar as anteriores.
 - Escolher o modelo de IA.
 - Editar o texto gerado.
-- Gerar imagem para uma ideia.
+- Gerar imagem para uma ideia (formato em duas opções; a explicação do carrossel aparece quando ele é escolhido).
 - Publicar uma ideia com imagem gerada.
 - Escolher plataforma e conta compatível.
 - Bloquear YouTube quando a mídia não for vídeo.
-- Agendar/publicar pelo fluxo assistido.
-- Consultar atividade do agente.
+- Agendar/publicar pelo fluxo assistido, acompanhando o progresso.
+- Consultar e limpar a atividade do agente.
 - Consultar analytics e diagnósticos de desempenho.
 - Mostrar comparações, amostra e nível de confiança quando houver dados.
 
+**Widget flutuante** (`frontend/src/components/ai/ai-assistant-widget.jsx`): conversa rápida em qualquer página; no celular abre numa folha; recolhe ao rolar para baixo e, no celular e no tablet, enquanto um campo da página tem foco.
+
 **APIs:**
 
-- `GET /api/ai/activity-log?limit=20`
+- `GET /api/ai/activity-log?limit=20` e limpeza do histórico em `/api/ai/activity-log`
 - `GET /api/accounts?ativo=true`
 - `POST /api/ai/generate`
 - `POST /api/ai/image/generate`
 - `POST /api/posts/upload-url`
 - `POST /api/ai/schedule`
+- `GET /api/logs/events/since/:cursor`
 - `GET /api/ai/analytics-insights?days=...`
 
 O limite gratuito de IA é controlado pelo backend. Os textos gerados são sugestões e devem poder ser revisados antes da publicação.
@@ -582,21 +621,26 @@ Arquivo: `frontend/src/pages/smartlinks-page.jsx`.
 
 **Para que serve:** criar uma página pública com vários destinos, substituindo a necessidade de trocar o link da bio a cada campanha.
 
+**Interface:** uma linha por Smartlink (logo, título, `/go/slug`, total de links e de cliques), com "Copiar link", "Abrir" e o "…" (editar o endereço, excluir). Cada página mostra os 5 primeiros links com os cliques e "Ver todos os N links". "Novo Smartlink" abre numa folha; a primeira página é criada na própria tela.
+
 **Funções:**
 
 - Criar nome interno.
-- Definir título e descrição públicos.
-- Cadastrar links no formato `texto | URL`.
+- Definir título, descrição e logo públicos.
+- Escolher o endereço (`/go/slug`) e editá-lo depois.
+- Cadastrar links no formato `texto | URL` (a caixa cresce com o conteúdo e conta as linhas).
 - Listar páginas criadas.
 - Mostrar quantidade de links e cliques.
-- Abrir a página pública.
-- Excluir um Smartlink.
+- Copiar o link público e abrir a página pública.
+- Excluir um Smartlink, com confirmação.
 
 **APIs:**
 
 - `GET /api/smartlinks`
 - `POST /api/smartlinks`
+- `PATCH /api/smartlinks/:id` (endereço)
 - `DELETE /api/smartlinks/:id`
+- `POST /api/posts/upload-url` (logo)
 - Página pública em `/go/:slug`.
 
 ## 10. Equipe e administração
@@ -606,6 +650,8 @@ Arquivo: `frontend/src/pages/smartlinks-page.jsx`.
 Arquivo: `frontend/src/pages/workspace-page.jsx`.
 
 **Para que serve:** separar operações de clientes/marcas e controlar colaboração.
+
+A tela continua atrás da flag `TEAM_APPROVAL_UI_ENABLED`. No celular, as abas viram um bloco segmentado; a lista lateral não acompanha a rolagem; e-mails longos quebram a linha. Se a gravação der certo e só a recarga da lista falhar, o sucesso continua valendo, com um aviso.
 
 **Funções:**
 
@@ -633,30 +679,35 @@ Arquivo: `frontend/src/pages/workspace-page.jsx`.
 
 ### 10.2 Administração
 
-Arquivo: `frontend/src/pages/admin-page.jsx`.
+Arquivo: `frontend/src/pages/admin-page.jsx` (carregado sob demanda).
 
-**Para que serve:** permitir que administradores gerenciem usuários da plataforma.
+**Para que serve:** permitir que administradores gerenciem usuários, cobrança e operação da plataforma.
+
+**Abas:** Usuários, Conciliação, Histórico e Dashboard (no celular, bloco segmentado 2×2; numa linha a partir de 520 px).
 
 **Funções:**
 
-- Identificar o administrador atual.
-- Listar usuários.
+- Identificar o administrador atual ("Sua conta").
+- Listar e buscar usuários por e-mail.
 - Mostrar e-mail, nome, papel, situação e quantidade de contas.
-- Promover usuário a administrador.
-- Rebaixar administrador para usuário, respeitando as restrições de segurança.
-- Ativar usuário.
-- Desativar usuário.
-- Impedir que o administrador desative a si próprio.
-- Preservar o isolamento entre administradores e usuários.
+- Promover, rebaixar, ativar e desativar usuários, respeitando as restrições de segurança (o administrador não desativa a si próprio).
+- Gerar e copiar o link de pagamento de um plano para um cliente buscado por e-mail.
+- Conciliar pagamentos do período com usuários ("Vincular"); em telas estreitas, a tabela vira linhas empilhadas.
+- Consultar o histórico de eventos.
+- Ver o painel de indicadores da plataforma.
+- Mostrar "Esta área é só para administradores" a quem não tem permissão (403).
 
 **APIs:**
 
 - `GET /api/me`
-- `GET /api/admin/users`
-- `POST /api/admin/users/:id/role`
-- `POST /api/admin/users/:id/ativo`
+- `GET /api/admin/dashboard`
+- `GET /api/admin/users` e `GET /api/admin/users/search?email=...`
+- `POST /api/admin/users/:id/:ação`
+- `GET /api/admin/users/:id/plan-link/:plano`
+- `GET /api/admin/billing/reconciliation?days=...` e `POST /api/admin/billing/reconciliation/:sessionId/link`
+- `GET /api/logs?limit=200`
 
-Essa tela fica fora do `AppShell` e é acessada por `/admin.html`.
+Essa tela fica fora do `AppShell` e é acessada por `/admin.html`. Falhas de carga mostram erro com "Tentar de novo", nunca listas vazias.
 
 ## 11. Regras funcionais transversais
 
@@ -673,8 +724,9 @@ Todas as páginas que consultam APIs possuem, conforme o módulo:
 
 - Estado de carregamento.
 - Mensagem de erro ou toast.
-- Estado vazio específico para ausência de dados.
-- Atualização após criar, editar, excluir ou alterar um recurso.
+- Estado vazio específico para ausência de dados — nunca usado quando a carga falhou ou ainda não terminou (nesses casos, esqueleto ou erro com "Tentar de novo").
+- Atualização após criar, editar, excluir ou alterar um recurso; depois de excluir um item, o foco vai para o item seguinte.
+- Mensagens curtas em pt-BR; mensagens técnicas do servidor ("Erro interno do servidor", páginas de erro de proxy) viram o texto padrão.
 
 ### Persistência local
 
@@ -682,7 +734,7 @@ O `localStorage` é utilizado para preferências de experiência, não para cria
 
 - Tema.
 - Sidebar recolhida.
-- Filtros de dashboard, calendário, inbox e analytics.
+- Filtros do Início, do Calendário, do Inbox e de Relatórios (rede e período).
 - Autosave do Criador de Posts.
 - Seleção de mídia.
 - Dispensa do checklist de onboarding.
