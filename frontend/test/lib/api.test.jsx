@@ -51,6 +51,21 @@ describe('cliente HTTP', () => {
     await expect(apiFetch('/api/posts')).rejects.toMatchObject({ status: 500, message: 'Não foi possível concluir a operação' })
   })
 
+  it('troca a frase genérica de erro interno pelo texto padrão', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, text: async () => JSON.stringify({ erro: 'Erro interno do servidor' }) })))
+    await expect(apiFetch('/api/posts')).rejects.toMatchObject({ status: 500, message: 'Não foi possível concluir a operação' })
+
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, text: async () => JSON.stringify({ message: 'Internal Server Error' }) })))
+    await expect(apiFetch('/api/posts')).rejects.toMatchObject({ status: 500, message: 'Não foi possível concluir a operação' })
+  })
+
+  it('mantém a mensagem específica de um 5xx escrita pelo backend', async () => {
+    const erro = 'Não foi possível iniciar a configuração do 2FA.'
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, text: async () => JSON.stringify({ erro }) })))
+
+    await expect(apiFetch('/api/me/2fa/setup')).rejects.toMatchObject({ status: 500, message: erro })
+  })
+
   it('mantém a mensagem escrita pelo backend para a pessoa', async () => {
     const erro = 'Escolha uma data pelo menos 20 minutos à frente.'
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 400, text: async () => JSON.stringify({ erro }) })))

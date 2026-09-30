@@ -80,12 +80,16 @@ function parseBody(text) {
   try { return JSON.parse(text) } catch { return { texto: text } }
 }
 
+// A frase genérica de erro interno (o padrão de serverError no backend) não diz
+// nada à pessoa; as mensagens específicas de 5xx continuam valendo.
+const GENERIC_SERVER_MESSAGE = /^(erro interno do servidor|internal server error)\.?$/i
+
 // As mensagens do backend são frases curtas em português; marcação ou um texto
 // longo demais é sinal de página de erro de outro servidor, e aí vale a padrão.
 function readableMessage(value) {
   if (typeof value !== 'string') return null
   const message = value.trim()
-  if (!message || message.length > 300 || /<\/?[a-z!][^>]*>/i.test(message)) return null
+  if (!message || message.length > 300 || /<\/?[a-z!][^>]*>/i.test(message) || GENERIC_SERVER_MESSAGE.test(message)) return null
   return message
 }
 
