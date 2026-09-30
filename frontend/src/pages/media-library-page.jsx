@@ -2,10 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
-import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
-import { Sheet } from '../components/ui/floating.jsx'
+import { Select } from '../components/ui/select.jsx'
+import { useConfirm } from '../components/ui/confirm-dialog.jsx'
 import { FilterGroup, FilterOption, FilterSheet, FiltersButton } from '../components/ui/filters.jsx'
 import { useIsPhone } from '../lib/breakpoints.js'
+import { MEDIA_ACCEPT, useMediaUpload } from '../hooks/use-media-upload.js'
+import { MediaCard } from '../components/library/media-card.jsx'
+import { FolderDialog, MediaEditDialog, MediaMoveDialog, MediaPreview } from '../components/library/media-dialogs.jsx'
+import { UploadQueue } from '../components/library/upload-queue.jsx'
+import { countLabel, shortText } from '../components/library/media-format.js'
 
 const platforms = [
   ['instagram', 'Instagram'],
@@ -15,36 +20,9 @@ const platforms = [
 ]
 
 const suggestionExamples = ['Educação financeira', 'Bastidores do negócio', 'Dicas para iniciantes']
+const SUGGESTION_PERIODS = [{ value: 7, label: 'Últimos 7 dias' }, { value: 30, label: 'Últimos 30 dias' }, { value: 90, label: 'Últimos 90 dias' }]
 
 export const MEDIA_LIBRARY_SELECTION_KEY = 'meu-ecoo:media-library-selection'
-
-function formatSize(value) {
-  const bytes = Number(value || 0)
-  if (!bytes) return ''
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-}
-
-function isVideo(asset) {
-  return String(asset?.mimeType || '').startsWith('video/')
-}
-
-// "image/png" vira "Imagem PNG": o formato ajuda, o tipo MIME cru não.
-function kindLabel(asset) {
-  const [type, subtype = ''] = String(asset?.mimeType || '').split('/')
-  const kind = type === 'video' ? 'Vídeo' : type === 'image' ? 'Imagem' : 'Arquivo'
-  const format = subtype.replace(/^svg\+xml$/, 'svg').replace(/^x-/, '').replace(/^quicktime$/, 'mov').toUpperCase()
-  return format ? `${kind} ${format}` : kind
-}
-
-function countLabel(count) {
-  return `${count} ${count === 1 ? 'mídia' : 'mídias'}`
-}
-
-function shortText(text, limit = 60) {
-  const value = String(text || '').replace(/\s+/g, ' ').trim()
-  return value.length > limit ? `${value.slice(0, limit - 1).trimEnd()}…` : value
-}
 
 function platformLabel(platform) {
   return platforms.find(([id]) => id === platform)?.[1] || platform
@@ -61,30 +39,40 @@ function suggestionText(post) {
   return post?.texto || post?.text || post?.caption || ''
 }
 
+/*
+ * Media library. What the backend supports and this page offers: list (search by name or tag, folder,
+ * pages of 50), upload (signed URL + POST), edit name / folder / tags (PATCH), move to a folder
+ * (PATCH folder), delete (DELETE), list and create folders.
+ * TODO BACKEND: renaming or deleting a folder and a description/alt text per asset have no route
+ * (src/routes/mediaFolders.js, src/routes/mediaAssets.js), so the page does not offer them.
+ */
 export function MediaLibraryPage({ onNavigate }) {
   const [assets, setAssets] = useState([])
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [loadedOnce, setLoadedOnce] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
   const [folders, setFolders] = useState([])
+  const [foldersState, setFoldersState] = useState('loading')
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
   const [folder, setFolder] = useState('')
-  const [uploadFolder, setUploadFolder] = useState('Geral')
-  const [folderDialogOpen, setFolderDialogOpen] = useState(false)
-  const [newFolderName, setNewFolderName] = useState('')
-  const [creatingFolder, setCreatingFolder] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState('')
-  const [foldersState, setFoldersState] = useState('loading')
-  const [preview, setPreview] = useState(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [uploadSheetOpen, setUploadSheetOpen] = useState(false)
-  // Depois de remover, o foco vai para a mídia seguinte (ou a anterior, ou o título da estante).
+  const [folderDialogOpen, setFolderDialogOpen] = useState(false)
+  const [preview, setPreview] = useState(null)
+  const [editing, setEditing] = useState(null)
+  const [moving, setMoving] = useState(null)
+  const [dragging, setDragging] = useState(false)
+  // Depois de excluir, o foco vai para a mídia seguinte (ou a anterior, ou o título da estante).
   const [focusAfterRemoval, setFocusAfterRemoval] = useState(null)
+  const dragDepth = useRef(0)
   const assetsRef = useRef(null)
+  const fileInputRef = useRef(null)
+  const requestRef = useRef(0)
   const phone = useIsPhone()
-  const [uploading, setUploading] = useState(false)
+  const notify = useToast()
+  const { confirm, confirmDialog } = useConfirm()
   const [suggestionNiche, setSuggestionNiche] = useState('')
   const [suggestionDays, setSuggestionDays] = useState(30)
   const [suggestionPlatforms, setSuggestionPlatforms] = useState(['instagram'])
@@ -92,9 +80,6 @@ export function MediaLibraryPage({ onNavigate }) {
   const [suggestionInsights, setSuggestionInsights] = useState(null)
   const [suggestionLoading, setSuggestionLoading] = useState(false)
   const [savedSuggestions, setSavedSuggestions] = useState([])
-  const notify = useToast()
-  const fileInputRef = useRef(null)
-  const requestRef = useRef(0)
 
   // Espera uma pausa na digitação antes de consultar o servidor.
   useEffect(() => {
@@ -128,6 +113,54 @@ export function MediaLibraryPage({ onNavigate }) {
     setFoldersState('ok')
   }), [])
 
+  useEffect(() => {
+    loadFolders().catch(() => setFoldersState('error'))
+  }, [loadFolders])
+
+  useEffect(() => {
+    if (focusAfterRemoval == null) return
+    const items = assetsRef.current ? [...assetsRef.current.children] : []
+    const target = items[focusAfterRemoval] || items[focusAfterRemoval - 1]
+    const control = target?.querySelector('.lib-asset__open')
+    if (control) control.focus()
+    else document.getElementById('lib-shelf-title')?.focus()
+    setFocusAfterRemoval(null)
+  }, [focusAfterRemoval])
+
+  const destination = folder || 'Geral'
+  const upload = useMediaUpload({
+    onFinished: ({ sent, failed }) => {
+      if (sent) notify(`${sent} ${sent === 1 ? 'mídia adicionada' : 'mídias adicionadas'} à biblioteca.`)
+      if (failed) notify(`${failed} ${failed === 1 ? 'arquivo não foi enviado' : 'arquivos não foram enviados'}. Veja o motivo na lista de envios.`, 'error')
+      if (sent) {
+        refresh()
+        loadFolders().catch(() => setFoldersState('error'))
+      }
+    },
+  })
+
+  function chooseFiles(event) {
+    const files = [...(event.target.files || [])]
+    event.target.value = ''
+    if (files.length) upload.add(files, destination)
+  }
+
+  // Arrastar arquivos para a estante envia para a pasta aberta (ou "Geral", com todas as pastas à vista).
+  const carriesFiles = event => [...(event.dataTransfer?.types || [])].includes('Files')
+  const dropHandlers = phone ? {} : {
+    onDragEnter: event => { if (!carriesFiles(event)) return; event.preventDefault(); dragDepth.current += 1; setDragging(true) },
+    onDragOver: event => { if (carriesFiles(event)) event.preventDefault() },
+    onDragLeave: event => { if (!carriesFiles(event)) return; dragDepth.current = Math.max(0, dragDepth.current - 1); if (!dragDepth.current) setDragging(false) },
+    onDrop: event => {
+      if (!carriesFiles(event)) return
+      event.preventDefault()
+      dragDepth.current = 0
+      setDragging(false)
+      const files = [...(event.dataTransfer.files || [])]
+      if (files.length) upload.add(files, destination)
+    },
+  }
+
   async function loadMore() {
     setLoadingMore(true)
     try {
@@ -137,78 +170,56 @@ export function MediaLibraryPage({ onNavigate }) {
     } catch (error) { notify(error.message, 'error') } finally { setLoadingMore(false) }
   }
 
-  useEffect(() => {
-    loadFolders().catch(() => setFoldersState('error'))
-  }, [loadFolders])
-
-  useEffect(() => {
-    if (focusAfterRemoval == null) return
-    const items = assetsRef.current ? [...assetsRef.current.children] : []
-    const target = items[focusAfterRemoval] || items[focusAfterRemoval - 1]
-    const control = target?.querySelector('.lib-asset__media')
-    if (control) control.focus()
-    else document.getElementById('lib-shelf-title')?.focus()
-    setFocusAfterRemoval(null)
-  }, [focusAfterRemoval])
-
-  function selectFolder(nextFolder) {
-    setFolder(nextFolder)
-    setUploadFolder(nextFolder || 'Geral')
+  async function createFolder(name) {
+    const data = await apiFetch('/api/media-folders', { method: 'POST', body: JSON.stringify({ name }) })
+    const created = data.folder
+    setFolders(current => [...current, created].sort((left, right) => left.name.localeCompare(right.name, 'pt-BR')))
+    setFoldersState('ok')
+    setFolder(created.name)
+    setFolderDialogOpen(false)
+    notify(`Pasta “${created.name}” criada. O que você enviar agora entra nela.`)
   }
 
-  async function createFolder(event) {
-    event.preventDefault()
-    if (!newFolderName.trim()) return
-    setCreatingFolder(true)
-    try {
-      const data = await apiFetch('/api/media-folders', { method: 'POST', body: JSON.stringify({ name: newFolderName }) })
-      const created = data.folder
-      setFolders(current => [...current, created].sort((left, right) => left.name.localeCompare(right.name, 'pt-BR')))
-      selectFolder(created.name)
-      setNewFolderName('')
-      setFolderDialogOpen(false)
-      notify(`Pasta “${created.name}” criada.`)
-    } catch (error) { notify(error.message, 'error') } finally { setCreatingFolder(false) }
+  // O PATCH do backend troca as tags pelas enviadas: toda alteração manda as tags atuais junto.
+  async function saveAsset(asset, changes) {
+    const next = { name: changes.name ?? asset.name, folder: changes.folder ?? asset.folder, tags: changes.tags ?? (asset.tags || []) }
+    await apiFetch(`/api/media-assets/${asset.id}`, { method: 'PATCH', body: JSON.stringify(next) })
+    const updated = { ...asset, ...next }
+    const leavesView = folder && next.folder !== folder
+    setAssets(current => leavesView ? current.filter(item => item.id !== asset.id) : current.map(item => (item.id === asset.id ? updated : item)))
+    setPreview(current => (current?.id === asset.id ? (leavesView ? null : updated) : current))
+    if (next.folder !== asset.folder) loadFolders().catch(() => setFoldersState('error'))
+    return updated
   }
 
-  async function upload(event) {
-    const files = [...(event.target.files || [])]
-    event.target.value = ''
-    if (!files.length) return
-    setUploading(true)
-    try {
-      for (const file of files) {
-        const signed = await apiFetch('/api/posts/upload-url', { method: 'POST', body: JSON.stringify({ filename: file.name, mimetype: file.type }) })
-        const response = await fetch(signed.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
-        if (!response.ok) throw new Error(`Não foi possível enviar ${file.name}.`)
-        const uploaded = await response.json().catch(() => null)
-        const mediaUrl = signed.mediaUrl || uploaded?.url
-        if (!mediaUrl) throw new Error(`O upload de ${file.name} não retornou uma URL.`)
-        await apiFetch('/api/media-assets', { method: 'POST', body: JSON.stringify({ name: file.name, url: mediaUrl, mimeType: file.type, sizeBytes: file.size, folder: uploadFolder || 'Geral' }) })
-      }
-      const foldersData = await apiFetch('/api/media-folders')
-      setFolders(foldersData.folders || [])
-      setFoldersState('ok')
-      await refresh()
-      notify(`${files.length} ${files.length === 1 ? 'mídia adicionada' : 'mídias adicionadas'} à biblioteca.`)
-    } catch (error) {
-      notify(error.message, 'error')
-      // Arquivos enviados antes da falha já foram salvos: atualiza a grade e as pastas.
-      loadFolders().catch(() => {})
-      refresh()
-    } finally { setUploading(false) }
+  async function submitEdit(asset, changes) {
+    await saveAsset(asset, changes)
+    setEditing(null)
+    notify('Mídia atualizada.')
+  }
+
+  async function submitMove(asset, target) {
+    await saveAsset(asset, { folder: target })
+    setMoving(null)
+    notify(`Mídia movida para “${target}”.`)
   }
 
   async function remove(asset) {
-    if (!window.confirm(`Remover ${asset.name} da biblioteca?`)) return
+    const ok = await confirm({
+      title: `Remover “${shortText(asset.name, 48)}” da biblioteca?`,
+      description: 'A mídia sai da biblioteca. Publicações que já usaram o arquivo não mudam.',
+      confirmLabel: 'Remover',
+      tone: 'danger',
+    })
+    if (!ok) return
     const index = assets.findIndex(item => item.id === asset.id)
     try { await apiFetch(`/api/media-assets/${asset.id}`, { method: 'DELETE' }) }
     catch (error) { notify(error.message, 'error'); return }
     setAssets(current => current.filter(item => item.id !== asset.id))
-    setPreview(current => current?.id === asset.id ? null : current)
+    setPreview(current => (current?.id === asset.id ? null : current))
     setFocusAfterRemoval(Math.max(index, 0))
     notify('Mídia removida.')
-    loadFolders().catch(() => {})
+    loadFolders().catch(() => setFoldersState('error'))
   }
 
   function useAssetInPost(asset) {
@@ -277,87 +288,75 @@ export function MediaLibraryPage({ onNavigate }) {
     } catch (error) { notify(error.message, 'error') }
   }
 
+
   const quality = suggestionInsights?.dataQuality
   const inferredNiche = suggestionNiche || inferNicheFromInsights(suggestionInsights)
 
   const folderOptions = [{ name: 'Geral', assetCount: folders.find(item => item.name.toLowerCase() === 'geral')?.assetCount || 0 }, ...folders.filter(item => item.name.toLowerCase() !== 'geral')]
-
   const totalAssets = folders.reduce((total, item) => total + Number(item.assetCount || 0), 0)
-  const filtered = Boolean(search || folder)
   const countsKnown = foldersState === 'ok'
-  // No celular, "Adicionar mídia" abre uma folha com a pasta de destino antes do seletor de arquivos.
-  const startUpload = () => phone ? setUploadSheetOpen(true) : fileInputRef.current?.click()
-  // No celular, "Usar no Meu Post" vai para o menu "…" e para a prévia; no resto, fica visível no cartão.
+  const currentCount = folder ? Number(folderOptions.find(option => option.name === folder)?.assetCount || 0) : totalAssets
+  const searching = Boolean(search)
   const assetMenu = asset => [
-    ...(phone ? [{ label: 'Usar no Meu Post', icon: 'compose', onSelect: () => useAssetInPost(asset) }] : []),
     { label: 'Visualizar', icon: 'eye', onSelect: () => setPreview(asset) },
+    { label: 'Editar informações', icon: 'compose', onSelect: () => setEditing(asset) },
+    { label: 'Mover para pasta', icon: 'folderMove', onSelect: () => setMoving(asset) },
+    { label: 'Usar no Meu Post', icon: 'send', onSelect: () => useAssetInPost(asset) },
     { label: 'Remover da biblioteca', icon: 'trash', danger: true, onSelect: () => remove(asset) },
   ]
-  const folderChip = (name, count, pressed, onClick, key) => <button type="button" className="ds-netswitch__opt" aria-pressed={pressed} onClick={onClick} key={key}>
+  const folderChip = (name, count, pressed, onClick, key) => <button type="button" className="ds-netswitch__opt lib-folders__opt" aria-pressed={pressed} onClick={onClick} key={key}>
+    <Icon name="folder" size={16} />
     <span>{name}</span>
     {countsKnown && <><span className="lib-folders__count" aria-hidden="true">{count}</span><span className="ds-sr-only">, {countLabel(count)}</span></>}
+  </button>
+  const uploadButton = <button type="button" className="ds-btn ds-btn--primary lib-upload__go" onClick={() => fileInputRef.current?.click()} title={`As mídias entram em “${destination}”`}>
+    <Icon name="upload" />Adicionar mídia
   </button>
 
   return <div className="ds-page lib" data-ds-root>
     <header className="ds-pagehead lib-head">
       <div className="ds-pagehead__text">
-        <p className="ds-eyebrow">Acervo</p>
         <h1 className="ds-pagehead__title">Biblioteca</h1>
-        <p className="ds-pagehead__lede">Fotos e vídeos reutilizáveis, organizados em pastas e prontos para usar no Meu Post.</p>
+        <p className="ds-pagehead__lede">Gerencie as imagens e os vídeos que você usa nas publicações.</p>
       </div>
       <div className="ds-pagehead__actions lib-upload">
-        {!phone && <span className="ds-select lib-upload__dest">
-          <select className="ds-select__control" value={uploadFolder} onChange={event => setUploadFolder(event.target.value)} aria-label="Destino dos próximos uploads">
-            {folderOptions.map(option => <option value={option.name} key={option.name}>Enviar para: {option.name}</option>)}
-          </select>
-          <Icon name="chevronDown" className="ds-select__chev" />
-        </span>}
-        <button type="button" className="ds-btn ds-btn--primary lib-upload__go" onClick={startUpload} disabled={uploading}>
-          {uploading ? <><span className="ds-spinner" aria-hidden="true" />Enviando…</> : <><Icon name="upload" />Adicionar mídia</>}
-        </button>
-        <input ref={fileInputRef} className="lib-upload__input" type="file" multiple accept="image/*,video/*" onChange={upload} disabled={uploading} tabIndex={-1} aria-hidden="true" />
+        <button type="button" className="ds-btn ds-btn--secondary" onClick={() => setFolderDialogOpen(true)}><Icon name="folder" />Nova pasta</button>
+        {uploadButton}
+        <input ref={fileInputRef} className="lib-upload__input" type="file" multiple accept={MEDIA_ACCEPT} onChange={chooseFiles} tabIndex={-1} aria-hidden="true" />
       </div>
     </header>
 
-    <section className="lib-shelf" aria-labelledby="lib-shelf-title">
+    <section className="lib-shelf" aria-labelledby="lib-shelf-title" data-dragging={dragging || undefined} {...dropHandlers}>
       <h2 className="ds-sr-only" id="lib-shelf-title" tabIndex={-1}>Mídias salvas</h2>
       {phone
-        ? <>
-          <div className="ds-searchrow">
-            <label className="ds-inputwrap">
-              <Icon name="search" />
-              <input className="ds-input" type="search" value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder="Buscar mídia…" aria-label="Buscar mídia" />
-            </label>
-            <FiltersButton count={folder ? 1 : 0} open={filtersOpen} onClick={() => setFiltersOpen(true)} />
-          </div>
-          <div className="lib-context">
-            <p className="ds-meta">{folder || 'Todas as pastas'}{countsKnown ? ` · ${countLabel(folder ? folderOptions.find(option => option.name === folder)?.assetCount || 0 : totalAssets)}` : ''}</p>
-            <button type="button" className="ds-go" onClick={() => setFolderDialogOpen(current => !current)} aria-expanded={folderDialogOpen}><Icon name="plus" size={16} />Nova pasta</button>
-          </div>
-        </>
-        : <>
-          <div className="lib-tools">
-            <label className="ds-inputwrap lib-tools__search">
-              <Icon name="search" />
-              <input className="ds-input" type="search" value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder="Buscar por nome ou tag…" aria-label="Buscar mídia" />
-            </label>
-            <button type="button" className="ds-btn ds-btn--secondary lib-tools__newfolder" onClick={() => setFolderDialogOpen(current => !current)} aria-expanded={folderDialogOpen}><Icon name="plus" />Nova pasta</button>
-          </div>
+        ? <div className="ds-searchrow">
+          <label className="ds-inputwrap">
+            <Icon name="search" />
+            <input className="ds-input" type="search" value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder="Buscar por nome ou tag…" aria-label="Buscar mídia" />
+          </label>
+          <FiltersButton count={folder ? 1 : 0} open={filtersOpen} onClick={() => setFiltersOpen(true)} />
+        </div>
+        : <div className="lib-tools">
+          <label className="ds-inputwrap lib-tools__search">
+            <Icon name="search" />
+            <input className="ds-input" type="search" value={searchInput} onChange={event => setSearchInput(event.target.value)} placeholder="Buscar por nome ou tag…" aria-label="Buscar mídia" />
+          </label>
           <div className="ds-netswitch lib-folders" role="group" aria-label="Pastas da biblioteca">
-            {folderChip('Todas', totalAssets, !folder, () => selectFolder(''), '')}
-            {folderOptions.map(option => folderChip(option.name, Number(option.assetCount || 0), folder === option.name, () => selectFolder(option.name), option.name))}
+            {folderChip('Todas', totalAssets, !folder, () => setFolder(''), '')}
+            {folderOptions.map(option => folderChip(option.name, Number(option.assetCount || 0), folder === option.name, () => setFolder(option.name), option.name))}
             {foldersState === 'error' && <button type="button" className="ds-go lib-folders__retry" onClick={() => loadFolders().catch(() => setFoldersState('error'))}>Pastas indisponíveis. Tentar de novo<Icon name="refresh" size={16} /></button>}
           </div>
-        </>}
+        </div>}
 
-      {folderDialogOpen && <form className="lib-newfolder" onSubmit={createFolder}>
-        <div className="ds-field lib-newfolder__field">
-          <label className="ds-label" htmlFor="lib-newfolder-name">Nome da nova pasta</label>
-          <input id="lib-newfolder-name" className="ds-input" autoFocus value={newFolderName} onChange={event => setNewFolderName(event.target.value)} placeholder="Ex.: Campanhas de verão" maxLength={80} />
-        </div>
-        <button type="button" className="ds-btn ds-btn--quiet" onClick={() => { setFolderDialogOpen(false); setNewFolderName('') }}>Cancelar</button>
-        <button type="submit" className="ds-btn ds-btn--primary" disabled={creatingFolder || !newFolderName.trim()}>{creatingFolder ? 'Criando…' : 'Criar pasta'}</button>
-      </form>}
+      <nav className="lib-crumb" aria-label="Local na biblioteca">
+        {folder
+          ? <><button type="button" className="lib-crumb__up" onClick={() => setFolder('')}>Todas as mídias</button><Icon name="chevronRight" size={14} className="lib-crumb__sep" /><span className="lib-crumb__here" aria-current="page"><Icon name="folder" size={16} />{folder}</span></>
+          : <span className="lib-crumb__here" aria-current="page">Todas as mídias</span>}
+        {countsKnown && !searching && <span className="ds-meta lib-crumb__count">{countLabel(currentCount)}</span>}
+        {searching && <span className="ds-meta lib-crumb__count">Resultados para “{shortText(search, 40)}”</span>}
+      </nav>
+
+      <UploadQueue items={upload.items} onRetry={upload.retry} onDismiss={upload.dismiss} onClear={upload.clearFinished} />
 
       {loadError && <div className="ds-alert lib-alert" data-tone={assets.length ? 'warning' : 'danger'} role="alert">
         <Icon name={assets.length ? 'alertTriangle' : 'alertCircle'} className="ds-alert__icon" />
@@ -367,88 +366,40 @@ export function MediaLibraryPage({ onNavigate }) {
       </div>}
 
       {loading && !loadedOnce
-        ? <div className="lib-assets" aria-busy="true"><p className="ds-sr-only" aria-live="polite">Carregando biblioteca…</p>{[1, 2, 3, 4].map(item => <div className="lib-asset" key={item}><span className="ds-skel lib-asset__skel" /><span className="ds-skel ds-skel--text" style={{ width: '70%' }} /></div>)}</div>
+        ? <div className="lib-assets" aria-busy="true"><p className="ds-sr-only" aria-live="polite">Carregando biblioteca…</p>{[1, 2, 3, 4, 5, 6, 7, 8].map(item => <div className="lib-asset lib-asset--skel" key={item}><span className="ds-skel lib-asset__skel" /><span className="ds-skel ds-skel--text" style={{ width: '70%' }} /><span className="ds-skel ds-skel--text" style={{ width: '40%' }} /></div>)}</div>
         : assets.length
           ? <>
-              <ul className="lib-assets" aria-busy={loading} ref={assetsRef}>
-                {assets.map(asset => {
-                  const size = formatSize(asset.sizeBytes)
-                  return <li className="lib-asset" key={asset.id}>
-                    <button type="button" className="lib-asset__media" onClick={() => setPreview(asset)} aria-label={`Visualizar ${asset.name}`}>
-                      {isVideo(asset)
-                        ? <><video src={asset.url} muted playsInline preload="metadata" tabIndex={-1} aria-hidden="true" /><span className="lib-asset__play" aria-hidden="true"><Icon name="play" size={18} /></span></>
-                        : <img src={asset.url} alt="" loading="lazy" decoding="async" />}
-                    </button>
-                    <div className="lib-asset__body">
-                      <div className="lib-asset__text">
-                        <p className="lib-asset__name" title={asset.name}>{asset.name}</p>
-                        <p className="ds-meta lib-asset__info">{asset.folder}{size ? ` · ${size}` : ''}</p>
-                        {asset.tags?.length ? <p className="lib-asset__tags">{asset.tags.map(tag => <span key={tag}>#{tag}</span>)}</p> : null}
-                      </div>
-                      <OverflowMenu label={`Mais ações para “${shortText(asset.name)}”`} sheetTitle={shortText(asset.name, 40)} items={assetMenu(asset)} />
-                    </div>
-                    {!phone && <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm lib-asset__use" onClick={() => useAssetInPost(asset)}><Icon name="compose" size={16} />Usar no Meu Post</button>}
-                  </li>
-                })}
-              </ul>
-              {hasMore && <div className="lib-more"><button type="button" className="ds-btn ds-btn--secondary" onClick={loadMore} disabled={loadingMore}>{loadingMore ? <><span className="ds-spinner" aria-hidden="true" />Carregando…</> : 'Carregar mais mídias'}</button></div>}
-            </>
+            <ul className="lib-assets" aria-busy={loading} ref={assetsRef}>
+              {assets.map(asset => <MediaCard key={asset.id} asset={asset} showFolder={!folder} menuItems={assetMenu(asset)} onOpen={setPreview} onUse={useAssetInPost} />)}
+            </ul>
+            {hasMore && <div className="lib-more"><button type="button" className="ds-btn ds-btn--secondary" onClick={loadMore} disabled={loadingMore}>{loadingMore ? <><span className="ds-spinner" aria-hidden="true" />Carregando…</> : 'Carregar mais mídias'}</button></div>}
+          </>
           : !loadError && <div className="ds-empty lib-empty">
-              <span className="ds-icontile ds-icontile--lg" aria-hidden="true"><Icon name={filtered ? 'search' : 'image'} /></span>
-              <p className="ds-empty__title ds-empty__title--sm">Nenhuma mídia encontrada</p>
-              <p className="ds-empty__text">{filtered ? 'Nada corresponde à busca ou à pasta escolhida.' : 'Adicione fotos ou vídeos para montar seu acervo reutilizável.'}</p>
-              <div className="ds-empty__actions">
-                {filtered
-                  ? <button type="button" className="ds-go" onClick={() => { setSearchInput(''); setSearch(''); selectFolder('') }}>Ver todas as mídias<Icon name="arrow" /></button>
-                  : <button type="button" className="ds-btn ds-btn--primary" onClick={startUpload} disabled={uploading}><Icon name="upload" />Adicionar mídia</button>}
-              </div>
-            </div>}
+            <span className="ds-icontile ds-icontile--lg" aria-hidden="true"><Icon name={searching ? 'search' : folder ? 'folder' : 'image'} /></span>
+            <p className="ds-empty__title ds-empty__title--sm">{searching ? 'Nenhuma mídia encontrada' : folder ? 'Esta pasta ainda está vazia' : 'Ainda não há mídias aqui'}</p>
+            <p className="ds-empty__text">{searching ? `Nada com “${shortText(search, 40)}” no nome ou nas tags. Tente outra palavra.` : folder ? `Envie fotos ou vídeos com a pasta “${folder}” aberta${phone ? '' : ', ou arraste os arquivos para cá'}.` : `Adicione fotos ou vídeos para reutilizar nas suas publicações${phone ? '' : ', ou arraste os arquivos para cá'}.`}</p>
+            <div className="ds-empty__actions">
+              {searching
+                ? <button type="button" className="ds-btn ds-btn--secondary" onClick={() => { setSearchInput(''); setSearch('') }}>Limpar busca</button>
+                : <button type="button" className="ds-btn ds-btn--primary" onClick={() => fileInputRef.current?.click()}><Icon name="upload" />Adicionar mídia</button>}
+            </div>
+          </div>}
+
+      {dragging && <div className="lib-dropzone" aria-hidden="true">
+        <p className="lib-dropzone__msg"><Icon name="upload" size={20} /><span>Solte para adicionar em <strong>{destination}</strong></span></p>
+      </div>}
     </section>
 
-    <Sheet
-      open={Boolean(preview)}
-      onClose={() => setPreview(null)}
-      eyebrow={preview ? kindLabel(preview) : ''}
-      title={preview?.name || ''}
-      size="lg"
-      className="lib-preview"
-      footer={preview && <>
-        <button type="button" className="ds-btn ds-btn--danger" onClick={() => remove(preview)}><Icon name="trash" />Remover</button>
-        <button type="button" className="ds-btn ds-btn--primary" onClick={() => useAssetInPost(preview)}><Icon name="compose" />Usar no Meu Post</button>
-      </>}
-    >
-      {preview && <div className="lib-preview__body">
-        <div className="lib-preview__media">
-          {isVideo(preview) ? <video src={preview.url} controls playsInline preload="metadata" /> : <img src={preview.url} alt={preview.name} />}
-        </div>
-        <dl className="lib-preview__facts">
-          <div><dt>Pasta</dt><dd>{preview.folder || 'Geral'}</dd></div>
-          {formatSize(preview.sizeBytes) && <div><dt>Tamanho</dt><dd>{formatSize(preview.sizeBytes)}</dd></div>}
-          {preview.tags?.length ? <div><dt>Tags</dt><dd>{preview.tags.map(tag => `#${tag}`).join(' ')}</dd></div> : null}
-        </dl>
-      </div>}
-    </Sheet>
+    <MediaPreview asset={preview} onClose={() => setPreview(null)} onUse={useAssetInPost} onEdit={asset => { setPreview(null); setEditing(asset) }} onMove={asset => { setPreview(null); setMoving(asset) }} onRemove={remove} />
+    <MediaEditDialog asset={editing} folders={folderOptions} onClose={() => setEditing(null)} onSave={submitEdit} />
+    <MediaMoveDialog asset={moving} folders={folderOptions} onClose={() => setMoving(null)} onMove={submitMove} />
+    <FolderDialog open={folderDialogOpen} onClose={() => setFolderDialogOpen(false)} onCreate={createFolder} />
+    {confirmDialog}
 
-    {phone && <Sheet
-      open={uploadSheetOpen}
-      onClose={() => setUploadSheetOpen(false)}
-      title="Adicionar mídia"
-      description="Fotos e vídeos; você pode escolher vários arquivos de uma vez."
-      size="sm"
-      footer={<>
-        <button type="button" className="ds-btn ds-btn--quiet" onClick={() => setUploadSheetOpen(false)}>Cancelar</button>
-        <button type="button" className="ds-btn ds-btn--primary" onClick={() => { setUploadSheetOpen(false); fileInputRef.current?.click() }}><Icon name="upload" />Escolher arquivos</button>
-      </>}
-    >
-      <FilterGroup title="Pasta de destino">
-        {folderOptions.map(option => <FilterOption key={option.name} selected={uploadFolder === option.name} onSelect={() => setUploadFolder(option.name)}>{option.name}</FilterOption>)}
-      </FilterGroup>
-    </Sheet>}
-
-    {phone && <FilterSheet open={filtersOpen} onClose={() => setFiltersOpen(false)} value={{ folder }} emptyValue={{ folder: '' }} onApply={next => selectFolder(next.folder)} title="Filtrar biblioteca">
+    {phone && <FilterSheet open={filtersOpen} onClose={() => setFiltersOpen(false)} value={{ folder }} emptyValue={{ folder: '' }} onApply={next => setFolder(next.folder)} title="Filtrar biblioteca">
       {(pending, setPending) => <FilterGroup title="Pasta">
         <FilterOption selected={!pending.folder} onSelect={() => setPending({ folder: '' })}>{countsKnown ? `Todas (${totalAssets})` : 'Todas'}</FilterOption>
-        {folderOptions.map(option => <FilterOption key={option.name} selected={pending.folder === option.name} onSelect={() => setPending({ folder: option.name })}>{countsKnown ? `${option.name} (${Number(option.assetCount || 0)})` : option.name}</FilterOption>)}
+        {folderOptions.map(option => <FilterOption key={option.name} icon="folder" selected={pending.folder === option.name} onSelect={() => setPending({ folder: option.name })}>{countsKnown ? `${option.name} (${Number(option.assetCount || 0)})` : option.name}</FilterOption>)}
       </FilterGroup>}
     </FilterSheet>}
 
@@ -469,14 +420,7 @@ export function MediaLibraryPage({ onNavigate }) {
         </div>
         <div className="ds-field">
           <label className="ds-label" htmlFor="lib-days">Período do histórico</label>
-          <span className="ds-select">
-            <select id="lib-days" className="ds-select__control" value={suggestionDays} onChange={event => setSuggestionDays(Number(event.target.value))}>
-              <option value={7}>Últimos 7 dias</option>
-              <option value={30}>Últimos 30 dias</option>
-              <option value={90}>Últimos 90 dias</option>
-            </select>
-            <Icon name="chevronDown" className="ds-select__chev" />
-          </span>
+          <Select id="lib-days" value={suggestionDays} onChange={value => setSuggestionDays(Number(value))} options={SUGGESTION_PERIODS} sheetTitle="Período do histórico" />
         </div>
         <div className="ds-field lib-ideas__nets">
           <p className="ds-label">Redes para adaptar <span className="ds-label__req">{suggestionPlatforms.length} selecionada{suggestionPlatforms.length === 1 ? '' : 's'}</span></p>
