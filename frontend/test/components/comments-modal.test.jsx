@@ -100,4 +100,27 @@ describe('CommentsModal', () => {
     expect(reply.closest('.comment-replies')).toBeInTheDocument()
     expect(reply.closest('.comment-row')).toHaveClass('comment-row-platform-instagram', 'comment-row-nested')
   })
+
+  it('mantém o rascunho quando a lista do Inbox recria o mesmo post', async () => {
+    const apiFetchMock = vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/posts/42/comments') return Promise.resolve({
+        comments: [{ id: 'comment-1', author: 'Ana', text: 'Comentário original', createdAt: '2026-09-07T12:00:00Z' }],
+        post: { id: 42, platform: 'instagram', replySupported: true }
+      })
+      if (path === '/api/saved-texts') return Promise.resolve({ savedTexts: [] })
+      return Promise.resolve({})
+    })
+    const post = { id: 42, platform: 'instagram', text: 'Meu post', replySupported: true }
+    const { rerender } = render(<CommentsModal embedded postId={42} initialPost={post} onClose={() => {}} />)
+
+    const replyInput = await screen.findByPlaceholderText('Responder este comentário...')
+    fireEvent.change(replyInput, { target: { value: 'Rascunho em andamento' } })
+
+    // A atualização periódica do Inbox entrega um objeto novo para o mesmo post
+    // e um onClose novo; nada disso pode reiniciar a conversa.
+    rerender(<CommentsModal embedded postId={42} initialPost={{ ...post }} onClose={() => {}} />)
+
+    expect(screen.getByPlaceholderText('Responder este comentário...')).toHaveValue('Rascunho em andamento')
+    expect(apiFetchMock.mock.calls.filter(([path]) => path === '/api/posts/42/comments')).toHaveLength(1)
+  })
 })

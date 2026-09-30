@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../../lib/api.js'
-import { PlatformIcon } from '../ui/platform-icon.jsx'
+import { Icon, NetworkGlyph } from '../ui/icon.jsx'
 
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', linkedin: 'LinkedIn', threads: 'Threads', reddit: 'Reddit', bluesky: 'Bluesky', x: 'X', twitter: 'X', tiktok: 'TikTok' }
 const COMMENTS_REFRESH_INTERVAL_MS = 60_000
@@ -45,6 +45,14 @@ function flattenComments(items, inheritedParentId = null, seen = new Set()) {
   })
 }
 
+// YouTube e Facebook devolvem o nome de exibição do autor, não um @usuário.
+const DISPLAY_NAME_PLATFORMS = new Set(['youtube', 'facebook'])
+
+function authorLabel(author, platform) {
+  const name = String(author || '').replace(/^@/, '')
+  return DISPLAY_NAME_PLATFORMS.has(String(platform || '').toLowerCase()) ? name : `@${name}`
+}
+
 function platformKey(value) {
   return String(value || 'social').toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'social'
 }
@@ -79,7 +87,7 @@ function SafeMedia({ item, index }) {
   if (isVideo && failed === 'video' && poster) return <img src={poster} alt={`Prévia da mídia ${index + 1} da publicação`} onError={() => setFailed('poster')} />
   if (poster && poster !== source && !failed) return <img src={poster} alt={`Prévia da mídia ${index + 1} da publicação`} onError={() => setFailed('poster')} />
   if (!failed) return <img src={source} alt={`Mídia ${index + 1} da publicação`} onError={() => setFailed('image')} />
-  return <div className="comments-post-media-fallback">Prévia indisponível</div>
+  return <div className="cm-media__fallback">Prévia indisponível</div>
 }
 
 function previewFromInboxPost(post) {
@@ -109,35 +117,29 @@ function PostPreview({ post }) {
   const isYoutube = platform === 'youtube'
 
   const media = items.length > 0
-    ? <div className="comments-post-media" aria-label={`${items.length} mídia${items.length > 1 ? 's' : ''} da publicação`}>
+    ? <div className="cm-media" aria-label={`${items.length} mídia${items.length > 1 ? 's' : ''} da publicação`}>
         {items.map((item, index) => <SafeMedia key={`${item.url || item.path || index}-${index}`} item={item} index={index} />)}
       </div>
-    : <div className="comments-post-media-empty">Esta publicação não tem mídia disponível para visualização.</div>
+    : <p className="cm-media__none">Esta publicação não tem mídia disponível para visualização.</p>
 
-  return <article className={`comments-post-preview comments-post-preview-${platform}`}>
-    <header className="comments-post-account">
-      <SafeAvatar src={post.avatarUrl} className={`comments-post-avatar comments-post-avatar-${platform}`} fallback={<PlatformIcon platform={platform} className="h-4 w-4" />} />
-      <span className="comments-post-account-copy"><strong>{handle}</strong><small>{label} · publicado em {formatDate(post.publishedAt)}</small></span>
-      <span className="comments-post-platform-icon" aria-hidden="true"><PlatformIcon platform={platform} className="h-4 w-4" /></span>
+  return <article className={`cm-post cm-post--${platformKey(platform)}`}>
+    <header className="cm-post__account">
+      <SafeAvatar src={post.avatarUrl} className="cm-avatar" fallback={<NetworkGlyph network={platform} size={16} />} />
+      <span className="cm-post__who"><strong>{handle}</strong><small><NetworkGlyph network={platform} size={14} />{label} · publicado em {formatDate(post.publishedAt)}</small></span>
     </header>
-
-    {isFacebook && caption && <p className="comments-post-caption comments-post-caption-top">{caption}</p>}
+    {isFacebook && <p className="cm-post__caption">{caption || 'Publicação sem texto.'}</p>}
     {media}
-    {isYoutube && <div className="comments-post-youtube-copy"><strong>{post.youtubeTitle || caption || 'Vídeo publicado'}</strong>{post.youtubeTitle && caption && <p>{caption}</p>}</div>}
-    {!isFacebook && !isYoutube && caption && <p className="comments-post-caption">{caption}</p>}
-    {!isFacebook && isYoutube && !post.youtubeTitle && !caption && null}
-    {isFacebook && !caption && <p className="comments-post-caption comments-post-caption-empty">Publicação sem texto.</p>}
-    <div className="comments-post-actions" aria-hidden="true">
-      <span>♡ Curtir</span><span>◌ Comentar</span><span>↗ Compartilhar</span>
-    </div>
+    {isYoutube && <div className="cm-post__yt"><strong>{post.youtubeTitle || caption || 'Vídeo publicado'}</strong>{post.youtubeTitle && caption && <p>{caption}</p>}</div>}
+    {!isFacebook && !isYoutube && caption && <p className="cm-post__caption">{caption}</p>}
   </article>
 }
 
-function CommentRow({ comment, postId, post, platform, replySupported, onReplied, onReplySent, savedTexts = [], remoteReplies = [], replies = [], repliesFor = () => [] }) {
+function CommentRow({ comment, postId, post, platform, replySupported, onReplied, onReplySent, onSavedText, savedTexts = [], remoteReplies = [], replies = [], repliesFor = () => [] }) {
   const [replyText, setReplyText] = useState('')
   const [sentReplies, setSentReplies] = useState([])
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
   const data = comment.createdAt ? formatDate(comment.createdAt) : ''
   const author = comment.author || 'desconhecido'
   const authorAvatar = comment.authorAvatarUrl || comment.profilePictureUrl || comment.avatarUrl || null
@@ -151,6 +153,7 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
     if (!text) return setError('Escreva uma resposta antes de enviar')
     setSending(true)
     setError('')
+    setNotice('')
     try {
       const request = post?.remote
         ? { url: '/api/posts/inbox/remote-comments/reply', body: { platform: post.externalPlatform, accountId: post.zernioAccountId, postId: post.externalPostId, commentId: comment.id, text } }
@@ -177,40 +180,46 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
     if (!text) return setError('Escreva a resposta antes de salvar.')
     try {
       await apiFetch('/api/saved-texts', { method: 'POST', body: JSON.stringify({ title: 'Resposta salva', body: text }) })
-      setError('Resposta salva na biblioteca de textos.')
-    } catch (caught) { setError(caught.message) }
+      setError('')
+      setNotice('Resposta salva na biblioteca de textos.')
+      onSavedText?.()
+    } catch (caught) { setNotice(''); setError(caught.message) }
   }
 
+  const topLevel = commentParentId(comment) === null
   return <article className={`comment-row comment-row-platform-${platformClass}${isReply ? ' comment-row-nested' : ''}`} data-platform={platformClass}>
-    <div className="comment-author-line">
-      <SafeAvatar src={authorAvatar} className="comment-author-avatar" fallback={author.slice(0, 1).toUpperCase()} />
-      <div className="comment-author-copy">
-        <span className="comment-author">@{author.replace(/^@/, '')}</span>
-        <span className="comment-source-badge"><PlatformIcon platform={platform} className="h-3 w-3" />{isReply ? `Resposta sincronizada · ${platformLabel}` : `Recebido do ${platformLabel}`}</span>
-      </div>
+    <div className="cm-comment__head">
+      <SafeAvatar src={authorAvatar} className="cm-avatar cm-avatar--sm" fallback={author.slice(0, 1).toUpperCase()} />
+      <span className="cm-comment__author">{authorLabel(author, platform)}</span>
+      <span className="cm-comment__meta">
+        <NetworkGlyph network={platform} size={14} />{isReply ? `Resposta sincronizada · ${platformLabel}` : `Recebido do ${platformLabel}`}{data && <> · <time>{data}</time></>}
+      </span>
     </div>
-    <div className="comment-message"><p className="comment-text">{comment.text}</p></div>
-    {data && <div className="comment-meta"><span className="comment-date">{data}</span>{isReply && <span className="comment-reply-context">↳ resposta ao comentário</span>}</div>}
-    {sentReplies.filter(reply => !remoteReplies.some(remoteReply => remoteReply.text === reply.text)).map(reply => <div className="comment-own-reply" key={reply.id}>
-      <div className="comment-own-reply-heading"><span>↳</span><strong>Sua resposta</strong><small>publicada agora</small></div>
+    <p className="comment-text">{comment.text}</p>
+    {sentReplies.filter(reply => !remoteReplies.some(remoteReply => remoteReply.text === reply.text)).map(reply => <div className="cm-own" key={reply.id}>
+      <p className="cm-own__head"><Icon name="reply" size={14} /><strong>Sua resposta</strong><small>publicada agora</small></p>
       <p>{reply.text}</p>
     </div>)}
     {replies.length > 0 && <div className="comment-replies" aria-label="Respostas deste comentário">
-      {replies.map(reply => <CommentRow key={reply.id} comment={reply} postId={postId} post={post} platform={platform} replySupported={replySupported} onReplied={onReplied} onReplySent={onReplySent} savedTexts={savedTexts} remoteReplies={repliesFor(reply.id)} replies={repliesFor(reply.id)} repliesFor={repliesFor} />)}
+      {replies.map(reply => <CommentRow key={reply.id} comment={reply} postId={postId} post={post} platform={platform} replySupported={replySupported} onReplied={onReplied} onReplySent={onReplySent} onSavedText={onSavedText} savedTexts={savedTexts} remoteReplies={repliesFor(reply.id)} replies={repliesFor(reply.id)} repliesFor={repliesFor} />)}
     </div>}
-    {commentParentId(comment) === null && replySupported
-      ? <div className="comment-reply-composer">
-          <span className="comment-reply-destination">Será publicada no {PLATFORM_LABELS[platform] || platform || 'rede social'}</span>
-          <div className="comment-reply-identity"><SafeAvatar src={post?.avatarUrl} className="comment-reply-identity-avatar" fallback={<PlatformIcon platform={platform} className="h-3 w-3" />} /><span>Respondendo como <strong>@{String(viewerName).replace(/^@/, '')}</strong></span></div>
-          <div className="comment-reply-form">
-          <input type="text" value={replyText} onChange={event => setReplyText(event.target.value)} placeholder="Responder este comentário..." aria-label="Resposta ao comentário" disabled={sending} onKeyDown={event => { if (event.key === 'Enter') send() }} />
-          <button type="button" className="action-button" onClick={send} disabled={sending}>{sending ? 'Publicando…' : 'Responder'}</button>
+    {topLevel && replySupported
+      ? <div className="cm-reply" data-active={replyText ? 'true' : undefined}>
+          <div className="cm-reply__form">
+            <input type="text" className="ds-input" value={replyText} onChange={event => setReplyText(event.target.value)} placeholder="Responder este comentário..." aria-label="Resposta ao comentário" disabled={sending} onKeyDown={event => { if (event.key === 'Enter') send() }} />
+            <button type="button" className="ds-btn ds-btn--primary ds-btn--sm" onClick={send} disabled={sending}>{sending ? 'Publicando…' : 'Responder'}</button>
           </div>
-          {savedTexts.length > 0 && <select className="mt-2 w-full rounded-lg border border-subtle bg-app px-2 py-1 text-xs text-zinc-300" value="" onChange={event => setReplyText(event.target.value)}><option value="">Usar resposta salva…</option>{savedTexts.map(item => <option value={item.body} key={item.id}>{item.title || item.body.slice(0, 50)}</option>)}</select>}
-          <button type="button" className="link-button mt-1" onClick={saveReply}>Salvar texto atual</button>
+          <div className="cm-reply__tools">
+            <span className="cm-reply__as">Respondendo como <strong>@{String(viewerName).replace(/^@/, '')}</strong> · será publicada no {PLATFORM_LABELS[platform] || platform || 'rede social'}</span>
+            <span className="cm-reply__actions">
+              {savedTexts.length > 0 && <span className="ds-select cm-reply__saved"><select className="ds-select__control" aria-label="Usar resposta salva" value="" onChange={event => setReplyText(event.target.value)}><option value="">Usar resposta salva…</option>{savedTexts.map(item => <option value={item.body} key={item.id}>{item.title && item.title !== 'Resposta salva' ? item.title : item.body.slice(0, 50)}</option>)}</select><Icon name="chevronDown" className="ds-select__chev" /></span>}
+              <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm" onClick={saveReply}><Icon name="bookmark" size={16} />Salvar texto atual</button>
+            </span>
+          </div>
         </div>
-      : commentParentId(comment) === null && <p className="comment-reply-unavailable">A resposta automática ainda não está disponível para esta rede.</p>}
-    {error && <p className="error-message comment-reply-error">{error}</p>}
+      : topLevel && <p className="cm-reply__off">A resposta pelo Meu Ecoo ainda não está disponível para esta rede.</p>}
+    {error && <p className="ds-fieldmsg cm-comment__msg" role="alert"><Icon name="alertCircle" size={16} />{error}</p>}
+    {notice && <p className="ds-fieldmsg cm-comment__msg" data-tone="success"><Icon name="checkCircle" size={16} />{notice}</p>}
   </article>
 }
 
@@ -221,12 +230,21 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
   const [error, setError] = useState('')
   const [waitingForComments, setWaitingForComments] = useState(false)
   const [savedTexts, setSavedTexts] = useState([])
+  const dialogRef = useRef(null)
+  // A lista do Inbox é recriada a cada atualização; guardar o post e o onClose
+  // em refs evita reiniciar a conversa (e apagar rascunhos) sem troca de post.
+  const initialPostRef = useRef(initialPost)
+  const onCloseRef = useRef(onClose)
+  initialPostRef.current = initialPost
+  onCloseRef.current = onClose
+  const remoteKey = initialPost?.remote ? [initialPost.externalPlatform, initialPost.zernioAccountId, initialPost.externalPostId].join('|') : ''
 
   const load = useCallback((silent = false, signal) => {
+    const source = initialPostRef.current
     if (!silent) setLoading(true)
     setError('')
-    const remote = initialPost?.remote
-      ? `?platform=${encodeURIComponent(initialPost.externalPlatform)}&accountId=${encodeURIComponent(initialPost.zernioAccountId)}&postId=${encodeURIComponent(initialPost.externalPostId)}`
+    const remote = source?.remote
+      ? `?platform=${encodeURIComponent(source.externalPlatform)}&accountId=${encodeURIComponent(source.zernioAccountId)}&postId=${encodeURIComponent(source.externalPostId)}`
       : ''
     return apiFetch(remote ? `/api/posts/inbox/remote-comments${remote}` : `/api/posts/${postId}/comments`, { signal })
       .then(result => {
@@ -235,7 +253,7 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
         setComments(nextComments)
         setPost(current => ({ ...(current || {}), ...(result.post || {}) }))
         setError(result.error || '')
-        if (nextComments.length && !initialPost?.remote) apiFetch(`/api/posts/${postId}/comments/seen`, { method: 'POST', body: JSON.stringify({ commentIds: nextComments.map(comment => comment.id) }) }).catch(() => {})
+        if (nextComments.length && !source?.remote) apiFetch(`/api/posts/${postId}/comments/seen`, { method: 'POST', body: JSON.stringify({ commentIds: nextComments.map(comment => comment.id) }) }).catch(() => {})
         return { hasComments: nextComments.length > 0, hasError: Boolean(result.error) }
       })
       .catch(caught => {
@@ -244,7 +262,8 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
         return { hasComments: false, hasError: true }
       })
       .finally(() => { if (!silent && !signal?.aborted) setLoading(false) })
-  }, [initialPost, postId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [postId, remoteKey])
 
   useEffect(() => {
     let active = true
@@ -253,7 +272,7 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
     let version = 0
 
     // Mostra o post escolhido imediatamente, sem esperar a rede social.
-    setPost(previewFromInboxPost(initialPost))
+    setPost(previewFromInboxPost(initialPostRef.current))
     setComments([])
     setError('')
     setWaitingForComments(false)
@@ -277,7 +296,7 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
     const onFocus = () => refresh(true)
     refresh()
     window.addEventListener('focus', onFocus)
-    const closeWithEscape = event => { if (event.key === 'Escape') onClose() }
+    const closeWithEscape = event => { if (event.key === 'Escape') onCloseRef.current?.() }
     document.addEventListener('keydown', closeWithEscape)
     return () => {
       active = false
@@ -286,9 +305,14 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
       window.removeEventListener('focus', onFocus)
       document.removeEventListener('keydown', closeWithEscape)
     }
-  }, [load, onClose, postId])
+  }, [load, postId])
 
-  useEffect(() => { apiFetch('/api/saved-texts').then(data => setSavedTexts(data.savedTexts || [])).catch(() => {}) }, [])
+  const loadSavedTexts = useCallback(() => apiFetch('/api/saved-texts').then(data => setSavedTexts(data.savedTexts || [])).catch(() => {}), [])
+  useEffect(() => { loadSavedTexts() }, [loadSavedTexts])
+  useEffect(() => {
+    if (embedded) return
+    dialogRef.current?.querySelector('.cm-close')?.focus({ preventScroll: true })
+  }, [embedded])
 
   const visiblePost = post && String(post.id) === String(postId) ? post : previewFromInboxPost(initialPost)
   const repliesByParent = new Map()
@@ -302,20 +326,40 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
   })
   const repliesFor = commentId => repliesByParent.get(String(commentId)) || []
   const topLevelComments = comments.filter(comment => commentParentId(comment) === null)
-  const content = <div className={`modal-content${embedded ? ' comments-embedded-content' : ''}`} onClick={event => event.stopPropagation()}>
-    <div className="modal-header comments-header">
-      <div><p className="eyebrow">PUBLICAÇÃO PUBLICADA</p><h3>Comentários e respostas</h3><p className="comments-conversation-title">Confira o conteúdo e responda sua comunidade sem sair do Inbox.</p></div>
-      {!embedded && <button type="button" className="link-button" onClick={onClose} aria-label="Fechar">✕</button>}
-    </div>
+  const platformClass = platformKey(visiblePost?.platform)
+  const body = <>
     <PostPreview post={visiblePost} />
-    {error && <p className="error-message" style={{ textAlign: 'center', padding: '1.5rem' }}>{error}</p>}
-    {!error && loading && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Carregando publicação e comentários...</p>}
-    {!error && !loading && !comments.length && waitingForComments && <p className="empty-state" role="status" aria-live="polite" style={{ textAlign: 'center', padding: '1.5rem' }}>Aguardando a sincronização dos comentários… verificando novamente.</p>}
-    {!error && !loading && !comments.length && !waitingForComments && <p className="empty-state" style={{ textAlign: 'center', padding: '1.5rem' }}>Nenhum comentário ainda.</p>}
-    {!error && !loading && topLevelComments.length > 0 && <div className={`comments-list comments-list-platform-${platformKey(visiblePost?.platform)}`} aria-label="Comentários da publicação">
-      {topLevelComments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={() => load(true)} onReplySent={onReplySent} savedTexts={savedTexts} remoteReplies={repliesFor(comment.id)} replies={repliesFor(comment.id)} repliesFor={repliesFor} />)}
-    </div>}
-  </div>
+    <div className="cm-body">
+      {error && <p className="ds-alert cm-state" data-tone="danger" role="alert"><Icon name="alertCircle" className="ds-alert__icon" /><span className="ds-alert__text">{error}</span></p>}
+      {!error && loading && <p className="cm-state" aria-live="polite"><span className="ds-spinner" aria-hidden="true" />Carregando publicação e comentários...</p>}
+      {!error && !loading && !comments.length && waitingForComments && <p className="cm-state" role="status" aria-live="polite">Aguardando a sincronização dos comentários… verificando novamente.</p>}
+      {!error && !loading && !comments.length && !waitingForComments && <p className="cm-state">Nenhum comentário ainda.</p>}
+      {!error && !loading && topLevelComments.length > 0 && <div className={`cm-thread cm-thread--${platformClass}`} aria-label="Comentários da publicação">
+        {topLevelComments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={() => load(true)} onReplySent={onReplySent} onSavedText={loadSavedTexts} savedTexts={savedTexts} remoteReplies={repliesFor(comment.id)} replies={repliesFor(comment.id)} repliesFor={repliesFor} />)}
+      </div>}
+    </div>
+  </>
 
-  return embedded ? <section className="comments-embedded-panel" aria-label="Conversa da publicação">{content}</section> : <div className="modal-overlay" onClick={onClose}>{content}</div>
+  if (embedded) {
+    return <section className="cm cm--embedded" aria-label="Conversa da publicação">
+      <header className="cm-head">
+        <p className="ds-eyebrow">Conversa</p>
+        <h2 className="cm-head__title">Comentários e respostas</h2>
+      </header>
+      {body}
+    </section>
+  }
+
+  return <div className="ds-scrim cm-scrim" data-ds-root role="presentation" onClick={onClose}>
+    <section ref={dialogRef} className="ds-modal ds-modal--lg cm cm--modal" role="dialog" aria-modal="true" aria-labelledby="cm-dialog-title" onClick={event => event.stopPropagation()}>
+      <header className="ds-modal__head">
+        <div className="ds-modal__heading">
+          <p className="ds-eyebrow">Conversa</p>
+          <h2 className="ds-modal__title" id="cm-dialog-title">Comentários e respostas</h2>
+        </div>
+        <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-modal__close cm-close" onClick={onClose} aria-label="Fechar"><Icon name="close" /></button>
+      </header>
+      <div className="ds-modal__body cm-scroll">{body}</div>
+    </section>
+  </div>
 }

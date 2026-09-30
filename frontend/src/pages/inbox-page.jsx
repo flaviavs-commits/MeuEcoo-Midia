@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { useApiResource } from '../hooks/use-api-resource.js'
-import { PlatformIcon } from '../components/ui/platform-icon.jsx'
+import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { CommentsModal } from '../components/analytics/comments-modal.jsx'
-import { LoadingState } from '../components/ui/loading-state.jsx'
 
 const INBOX_FILTERS_KEY = 'meu-ecoo:inbox-filters'
 const INBOX_REFRESH_INTERVAL_MS = 60_000
@@ -14,6 +13,7 @@ const inboxPlatforms = [
   { id: 'youtube', label: 'YouTube' },
   { id: 'tiktok', label: 'TikTok' },
 ]
+const NETWORK_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok', linkedin: 'LinkedIn', threads: 'Threads', reddit: 'Reddit', bluesky: 'Bluesky', x: 'X', twitter: 'X' }
 
 function readInboxFilters() {
   try { return JSON.parse(localStorage.getItem(INBOX_FILTERS_KEY) || '{}') } catch { return {} }
@@ -46,11 +46,12 @@ export function InboxMediaPreview({ media }) {
   const [candidateIndex, setCandidateIndex] = useState(0)
   const previewSource = candidates[candidateIndex]
 
-  if (!previewSource) return <span>{media ? '▶' : '◎'}</span>
+  if (!previewSource) return <Icon name={media ? 'play' : 'image'} size={18} />
   return <img src={previewSource} alt="Prévia da publicação" onError={() => setCandidateIndex(index => index + 1)} />
 }
 
 export function InboxPage() {
+  const conversationRef = useRef(null)
   const [platform, setPlatform] = useState(() => readInboxFilters().platform || 'all')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(readInboxStatusFilter)
@@ -102,7 +103,9 @@ export function InboxPage() {
       window.removeEventListener('focus', refresh)
     }
   }, [load, loadUnanswered, setError, setPosts])
-  useEffect(() => { localStorage.setItem(INBOX_FILTERS_KEY, JSON.stringify({ platform, status: statusFilter })) }, [platform, statusFilter])
+  useEffect(() => {
+    try { localStorage.setItem(INBOX_FILTERS_KEY, JSON.stringify({ platform, status: statusFilter })) } catch { /* armazenamento indisponível */ }
+  }, [platform, statusFilter])
 
   const visiblePosts = useMemo(() => {
     const query = search.trim().toLowerCase()
@@ -115,7 +118,6 @@ export function InboxPage() {
     })
   }, [posts, search, statusFilter, unanswered])
   const totalUnanswered = Object.values(unanswered).reduce((sum, value) => sum + Number(value || 0), 0)
-  const monitoredPlatforms = new Set(visiblePosts.map(post => post.externalPlatform || post.platform).filter(Boolean)).size
   const selectedPost = visiblePosts.find(post => post.id === selectedPostId) || null
 
   useEffect(() => {
@@ -123,22 +125,121 @@ export function InboxPage() {
     if (!visiblePosts.some(post => post.id === selectedPostId)) setSelectedPostId(visiblePosts[0].id)
   }, [visiblePosts, selectedPostId])
 
-  return <section className="page-view inbox-page"><section className="panel inbox-panel">
-    <div className="inbox-heading"><div><p className="eyebrow">CENTRAL DE INTERAÇÕES</p><h2>Inbox</h2><p>Veja o que foi publicado, acompanhe os comentários e responda sua comunidade em um só lugar.</p></div><div className="inbox-heading-meta"><span className="inbox-live-status"><i aria-hidden="true" />Monitoramento ativo</span>{totalUnanswered > 0 && <span className="inbox-unanswered-total">{totalUnanswered} comentário{totalUnanswered > 1 ? 's' : ''} não respondido{totalUnanswered > 1 ? 's' : ''}</span>}</div></div>
-    {error && <p className="error-message" role="alert">{error}</p>}
-    <div className="inbox-overview"><div><span>Publicações com interações</span><strong>{visiblePosts.length}</strong><small>no filtro atual</small></div><div><span>Comentários não respondidos</span><strong className={totalUnanswered ? 'is-alert' : ''}>{totalUnanswered}</strong><small>{totalUnanswered ? 'aguardam sua resposta' : 'tudo respondido'}</small></div><div><span>Redes monitoradas</span><strong>{monitoredPlatforms}</strong><small>com atividade recente</small></div></div>
-    <div className="inbox-platform-filter" role="group" aria-label="Escolher rede social"><span className="inbox-platform-filter-label">Ver interações de</span>{inboxPlatforms.map(item => <button type="button" className={`inbox-platform-filter-card${platform === item.id ? ' is-active' : ''} inbox-platform-filter-${item.id}`} key={item.id} onClick={() => setPlatform(item.id)} aria-pressed={platform === item.id}>{item.id === 'all' ? <span className="inbox-platform-filter-icon" aria-hidden="true">◎</span> : <span className="inbox-platform-filter-icon" aria-hidden="true"><PlatformIcon platform={item.id} className="h-6 w-6"/></span>}<span><strong>{item.label}</strong><small>{platform === item.id ? 'Selecionada' : 'Selecionar'}</small></span></button>)}</div>
-    <div className="inbox-toolbar"><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar publicação..." aria-label="Buscar publicação no Inbox"/><select value={statusFilter} onChange={event => setStatusFilter(event.target.value)} aria-label="Filtrar status de resposta"><option value="all">Todos os status</option><option value="unanswered">Não respondidos</option><option value="answered">Respondidos</option></select></div>
-    {loading ? <LoadingState>Carregando interações...</LoadingState> : visiblePosts.length ? <div className="inbox-workspace"><div className="inbox-list-pane"><div className="inbox-list">{visiblePosts.map(post => {
-      const count = Number(unanswered[post.id] || 0)
-      const network = post.externalPlatform || post.platform
-      const media = firstMediaOf(post)
-      return <article className={`inbox-item${count ? ' has-unanswered' : ''}${selectedPostId === post.id ? ' is-active' : ''}`} key={post.id}>
-        <span className={`inbox-item-media${media?.type === 'video' || media?.type === 'VIDEO' ? ' is-video' : ''}`} aria-hidden="true"><InboxMediaPreview media={media} /></span>
-        <span className={`inbox-platform inbox-platform-${network}`} aria-hidden="true"><PlatformIcon platform={network} className="h-4 w-4" /></span>
-        <div className="inbox-item-body"><strong>{post.text || post.title || 'Publicação'}</strong><small><span>{network}</span>{post.handle ? ` · @${String(post.handle).replace(/^@/, '')}` : ''} · {post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('pt-BR') : 'Publicação recente'} · {post.commentCount || 0} comentários</small></div>
-        <div className="inbox-item-actions">{count > 0 && <span className="inbox-unanswered-badge">{count} não respondido{count > 1 ? 's' : ''}</span>}<button type="button" className="action-button" onClick={() => setSelectedPostId(post.id)}>Abrir conversa</button></div>
-      </article>
-    })}</div></div><div className="inbox-conversation-pane">{selectedPostId != null ? <CommentsModal embedded postId={selectedPostId} initialPost={selectedPost} onClose={handleConversationClose} onReplySent={handleReplySent}/> : <div className="inbox-conversation-empty"><span aria-hidden="true">💬</span><strong>Selecione uma publicação</strong><p>Os comentários e as respostas aparecerão aqui.</p></div>}</div></div> : <div className="inbox-empty"><span aria-hidden="true">◎</span><p>{search ? 'Nenhuma publicação corresponde à busca.' : 'Nenhuma interação encontrada.'}</p>{(search || statusFilter !== 'all' || platform !== 'all') && <button type="button" className="link-button" onClick={() => { setSearch(''); setPlatform('all'); setStatusFilter('all') }}>Limpar filtros</button>}</div>}
-  </section></section>
+  const filtersActive = Boolean(search) || statusFilter !== 'all' || platform !== 'all'
+
+  function clearFilters() {
+    setSearch('')
+    setPlatform('all')
+    setStatusFilter('all')
+  }
+
+  // Abre a conversa; em telas estreitas a conversa fica abaixo da lista, então
+  // a tela rola até ela e o foco acompanha.
+  function openConversation(postId) {
+    setSelectedPostId(postId)
+    if (typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 1023px)').matches) {
+      window.requestAnimationFrame(() => {
+        conversationRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        conversationRef.current?.focus({ preventScroll: true })
+      })
+    }
+  }
+
+  return <div className="ds-page inx" data-ds-root>
+    <header className="ds-pagehead inx-head">
+      <div className="ds-pagehead__text">
+        <p className="ds-eyebrow">Comentários</p>
+        <h1 className="ds-pagehead__title">Inbox</h1>
+        <p className="ds-pagehead__lede">Veja os comentários das suas publicações e responda sua comunidade em um só lugar.</p>
+      </div>
+      <div className="ds-pagehead__actions">
+        <span className="ds-status ds-status--soft" data-status={error ? 'warning' : 'ok'}><Icon name={error ? 'alertTriangle' : 'refresh'} />{error ? 'Última atualização falhou' : 'Atualiza a cada minuto'}</span>
+      </div>
+    </header>
+
+    <div className="inx-filters">
+      <div className="ds-netswitch inx-filters__nets" role="group" aria-label="Escolher rede social">
+        {inboxPlatforms.map(item => <button type="button" className="ds-netswitch__opt" key={item.id} onClick={() => setPlatform(item.id)} aria-pressed={platform === item.id}>
+          <NetworkGlyph network={item.id} size={16} />{item.label}
+        </button>)}
+      </div>
+      <div className="inx-filters__line">
+        <label className="ds-inputwrap inx-filters__search">
+          <Icon name="search" />
+          <input className="ds-input" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar pelo texto da publicação..." aria-label="Buscar publicação no Inbox" />
+        </label>
+        <span className="ds-select inx-filters__status">
+          <select className="ds-select__control" value={statusFilter} onChange={event => setStatusFilter(event.target.value)} aria-label="Filtrar status de resposta">
+            <option value="all">Todos os status</option>
+            <option value="unanswered">Não respondidos</option>
+            <option value="answered">Sem pendências</option>
+          </select>
+          <Icon name="chevronDown" className="ds-select__chev" />
+        </span>
+      </div>
+    </div>
+
+    {error && <div className="ds-alert inx-alert" data-tone="danger" role="alert">
+      <Icon name="alertCircle" className="ds-alert__icon" />
+      <p className="ds-alert__title">Não foi possível atualizar o Inbox</p>
+      <p className="ds-alert__text">{error}</p>
+    </div>}
+
+    {loading
+      ? <div className="inx-work" aria-busy="true">
+          <p className="ds-sr-only" aria-live="polite">Carregando interações...</p>
+          <div className="inx-list">{[1, 2, 3, 4].map(item => <div className="inx-skel" key={item}><span className="ds-skel" style={{ width: 52, height: 52, borderRadius: 10 }} /><span className="ds-stack" style={{ '--gap': '8px', flex: 1 }}><span className="ds-skel ds-skel--text" style={{ width: '80%' }} /><span className="ds-skel ds-skel--text" style={{ width: '50%' }} /></span></div>)}</div>
+          <div className="inx-conv"><span className="ds-skel ds-skel--block" /></div>
+        </div>
+      : visiblePosts.length
+        ? <div className="inx-work">
+            <section className="inx-list" aria-labelledby="inx-list-title">
+              <div className="inx-list__head">
+                <h2 className="inx-list__title" id="inx-list-title">Publicações</h2>
+                <p className="ds-meta"><span className="ds-num">{visiblePosts.length}</span> no filtro{totalUnanswered > 0 && <> · <span className="inx-pending"><span className="ds-num">{totalUnanswered}</span> {totalUnanswered === 1 ? 'comentário sem resposta' : 'comentários sem resposta'}</span></>}</p>
+              </div>
+              <ul className="inx-items">
+                {visiblePosts.map(post => {
+                  const count = Number(unanswered[post.id] || 0)
+                  const network = post.externalPlatform || post.platform
+                  const media = firstMediaOf(post)
+                  const selected = selectedPostId === post.id
+                  return <li key={post.id}>
+                    <button type="button" className="inx-item" aria-current={selected ? 'true' : undefined} onClick={() => openConversation(post.id)}>
+                      <span className={`inx-item__media${String(media?.type || '').toLowerCase() === 'video' ? ' is-video' : ''}`} aria-hidden="true"><InboxMediaPreview media={media} /></span>
+                      <span className="inx-item__body">
+                        <span className="inx-item__text">{post.text || post.title || 'Publicação'}</span>
+                        <span className="inx-item__meta">
+                          <NetworkGlyph network={network} size={14} />
+                          <span>{NETWORK_LABELS[network] || network}</span>
+                          {post.handle && <span>@{String(post.handle).replace(/^@/, '')}</span>}
+                          <span>{post.publishedAt ? new Date(post.publishedAt).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }) : 'Publicação recente'}</span>
+                          {post.commentCount != null && <span>{post.commentCount} {Number(post.commentCount) === 1 ? 'comentário' : 'comentários'}</span>}
+                        </span>
+                      </span>
+                      {count > 0 && <span className="ds-badge inx-item__badge" data-tone="danger"><span className="ds-num">{count}</span><span className="ds-sr-only"> {count === 1 ? 'comentário sem resposta' : 'comentários sem resposta'}</span></span>}
+                    </button>
+                  </li>
+                })}
+              </ul>
+            </section>
+            <div className="inx-conv" ref={conversationRef} tabIndex={-1}>
+              {selectedPostId != null
+                ? <CommentsModal embedded postId={selectedPostId} initialPost={selectedPost} onClose={handleConversationClose} onReplySent={handleReplySent} />
+                : <div className="ds-empty ds-empty--quiet"><p className="ds-empty__title ds-empty__title--sm">Selecione uma publicação</p><p className="ds-empty__text">Os comentários e as respostas aparecerão aqui.</p></div>}
+            </div>
+          </div>
+        : !error || posts.length
+          ? <div className="ds-empty inx-empty">
+              <span className="ds-icontile ds-icontile--lg" aria-hidden="true"><Icon name={search ? 'search' : 'inbox'} /></span>
+              <p className="ds-empty__title ds-empty__title--sm">{search ? 'Nenhuma publicação corresponde à busca.' : 'Nenhuma interação encontrada.'}</p>
+              <p className="ds-empty__text">
+                {platform === 'tiktok' && !search
+                  ? 'O TikTok não disponibiliza os comentários das publicações para o Inbox. As interações aparecem para Instagram, Facebook e YouTube.'
+                  : search ? 'A busca procura no texto e no título das publicações, não nos comentários.' : 'Quando suas publicações receberem comentários, elas aparecem aqui.'}
+              </p>
+              {filtersActive && <div className="ds-empty__actions"><button type="button" className="ds-go" onClick={clearFilters}>Limpar filtros<Icon name="arrow" /></button></div>}
+            </div>
+          : null}
+  </div>
 }
