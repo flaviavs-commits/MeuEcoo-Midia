@@ -1,70 +1,88 @@
 /* Contas (integrações) page parts. Prefix acc-. */
 @layer ds {
   .acc-head { padding-bottom: 28px; }
+  .acc-notice { margin-bottom: 20px; }
   .acc-glance { padding: 22px 0 24px; border-block: 1px solid var(--ds-line-strong); }
 
-  .acc-nets { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-top: 28px; }
+  /* One block per network, with its accounts inside. */
+  .acc-nets { display: grid; gap: 16px; margin-top: 32px; }
+  .acc-nets__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; }
+  .acc-nets__title { font: var(--ds-weight-semibold) var(--ds-text-lg)/1.3 var(--ds-font-sans); letter-spacing: var(--ds-track-heading); color: var(--ds-ink); }
+  .acc-filters.ds-filterbar { flex-wrap: nowrap; }
+  .acc-filters__search { width: min(320px, 100%); }
+  .acc-filters__status { width: 200px; }
+  .acc-filternote {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 16px;
+    font-size: var(--ds-text-sm); color: var(--ds-ink-2);
+  }
+  .acc-nets__list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+
   .acc-net {
-    display: grid; grid-template-rows: auto auto auto 1fr; gap: 12px; min-width: 0; padding: 20px;
+    display: flex; flex-direction: column; gap: 14px; min-width: 0; padding: 20px;
     border-radius: var(--ds-radius-xl); background: var(--ds-surface); border: 1px solid var(--ds-line); box-shadow: var(--ds-shadow-1);
   }
-  .acc-net[data-connected='true'] { border-color: color-mix(in srgb, var(--ds-success) 30%, var(--ds-line)); }
+  .acc-net[data-state='ok'] { border-color: color-mix(in srgb, var(--ds-success) 30%, var(--ds-line)); }
+  .acc-net[data-state='warning'] { border-color: color-mix(in srgb, var(--ds-warning) 45%, var(--ds-line)); }
+  .acc-net[data-state='failed'] { border-color: color-mix(in srgb, var(--ds-danger) 40%, var(--ds-line)); }
   .acc-net[data-locked='true'] { background: color-mix(in srgb, var(--ds-tint) 55%, var(--ds-surface)); box-shadow: none; }
-  .acc-net__head { display: flex; align-items: center; gap: 12px; }
-  .acc-net__icon { color: var(--ds-ink); }
-  .acc-net[data-locked='true'] .acc-net__icon { color: var(--ds-ink-muted); }
+  .acc-net__head { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .acc-net__logo { background: var(--ds-canvas); box-shadow: inset 0 0 0 1px var(--ds-line); }
+  .acc-net[data-locked='true'] .acc-net__logo { opacity: 0.6; }
   .acc-net__title { display: grid; gap: 2px; min-width: 0; }
   .acc-net__title h3 { font: var(--ds-weight-semibold) var(--ds-text-lg)/1.25 var(--ds-font-sans); letter-spacing: var(--ds-track-heading); color: var(--ds-ink); }
   .acc-net__status { white-space: normal; }
-  .acc-net__health { display: inline-flex; align-items: center; gap: 8px; }
+  .acc-net__none { padding: 12px 0; border-top: 1px solid var(--ds-line); }
+  .acc-net__foot { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: auto; padding-top: 2px; }
+  .acc-net__plans { font-size: var(--ds-text-sm); }
+  .acc-net__health { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
   .acc-net__dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--ds-ink-subtle); }
   .acc-net__health[data-health='up'] .acc-net__dot { background: var(--ds-success); }
   .acc-net__health[data-health='down'] .acc-net__dot { background: var(--ds-danger); }
-  .acc-net__foot { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 14px; }
-  .acc-net__plans { font-size: var(--ds-text-sm); }
+
+  /* Accounts of one network: rows, never a table. A narrow block puts the token under the name. */
+  .acc-accts { display: grid; border-top: 1px solid var(--ds-line); container: acc-accts / inline-size; }
+  .acc-acct {
+    display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'avatar who who' 'avatar token drop';
+    align-items: center; gap: 8px 12px; padding: 14px 0; border-bottom: 1px solid var(--ds-line);
+  }
+  .acc-acct__avatar { grid-area: avatar; align-self: start; }
+  .acc-acct__who { grid-area: who; display: grid; gap: 2px; min-width: 0; }
+  .acc-acct__token { grid-area: token; }
+  .acc-acct__drop { grid-area: drop; }
+  @container acc-accts (min-width: 480px) {
+    .acc-acct { grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: 'avatar who token drop'; column-gap: 16px; }
+    .acc-acct__avatar { align-self: center; }
+  }
+  .acc-acct__name {
+    display: inline-flex; align-items: center; gap: 6px; justify-self: start; max-width: 100%; min-width: 0;
+    font: var(--ds-weight-semibold) var(--ds-text-sm)/1.4 var(--ds-font-sans); color: var(--ds-ink);
+  }
+  .acc-acct__text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .acc-acct__link { text-decoration: none; border-radius: var(--ds-radius-xs); }
+  .acc-acct__link:hover .acc-acct__text { text-decoration: underline; text-underline-offset: 3px; }
+  .acc-acct__link .ds-icon { flex: none; color: var(--ds-ink-muted); }
+  .acc-acct__token { display: grid; gap: 2px; justify-items: start; min-width: 0; }
 
   .acc-connect {
-    display: grid; gap: 12px; padding: 20px; margin-bottom: 32px;
+    display: grid; gap: 12px; padding: 20px;
     border-radius: var(--ds-radius-xl); background: color-mix(in srgb, var(--ds-tint) 45%, var(--ds-surface)); box-shadow: inset 0 0 0 1px var(--ds-line);
   }
   .acc-connect__fields { display: grid; grid-template-columns: minmax(160px, 200px) minmax(0, 1fr) auto; align-items: end; gap: 12px 16px; }
   .acc-connect__go { min-width: 120px; }
+  .acc-connect__suggest { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; color: var(--ds-ink-2); }
 
-  .acc-list { display: grid; gap: 14px; }
-  .acc-list__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px; }
-  .acc-list__title { display: inline-flex; align-items: center; gap: 10px; font: var(--ds-weight-semibold) var(--ds-text-md)/1.3 var(--ds-font-sans); color: var(--ds-ink); }
-  .acc-list__head .ds-filterbar { flex-wrap: nowrap; }
-  .acc-list__search { width: min(320px, 100%); }
-  .acc-list__status { width: 200px; }
-  .acc-skel { display: block; height: 56px; margin-bottom: 8px; border-radius: 12px; }
-  .acc-table th[scope='row'] { padding: 12px 12px 12px 0; text-align: left; font-weight: var(--ds-weight-regular); border-bottom: 1px solid var(--ds-line); }
-  .acc-table tr[data-warning='true'] { background: color-mix(in srgb, var(--ds-danger-soft) 60%, transparent); }
-  .acc-table__name { display: grid; gap: 2px; min-width: 0; }
-  .acc-table__name strong { font-weight: var(--ds-weight-semibold); color: var(--ds-ink); overflow-wrap: anywhere; }
-  .acc-table__link { display: inline-flex; align-items: center; gap: 4px; max-width: 42ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ds-ink); text-decoration: none; }
-  .acc-table__link:hover { text-decoration: underline; text-underline-offset: 3px; }
-  .acc-table__link.ds-meta { color: var(--ds-ink-muted); }
-  .acc-table__net { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
-  .acc-table__expiry { display: block; margin-top: 2px; }
-  .acc-table__actions { text-align: right; white-space: nowrap; }
-  .acc-empty { justify-items: start; }
-
-  @media (max-width: 1199px) {
-    .acc-nets { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  @media (max-width: 1023px) {
+    .acc-nets__list { grid-template-columns: minmax(0, 1fr); }
   }
   @media (max-width: 767px) {
     .acc-glance { padding: 18px 0; }
-    .acc-nets { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+    .acc-nets { margin-top: 24px; gap: 12px; }
+    .acc-nets__head { display: grid; }
+    .acc-nets__list { gap: 12px; }
     .acc-net { padding: 16px; }
+    .acc-acct__link { padding-block: 8px; margin-block: -8px; }
     .acc-connect { padding: 16px; }
     .acc-connect__fields { grid-template-columns: minmax(0, 1fr); }
     .acc-connect__go { width: 100%; }
-    .acc-list__head .ds-filterbar { flex-wrap: wrap; width: 100%; }
-    .acc-list__search, .acc-list__status { width: 100%; }
-    .acc-table thead { display: none; }
-    .acc-table, .acc-table tbody, .acc-table tr, .acc-table th, .acc-table td { display: block; width: 100%; }
-    .acc-table tr { padding: 14px 0; border-bottom: 1px solid var(--ds-line); }
-    .acc-table th[scope='row'], .acc-table td { height: auto; padding: 4px 0; border: 0; }
-    .acc-table__actions { text-align: left; padding-top: 8px !important; }
   }
 }
