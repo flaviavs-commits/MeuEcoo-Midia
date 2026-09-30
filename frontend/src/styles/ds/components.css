@@ -1017,14 +1017,18 @@
     .ds-stat__value { font-size: var(--ds-text-3xl); }
     /* 16px keeps iOS from zooming into focused fields */
     .ds-input, .ds-textarea, .ds-select__control { min-height: 44px; font-size: 16px; }
+    /* touch: every control is at least 44px tall on phones, whatever its desktop size */
     .ds-password__input { padding-right: 48px; }
-    .ds-password__toggle { width: 40px; }
-    .ds-btn { --btn-h: 42px; --btn-fs: var(--ds-text-base); }
-    .ds-btn--sm { --btn-h: 36px; }
-    .ds-btn--icon, .ds-btn--icon.ds-btn--sm { --btn-h: 44px; }
-    .ds-seg__opt { height: 36px; }
-    .ds-netswitch__opt { height: 40px; }
+    .ds-password__toggle { top: 0; right: 0; bottom: 0; width: 44px; }
+    .ds-btn, .ds-btn--sm, .ds-btn--lg { --btn-h: 44px; --btn-fs: var(--ds-text-base); }
+    .ds-btn--sm { --btn-px: 12px; }
+    .ds-seg__opt { height: 44px; padding: 0 12px; }
+    .ds-netswitch__opt { height: 44px; }
     .ds-tab { height: 44px; }
+    .ds-go { min-height: 44px; }
+    .ds-disclosure > summary { min-height: 44px; }
+    .ds-check { min-height: 44px; padding-block: 12px; }
+    .ds-filteropt { min-height: 44px; }
     .ds-foot { flex-direction: column; align-items: flex-start; }
     .ds-bottomnav {
       display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); align-items: center;
