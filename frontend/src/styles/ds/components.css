@@ -1274,7 +1274,7 @@
   .ds-dtf__popover { min-width: 300px; padding: 12px; }
   .ds-dtp { display: grid; gap: 12px; }
   .ds-dtp__head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 4px; }
-  .ds-dtp__month { text-align: center; font: var(--ds-weight-semibold) var(--ds-text-base)/1.2 var(--ds-font-sans); color: var(--ds-ink); text-transform: capitalize; }
+  .ds-dtp__month { text-align: center; font: var(--ds-weight-semibold) var(--ds-text-base)/1.2 var(--ds-font-sans); color: var(--ds-ink); }
   .ds-dtp__grid { display: grid; gap: 2px; }
   .ds-dtp__row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
   .ds-dtp__row > span { display: grid; place-items: center; }

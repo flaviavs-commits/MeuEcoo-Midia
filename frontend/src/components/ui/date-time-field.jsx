@@ -22,7 +22,7 @@ function parseValue(value) {
   return { year: Number(year), month: Number(month) - 1, day: Number(day), hour, minute }
 }
 
-function localTimeZoneName() {
+export function localTimeZoneName() {
   try {
     const part = new Intl.DateTimeFormat('pt-BR', { timeZoneName: 'long' }).formatToParts(new Date()).find(item => item.type === 'timeZoneName')
     return part?.value || Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -64,7 +64,9 @@ function CalendarPanel({ value, onChange, onDone, disablePast, required, timeZon
   const titleId = useId()
   const days = useMemo(() => monthMatrix(view.year, view.month), [view])
   const selectedKey = parsed ? `${parsed.year}-${pad(parsed.month + 1)}-${pad(parsed.day)}` : ''
-  const monthLabel = new Date(view.year, view.month, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  // "setembro de 2026" -> "Setembro de 2026" (só a primeira letra; o CSS capitalize pegaria o "de")
+  const monthName = new Date(view.year, view.month, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+  const monthLabel = monthName.charAt(0).toUpperCase() + monthName.slice(1)
 
   useEffect(() => {
     if (!moveFocusRef.current) return

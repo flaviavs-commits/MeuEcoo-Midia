@@ -231,11 +231,12 @@ export function Tooltip({ label, children, placement = 'right', disabled = false
 /*
  * Modal surface: bottom sheet on phones, centred dialog from 768px. Traps focus, closes on
  * Escape and on the backdrop, locks page scroll and returns focus to where it came from.
- * The body is the only place allowed to scroll.
+ * The body is the only place allowed to scroll. `container` mounts it inside a page element
+ * instead of <body>, for content whose styles are scoped to the page (it is still fixed).
  */
 export function Sheet({
   open, onClose, title, description, children, footer, className = '', size = 'md',
-  closeLabel = 'Fechar', hideTitle = false, eyebrow,
+  closeLabel = 'Fechar', hideTitle = false, eyebrow, container,
 }) {
   const panelRef = useRef(null)
   const titleId = useId()
@@ -296,7 +297,7 @@ export function Sheet({
         {footer && <footer className="ds-sheet__foot">{footer}</footer>}
       </section>
     </div>,
-    document.body,
+    container || document.body,
   )
 }
 
