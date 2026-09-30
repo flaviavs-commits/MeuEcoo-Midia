@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { CalendarPage } from '../../src/pages/calendar-page.jsx'
 import { ToastProvider } from '../../src/components/ui/toast.jsx'
 import * as api from '../../src/lib/api.js'
@@ -61,5 +61,48 @@ describe('CalendarPage', () => {
     await waitFor(() => expect(screen.getByText('Nenhuma publicação neste dia.')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: 'Criar post' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Agendar post' })).not.toBeInTheDocument()
+  })
+})
+
+describe('CalendarPage — ações e status', () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-04T12:00:00-03:00'))
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('creates a single copy when "Confirmar nova publicação" is clicked twice', async () => {
+    const repeats = []
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path.includes('/repeat')) { repeats.push(path); return new Promise(() => {}) }
+      return Promise.resolve({ posts: [{ id: 21, text: 'Lançamento da coleção', platforms: ['instagram'], status: 'scheduled', scheduledAt: '2026-09-10T13:00:00.000Z' }] })
+    })
+    render(<ToastProvider><CalendarPage onNavigate={vi.fn()} /></ToastProvider>)
+
+    fireEvent.click(screen.getByRole('button', { name: /Lista/ }))
+    fireEvent.click(await screen.findByRole('button', { name: /Mais ações para Lançamento da coleção/ }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Copiar' }))
+
+    const dialog = await screen.findByRole('dialog', { name: 'Escolha onde colar o post' })
+    const confirm = within(dialog).getByRole('button', { name: /Confirmar nova publicação/ })
+    fireEvent.click(confirm)
+    fireEvent.click(confirm)
+
+    await waitFor(() => expect(repeats).toHaveLength(1))
+    expect(confirm).toBeDisabled()
+  })
+
+  it('names a past-due scheduled post instead of showing it only in colour', async () => {
+    vi.spyOn(api, 'apiFetch').mockResolvedValue({ posts: [{ id: 30, text: 'Post que já devia ter saído', platforms: ['facebook'], status: 'scheduled', scheduledAt: '2026-09-03T12:00:00-03:00' }] })
+    render(<ToastProvider><CalendarPage onNavigate={vi.fn()} /></ToastProvider>)
+
+    fireEvent.click(screen.getByRole('button', { name: /Lista/ }))
+    expect(await screen.findByText('Aguardando confirmação')).toBeInTheDocument()
+    expect(screen.queryByText('Agendado')).not.toBeInTheDocument()
   })
 })

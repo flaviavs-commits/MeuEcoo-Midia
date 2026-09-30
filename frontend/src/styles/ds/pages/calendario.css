@@ -10,7 +10,8 @@
 
   .cal-head { padding-bottom: 28px; }
   .cal-head .ds-pagehead__title .ds-em { font-weight: var(--ds-weight-regular); }
-  .cal-stepper { display: inline-flex; gap: 6px; }
+  /* period navigation grouped: ‹ Hoje › */
+  .cal-nav { flex-wrap: nowrap; gap: 6px; }
 
   .cal-controls {
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 20px;
@@ -58,6 +59,7 @@
   .cal-day:hover { background: var(--ds-wash); }
   .cal-day:focus-visible { z-index: 1; outline-offset: -3px; }
   .cal-day[data-drop='true'] { background: var(--ds-accent-soft); box-shadow: inset 0 0 0 2px var(--ds-accent-graphic); }
+  .cal-day[data-selected='true'] { background: var(--ds-wash-strong); box-shadow: inset 0 0 0 2px var(--ds-line-hard); }
   .cal-day__top { display: flex; align-items: center; gap: 6px; min-height: 28px; }
   .cal-day__num {
     display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding: 0 6px; border-radius: var(--ds-radius-pill);
@@ -75,6 +77,8 @@
     background: var(--ds-wash-strong); box-shadow: inset 2px 0 0 var(--tone, var(--ds-ink-muted));
     font: var(--ds-weight-medium) 12px/1.3 var(--ds-font-sans); color: var(--ds-ink);
   }
+  /* past-due, unconfirmed: a dashed marker (the legend draws it as a ring), never colour alone */
+  .cal-event[data-tone='pending'] { box-shadow: none; border-left: 2px dashed var(--tone); padding-left: 7px; }
   .cal-event[draggable='true'] { cursor: grab; }
   .cal-event[draggable='true']:active { cursor: grabbing; }
   .cal-event .ds-glyph { flex: none; width: 12px; height: 12px; color: var(--ds-ink-2); }
@@ -112,6 +116,9 @@
   .cal-entry__net { display: inline-flex; align-items: center; gap: 5px; color: var(--ds-ink-2); }
   .cal-entry__actions { display: inline-flex; align-items: center; gap: 4px; }
   .cal-empty { margin-top: 8px; }
+  .cal-outside { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; margin-top: 14px; font-size: var(--ds-text-sm); color: var(--ds-ink-2); }
+  .cal-outside > .ds-icon { flex: none; color: var(--ds-ink-muted); }
+  .cal-outside strong { font-weight: var(--ds-weight-semibold); color: var(--ds-ink); }
 
   /* --- media */
   .cal-media {
@@ -152,14 +159,12 @@
   .cal-repeat__intro { display: grid; gap: 4px; }
   .cal-repeat__title { font: var(--ds-weight-semibold) var(--ds-text-sm)/1.4 var(--ds-font-sans); color: var(--ds-ink); }
   .cal-repeat__actions { display: flex; flex-wrap: wrap; gap: 8px; }
-  .cal-datetime { max-width: 280px; }
+  .cal-datetime { max-width: 300px; }
   .cal-dayempty { justify-items: start; }
+  .cal-daysheet__hint { font-size: var(--ds-text-sm); color: var(--ds-ink-muted); }
 
   /* --- small dialogs (reagendar, colar) */
-  .cal-dialog { display: flex; flex-direction: column; min-height: 0; }
-  .cal-dialog__body { padding-top: 20px; }
-  .cal-dialog__foot { justify-content: flex-end; }
-  .cal-dialog .cal-datetime { max-width: none; }
+  .cal-dialog { display: grid; gap: 14px; padding-top: 4px; }
 
   @media (max-width: 1023px) {
     .cal-day, .cal-month__pad { min-height: 112px; }
@@ -170,8 +175,9 @@
     .cal-head .ds-pagehead__actions { justify-content: flex-start; }
     .cal-head .ds-pagehead__lede { display: none; }
     .cal-notice .ds-alert__actions { grid-column: 2; grid-row: auto; margin-top: 8px; }
-    .cal-controls { gap: 12px; }
-    .cal-controls .ds-netswitch { flex: 1 1 100%; }
+    .cal-controls { flex-wrap: nowrap; gap: 8px; }
+    .cal-controls .ds-seg { flex: 1 1 auto; }
+    .cal-controls .ds-seg__opt { flex: 1 1 0; }
     .cal-legend__sync { margin-left: 0; }
 
     /* phone month: numbers and status dots; the day dialog carries the detail */
@@ -183,7 +189,8 @@
     .cal-day__num { min-width: 26px; height: 26px; padding: 0 4px; }
     .cal-day__today { display: none; }
     .cal-day__events { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; }
-    .cal-event { width: 6px; height: 6px; padding: 0; border-radius: 50%; background: var(--tone, var(--ds-ink-muted)); box-shadow: none; }
+    .cal-event { width: 6px; height: 6px; padding: 0; border: 0; border-radius: 50%; background: var(--tone, var(--ds-ink-muted)); box-shadow: none; }
+    .cal-event[data-tone='pending'] { background: transparent; box-shadow: inset 0 0 0 1.5px var(--tone); }
     .cal-event > * { display: none; }
     .cal-day__more { flex-basis: 100%; padding: 0; text-align: center; font-size: 10px; }
 
@@ -195,5 +202,6 @@
     .cal-entry .cal-media--compact { width: 44px; height: 44px; }
     .cal-post { grid-template-columns: minmax(0, 1fr); gap: 6px; }
     .cal-datetime { max-width: none; }
+    .cal-daysheet__hint { display: none; }
   }
 }

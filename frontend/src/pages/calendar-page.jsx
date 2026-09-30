@@ -4,6 +4,10 @@ import { useApiResource } from '../hooks/use-api-resource.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
+import { Sheet } from '../components/ui/floating.jsx'
+import { DateTimeField } from '../components/ui/date-time-field.jsx'
+import { FilterGroup, FilterOption, FilterSheet, FiltersButton } from '../components/ui/filters.jsx'
+import { useIsPhone } from '../lib/breakpoints.js'
 
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 const CALENDAR_VIEW_KEY = 'meu-ecoo:calendar-view'
@@ -13,7 +17,7 @@ const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 // Tipo da mensagem de status -> tom visual e ícone usados no calendário.
 const STATUS_TONES = { success: 'success', warning: 'warning', processing: 'info', error: 'danger', pending: 'pending', scheduled: 'scheduled' }
 const STATUS_BADGES = { success: 'published', warning: 'partial', processing: 'processing', error: 'failed', pending: 'warning', scheduled: 'scheduled' }
-const STATUS_ICONS = { success: 'checkCircle', warning: 'halfCircle', processing: 'processing', error: 'alertCircle', pending: 'clock', scheduled: 'clock' }
+const STATUS_ICONS = { success: 'checkCircle', warning: 'halfCircle', processing: 'processing', error: 'alertCircle', pending: 'help', scheduled: 'clock' }
 const LEGEND = [['scheduled', 'agendadas'], ['pending', 'aguardando confirmação'], ['processing', 'publicando'], ['success', 'publicadas'], ['warning', 'parciais'], ['error', 'com falha']]
 const platformsOf = post => post.platforms || post.plataformas || (post.platform ? [post.platform] : [])
 const postDateValue = post => post.calendarAt || post.calendar_at || post.publishedAt || post.published_at || post.scheduledAt || post.scheduled_at || post.data_agendamento
@@ -164,17 +168,6 @@ function friendlyPostError(post) {
   return ''
 }
 
-// Leva o foco para dentro do diálogo ao abrir e devolve ao elemento de origem ao fechar.
-function useDialogFocus(open, ref) {
-  useEffect(() => {
-    if (!open) return undefined
-    const previous = document.activeElement
-    const target = ref.current?.querySelector('[data-autofocus]') || ref.current?.querySelector('button, input, select, textarea, [href]')
-    target?.focus()
-    return () => { if (previous?.isConnected && typeof previous.focus === 'function') previous.focus() }
-  }, [open, ref])
-}
-
 function CalendarNetworks({ platforms, size = 16 }) {
   if (!platforms.length) return null
   return <span className="cal-nets" role="img" aria-label={`Redes: ${platforms.map(platform => PLATFORM_LABELS[platform] || platform).join(', ')}`}>
@@ -187,8 +180,9 @@ function CalendarNetworks({ platforms, size = 16 }) {
 function CalendarStatus({ post }) {
   const { type } = postStatusMessage(post)
   const status = normalizePostStatus(post)
+  const label = type === 'pending' ? 'Aguardando confirmação' : postStatusLabel[status] || post.status || 'Sem status'
   return <span className="ds-status ds-status--soft" data-status={STATUS_BADGES[type]}>
-    <Icon name={STATUS_ICONS[type]} />{postStatusLabel[status] || post.status || 'Sem status'}
+    <Icon name={STATUS_ICONS[type]} />{label}
   </span>
 }
 
@@ -212,7 +206,7 @@ function CalendarMediaPreview({ post, compact = false }) {
   return <img className={className} src={source} alt="Prévia do conteúdo publicado" onError={() => setFailed(true)} />
 }
 
-function CalendarDayPost({ post, onEdit, onCopy, onDelete, onRetryNow, onReview, onOpenIntegrations, onRepeat, repeating, repeatDate, onRepeatDateChange, onRepeatSubmit, onRepeatCancel }) {
+function CalendarDayPost({ post, onEdit, onCopy, onDelete, onRetryNow, onReview, onOpenIntegrations, onRepeat, repeating, repeatDate, onRepeatDateChange, onRepeatSubmit, onRepeatCancel, submitting }) {
   const platforms = platformsOf(post)
   const primaryPlatform = platforms[0]
   const error = friendlyPostError(post)
@@ -224,16 +218,17 @@ function CalendarDayPost({ post, onEdit, onCopy, onDelete, onRetryNow, onReview,
   const statusMessage = postStatusMessage(post)
   const tone = STATUS_TONES[statusMessage.type]
   const repeatInputId = useId()
-  const repeatInputRef = useRef(null)
   const time = formatPostTime(post)
   const menuItems = [
+    scheduled && { label: 'Copiar', icon: 'copy', onSelect: onCopy },
+    retryableError && { label: 'Reagendar tentativa', icon: 'clock', onSelect: onEdit },
     scheduled && { label: 'Excluir agendamento', icon: 'trash', danger: true, onSelect: onDelete },
     canRepeat && { label: 'Excluir post publicado', icon: 'trash', danger: true, onSelect: onDelete }
   ].filter(Boolean)
   // O aviso extra só aparece quando traz algo além da mensagem de status.
   const extraWarning = error && error !== statusMessage.detail && statusMessage.type !== 'warning' ? error : ''
 
-  useEffect(() => { if (repeating) repeatInputRef.current?.focus() }, [repeating])
+  useEffect(() => { if (repeating) document.getElementById(repeatInputId)?.focus() }, [repeating, repeatInputId])
 
   return (
     <article className="cal-post" aria-label={`Publicação das ${time}`}>
@@ -252,9 +247,7 @@ function CalendarDayPost({ post, onEdit, onCopy, onDelete, onRetryNow, onReview,
         {extraWarning && <p className="cal-warning"><Icon name="alertTriangle" size={16} />{extraWarning}</p>}
         <div className="cal-post__actions">
           {scheduled && <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={onEdit}><Icon name="clock" size={16} />Editar data/horário</button>}
-          {scheduled && <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm" onClick={onCopy}><Icon name="copy" size={16} />Copiar</button>}
           {retryableError && <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={onRetryNow}><Icon name="refresh" size={16} />Tentar publicar novamente</button>}
-          {retryableError && <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm" onClick={onEdit}><Icon name="clock" size={16} />Reagendar tentativa</button>}
           {failureKind === 'content' && <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={onReview}><Icon name="compose" size={16} />Revisar no editor</button>}
           {failureKind === 'account' && <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={onOpenIntegrations}><Icon name="plug" size={16} />Corrigir conexão</button>}
           {canRepeat && <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={onRepeat} aria-expanded={repeating}><Icon name="repeat" size={16} />Reagendar este post</button>}
@@ -265,12 +258,12 @@ function CalendarDayPost({ post, onEdit, onCopy, onDelete, onRetryNow, onReview,
             <p className="cal-repeat__title">Reagendar esta publicação</p>
             <p className="ds-hint">O post original continuará publicado. Escolha o novo dia e horário para criar uma nova publicação.</p>
           </div>
-          <div className="ds-field">
+          <div className="ds-field cal-datetime">
             <label className="ds-label" htmlFor={repeatInputId}>Novo dia e horário</label>
-            <input ref={repeatInputRef} id={repeatInputId} className="ds-input cal-datetime" required type="datetime-local" value={repeatDate} onChange={onRepeatDateChange} />
+            <DateTimeField id={repeatInputId} value={repeatDate} onChange={onRepeatDateChange} required disablePast sheetTitle="Novo dia e horário" />
           </div>
           <div className="cal-repeat__actions">
-            <button type="submit" className="ds-btn ds-btn--primary ds-btn--sm">Agendar novo post</button>
+            <button type="submit" className="ds-btn ds-btn--primary ds-btn--sm" disabled={submitting}>{submitting && <span className="ds-spinner" aria-hidden="true" />}Agendar novo post</button>
             <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm" onClick={onRepeatCancel}>Cancelar</button>
           </div>
         </form>}
@@ -353,12 +346,13 @@ export function CalendarPage({ onNavigate }) {
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(CALENDAR_VIEW_KEY) || 'calendar')
   const [draggedPost, setDraggedPost] = useState(null)
   const [dropDay, setDropDay] = useState(null)
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  // Ação em andamento (colar, reagendar, repetir): um segundo clique não cria outro post.
+  const [submitting, setSubmitting] = useState(null)
+  const submittingRef = useRef(null)
+  const phone = useIsPhone()
   const notify = useToast()
   const [message, setMessage] = useState('')
-  const pastePanelRef = useRef(null)
-  const pasteInputRef = useRef(null)
-  const dayDialogRef = useRef(null)
-  const editDialogRef = useRef(null)
   const previousStatuses = useRef(null)
   const load = useCallback(async () => {
     // O endpoint do mês é a fonte principal da grade. A segunda consulta
@@ -374,6 +368,21 @@ export function CalendarPage({ onNavigate }) {
     return uniquePosts([...monthPosts, ...scheduledPosts])
   }, [month, year])
   const { value: posts, loading, error, setError, setValue: setPosts, reload } = useApiResource(load, [])
+  // As recargas de fundo (30 s e depois de cada ação) não escondem a lista nem o estado vazio.
+  const [loadedOnce, setLoadedOnce] = useState(false)
+  useEffect(() => { if (!loading) setLoadedOnce(true) }, [loading])
+
+  function beginAction(key) {
+    if (submittingRef.current) return false
+    submittingRef.current = key
+    setSubmitting(key)
+    return true
+  }
+
+  function endAction() {
+    submittingRef.current = null
+    setSubmitting(null)
+  }
 
   useEffect(() => {
     if (!posts.length) return
@@ -401,18 +410,6 @@ export function CalendarPage({ onNavigate }) {
 
   useEffect(() => { localStorage.setItem(`${CALENDAR_VIEW_KEY}:platform`, platformFilter) }, [platformFilter])
   useEffect(() => { localStorage.setItem(CALENDAR_VIEW_KEY, viewMode) }, [viewMode])
-  // Esc fecha o diálogo do topo: reagendar, colar e, por fim, o dia.
-  useEffect(() => {
-    if (!selectedDay && !editing && !pasting) return undefined
-    const closeOnEscape = event => {
-      if (event.key !== 'Escape') return
-      if (editing) setEditing(null)
-      else if (pasting) setPasting(false)
-      else setSelectedDay(null)
-    }
-    window.addEventListener('keydown', closeOnEscape)
-    return () => window.removeEventListener('keydown', closeOnEscape)
-  }, [selectedDay, editing, pasting])
 
   function shift(delta) {
     const next = new Date(year, month - 1 + delta, 1)
@@ -430,6 +427,7 @@ export function CalendarPage({ onNavigate }) {
 
   async function reschedule(event) {
     event.preventDefault()
+    if (!beginAction('reschedule')) return
     try {
       const result = await apiFetch(`/api/posts/${editing.id}`, { method: 'PATCH', body: JSON.stringify({ scheduledAt: date }) })
       const savedAt = result.post?.scheduledAt || result.post?.scheduled_at || date
@@ -449,6 +447,7 @@ export function CalendarPage({ onNavigate }) {
       notify(`Publicação reagendada para ${exactDate}.`)
     }
     catch (e) { setError(e.message); notify(e.message, 'error') }
+    finally { endAction() }
   }
 
   async function retryPost(post) {
@@ -466,6 +465,7 @@ export function CalendarPage({ onNavigate }) {
 
   async function repeatPost(event) {
     event.preventDefault()
+    if (!beginAction('repeat')) return
     try {
       await apiFetch(`/api/posts/${repeating.id}/repeat`, { method: 'POST', body: JSON.stringify({ scheduledAt: repeatDate }) })
       setRepeating(null)
@@ -474,6 +474,7 @@ export function CalendarPage({ onNavigate }) {
       await reload()
       notify('O mesmo post foi agendado para o novo dia e horário.')
     } catch (e) { setError(e.message); notify(e.message, 'error') }
+    finally { endAction() }
   }
 
   function copyScheduled(post) {
@@ -488,12 +489,6 @@ export function CalendarPage({ onNavigate }) {
     if (!copiedPost) return
     if (!pasteDate) setPasteDate(suggestedPasteDate(copiedPost))
     setPasting(true)
-    // Leva o usuário até o campo de data, inclusive quando o diálogo já
-    // estava aberto.
-    window.setTimeout(() => {
-      pastePanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      pasteInputRef.current?.focus()
-    }, 0)
   }
 
   function discardCopy() {
@@ -504,7 +499,7 @@ export function CalendarPage({ onNavigate }) {
 
   async function pastePost(event) {
     event.preventDefault()
-    if (!copiedPost) return
+    if (!copiedPost || !beginAction('paste')) return
     try {
       await apiFetch(`/api/posts/${copiedPost.id}/repeat`, { method: 'POST', body: JSON.stringify({ scheduledAt: pasteDate }) })
       setPasting(false)
@@ -513,6 +508,7 @@ export function CalendarPage({ onNavigate }) {
       await reload()
       notify('Novo agendamento criado.')
     } catch (e) { setError(e.message); notify(e.message, 'error') }
+    finally { endAction() }
   }
 
   async function deletePublished(post) {
@@ -665,13 +661,13 @@ export function CalendarPage({ onNavigate }) {
   // Reagendar e colar abrem por cima; o dia volta a aparecer quando eles fecham.
   const dayDialogOpen = Boolean(selectedDay) && !editing && !(pasting && copiedPost)
   const pasteDialogOpen = Boolean(pasting && copiedPost) && !editing
-  useDialogFocus(dayDialogOpen, dayDialogRef)
-  useDialogFocus(Boolean(editing), editDialogRef)
-  useDialogFocus(pasteDialogOpen, pastePanelRef)
 
   const weekdayName = selectedDay ? new Date(year, month - 1, selectedDay.day).toLocaleDateString('pt-BR', { weekday: 'long' }) : ''
   const selectedWeekday = weekdayName.charAt(0).toUpperCase() + weekdayName.slice(1)
   const editingCurrent = editing ? new Date(postDateValue(editing)) : null
+
+  const outsideCount = scheduledOutsideMonth.length
+  const filterCount = platformFilter === 'all' ? 0 : 1
 
   return (
     <div className="ds-page cal" data-ds-root>
@@ -681,22 +677,22 @@ export function CalendarPage({ onNavigate }) {
           <h1 className="ds-pagehead__title">{monthName} <em className="ds-em">{year}</em></h1>
           <p className="ds-pagehead__lede">Abra um dia para ver e agir nas publicações. Arraste um agendamento para outro dia para mudar a data.</p>
         </div>
-        <div className="ds-pagehead__actions">
+        <div className="ds-pagehead__actions cal-nav">
+          <button type="button" className="ds-btn ds-btn--secondary ds-btn--icon" onClick={() => shift(-1)} aria-label="Mês anterior"><Icon name="chevronLeft" /></button>
           <button type="button" className="ds-btn ds-btn--secondary" onClick={goToToday}>Hoje</button>
-          <span className="cal-stepper">
-            <button type="button" className="ds-btn ds-btn--secondary ds-btn--icon" onClick={() => shift(-1)} aria-label="Mês anterior"><Icon name="chevronLeft" /></button>
-            <button type="button" className="ds-btn ds-btn--secondary ds-btn--icon" onClick={() => shift(1)} aria-label="Próximo mês"><Icon name="chevronRight" /></button>
-          </span>
+          <button type="button" className="ds-btn ds-btn--secondary ds-btn--icon" onClick={() => shift(1)} aria-label="Próximo mês"><Icon name="chevronRight" /></button>
         </div>
         <p className="ds-sr-only" aria-live="polite">Mostrando {monthName} de {year}</p>
       </header>
 
       <div className="cal-controls">
-        <div className="ds-netswitch" role="group" aria-label="Filtrar calendário por rede">
-          {[['all', 'Todas'], ...Object.entries(PLATFORM_LABELS)].map(([key, label]) => <button type="button" className="ds-netswitch__opt" aria-pressed={platformFilter === key} onClick={() => setPlatformFilter(key)} key={key}>
-            <NetworkGlyph network={key} size={16} />{label}
-          </button>)}
-        </div>
+        {phone
+          ? <FiltersButton count={filterCount} open={filtersOpen} onClick={() => setFiltersOpen(true)} />
+          : <div className="ds-netswitch" role="group" aria-label="Filtrar calendário por rede">
+            {[['all', 'Todas'], ...Object.entries(PLATFORM_LABELS)].map(([key, label]) => <button type="button" className="ds-netswitch__opt" aria-pressed={platformFilter === key} onClick={() => setPlatformFilter(key)} key={key}>
+              <NetworkGlyph network={key} size={16} />{label}
+            </button>)}
+          </div>}
         <div className="ds-seg" role="group" aria-label="Modo de visualização">
           <button type="button" className="ds-seg__opt" aria-pressed={viewMode === 'calendar'} onClick={() => setViewMode('calendar')}><Icon name="calendar" size={16} />Calendário</button>
           <button type="button" className="ds-seg__opt" aria-pressed={viewMode === 'list'} onClick={() => setViewMode('list')}><Icon name="activity" size={16} />Lista</button>
@@ -704,7 +700,7 @@ export function CalendarPage({ onNavigate }) {
       </div>
 
       <p className="cal-legend">
-        {!(error && !filteredPosts.length) && <span className="cal-legend__total"><strong className="ds-num">{filteredPosts.length}</strong> {filteredPosts.length === 1 ? 'publicação encontrada' : 'publicações encontradas'}</span>}
+        {!(error && !filteredPosts.length) && <span className="cal-legend__total"><strong className="ds-num">{filteredPosts.length}</strong> {filteredPosts.length === 1 ? 'publicação encontrada' : 'publicações encontradas'}{platformFilter !== 'all' ? ` no ${PLATFORM_LABELS[platformFilter]}` : ''}</span>}
         {legend.map(([type, label, count]) => <span className="cal-legend__item" key={type}><span className="cal-dot" data-tone={STATUS_TONES[type]} aria-hidden="true" /><span className="ds-num">{count}</span> {label}</span>)}
         {loading && <span className="cal-legend__sync" aria-live="polite"><span className="ds-spinner" aria-hidden="true" />Carregando publicações do mês...</span>}
       </p>
@@ -721,16 +717,11 @@ export function CalendarPage({ onNavigate }) {
         {!copiedPost && <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-btn--sm ds-alert__close" onClick={() => setMessage('')} aria-label="Dispensar aviso"><Icon name="close" size={16} /></button>}
       </div>}
 
+      {/* O botão recarrega os dados; ele não repete a ação que falhou (o aviso diz qual foi). */}
       {error && <div className="ds-alert cal-notice" data-tone="danger" role="alert">
         <Icon name="alertCircle" className="ds-alert__icon" />
         <p className="ds-alert__text">{error}</p>
-        <div className="ds-alert__actions"><button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => reload().catch(() => {})}><Icon name="refresh" size={16} />Tentar novamente</button></div>
-      </div>}
-
-      {viewMode === 'calendar' && scheduledOutsideMonth.length > 0 && <div className="ds-alert cal-notice" role="status">
-        <Icon name="info" className="ds-alert__icon" />
-        <p className="ds-alert__text"><strong>{scheduledOutsideMonth.length} {scheduledOutsideMonth.length === 1 ? 'agendamento' : 'agendamentos'}</strong> {scheduledOutsideMonth.length === 1 ? 'está' : 'estão'} fora de {monthName} e já foi carregado.</p>
-        <div className="ds-alert__actions"><button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => setViewMode('list')}>Ver na lista</button></div>
+        <div className="ds-alert__actions"><button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => reload().catch(() => {})}><Icon name="refresh" size={16} />Recarregar calendário</button></div>
       </div>}
 
       {viewMode === 'calendar'
@@ -749,6 +740,7 @@ export function CalendarPage({ onNavigate }) {
               className="cal-day"
               data-today={isToday || undefined}
               data-past={isPast || undefined}
+              data-selected={selectedDay?.day === day || undefined}
               data-drop={dropDay === day || undefined}
               aria-label={`Abrir publicações de ${day} de ${monthName} de ${year}${isToday ? ', hoje' : ''}`}
               aria-describedby={dayPosts.length ? countId : undefined}
@@ -772,7 +764,7 @@ export function CalendarPage({ onNavigate }) {
                     draggable={draggable}
                     onDragStart={event => { event.dataTransfer?.setData('text/plain', String(post.id ?? '')); setDraggedPost(post) }}
                     onDragEnd={() => setDropDay(null)}
-                    title={draggable ? 'Arraste para outro dia para reagendar' : undefined}
+                    title={`${formatPostTime(post)} · ${shortText(postText(post), 90)}${draggable ? ' · arraste para outro dia para reagendar' : ''}`}
                   >
                     <time className="cal-event__time">{formatPostTime(post)}</time>
                     {platformsOf(post).filter(platform => PLATFORM_LABELS[platform]).slice(0, 1).map(platform => <NetworkGlyph network={platform} size={14} key={platform} />)}
@@ -812,92 +804,90 @@ export function CalendarPage({ onNavigate }) {
               </section>
             })}
           </div>
-          : !loading && <div className="ds-empty cal-empty">
+          : loadedOnce && !error && <div className="ds-empty cal-empty">
             <span className="ds-icontile ds-icontile--lg" aria-hidden="true"><Icon name="calendar" /></span>
             <p className="ds-empty__title ds-empty__title--sm">Nenhuma publicação neste filtro.</p>
             <p className="ds-empty__text">{platformFilter === 'all' ? 'Quando você agendar ou publicar posts, eles aparecem aqui em ordem de data.' : 'Tente ver todas as redes ou outro mês.'}</p>
             {platformFilter !== 'all' && <div className="ds-empty__actions"><button type="button" className="ds-go" onClick={() => setPlatformFilter('all')}>Ver todas as redes<Icon name="arrow" /></button></div>}
           </div>}
 
-      {dayDialogOpen && <div className="ds-scrim" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setSelectedDay(null) }}>
-        <section ref={dayDialogRef} className="ds-modal ds-modal--lg" role="dialog" aria-modal="true" aria-labelledby="calendar-day-modal-title" aria-describedby="calendar-day-modal-desc">
-          <header className="ds-modal__head">
-            <div className="ds-modal__heading">
-              <p className="ds-eyebrow">Agenda do dia</p>
-              <h2 className="ds-modal__title" id="calendar-day-modal-title">{selectedDay.day} de {monthName}</h2>
-              <p className="ds-modal__desc" id="calendar-day-modal-desc">
-                {selectedWeekday} · {selectedDayPosts.length ? `${selectedDayPosts.length} ${selectedDayPosts.length === 1 ? 'publicação' : 'publicações'}` : 'sem publicações'}
-              </p>
-            </div>
-            <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-modal__close" onClick={() => setSelectedDay(null)} aria-label="Fechar publicações do dia"><Icon name="close" /></button>
-          </header>
-          <div className="ds-modal__body">
-            {selectedDayPosts.length
-              ? <div className="cal-dayposts">{selectedDayPosts.map(post => <CalendarDayPost key={post.id || `${postDateValue(post)}-${post.text}`} post={post} onEdit={() => openEditor(post)} onCopy={() => copyScheduled(post)} onRetryNow={() => retryPost(post)} onReview={() => reviewFailure(post)} onOpenIntegrations={() => onNavigate('integracoes')} onRepeat={() => openRepeat(post)} onDelete={() => isScheduled(post) ? deleteScheduled(post) : deletePublished(post)} repeating={repeating?.id === post.id} repeatDate={repeatDate} onRepeatDateChange={event => setRepeatDate(event.target.value)} onRepeatSubmit={repeatPost} onRepeatCancel={() => setRepeating(null)} />)}</div>
-              : <div className="ds-empty ds-empty--quiet cal-dayempty">
-                <span className="ds-icontile" aria-hidden="true"><Icon name="calendar" /></span>
-                <p className="ds-empty__title ds-empty__title--sm">Nenhuma publicação neste dia.</p>
-                <p className="ds-empty__text">Este dia está livre para planejar um conteúdo.</p>
-              </div>}
+      {/* Informação de apoio: fica depois da grade, sem competir com ela. */}
+      {viewMode === 'calendar' && outsideCount > 0 && <p className="cal-outside" role="status">
+        <Icon name="info" size={16} />
+        <span><strong className="ds-num">{outsideCount}</strong> {outsideCount === 1 ? 'agendamento' : 'agendamentos'} de outros meses {outsideCount === 1 ? 'está' : 'estão'} na lista.</span>
+        <button type="button" className="ds-go" onClick={() => setViewMode('list')}>Ver na lista<Icon name="arrow" /></button>
+      </p>}
+
+      {phone && <FilterSheet open={filtersOpen} onClose={() => setFiltersOpen(false)} value={{ platform: platformFilter }} emptyValue={{ platform: 'all' }} onApply={next => setPlatformFilter(next.platform)} title="Filtrar calendário">
+        {(draft, setDraft) => <FilterGroup title="Rede">
+          {[['all', 'Todas as redes'], ...Object.entries(PLATFORM_LABELS)].map(([key, label]) => <FilterOption key={key} network={key === 'all' ? undefined : key} icon={key === 'all' ? 'calendar' : undefined} selected={draft.platform === key} onSelect={() => setDraft({ platform: key })}>{label}</FilterOption>)}
+        </FilterGroup>}
+      </FilterSheet>}
+
+      {selectedDay && <Sheet
+        open={dayDialogOpen}
+        onClose={() => setSelectedDay(null)}
+        eyebrow="Agenda do dia"
+        title={`${selectedDay.day} de ${monthName}`}
+        description={`${selectedWeekday} · ${selectedDayPosts.length ? `${selectedDayPosts.length} ${selectedDayPosts.length === 1 ? 'publicação' : 'publicações'}` : 'sem publicações'}`}
+        size="lg"
+        closeLabel="Fechar publicações do dia"
+        className="cal-daysheet"
+        footer={<>
+          <p className="cal-daysheet__hint">Abra o Meu Post para criar outro conteúdo.</p>
+          <button type="button" className="ds-btn ds-btn--primary" onClick={() => openPostComposer(selectedDay.day)}><Icon name="plus" />Criar post</button>
+        </>}
+      >
+        {selectedDayPosts.length
+          ? <div className="cal-dayposts">{selectedDayPosts.map(post => <CalendarDayPost key={post.id || `${postDateValue(post)}-${post.text}`} post={post} onEdit={() => openEditor(post)} onCopy={() => copyScheduled(post)} onRetryNow={() => retryPost(post)} onReview={() => reviewFailure(post)} onOpenIntegrations={() => onNavigate('integracoes')} onRepeat={() => openRepeat(post)} onDelete={() => isScheduled(post) ? deleteScheduled(post) : deletePublished(post)} repeating={repeating?.id === post.id} repeatDate={repeatDate} onRepeatDateChange={setRepeatDate} onRepeatSubmit={repeatPost} onRepeatCancel={() => setRepeating(null)} submitting={submitting === 'repeat'} />)}</div>
+          : <div className="ds-empty ds-empty--quiet cal-dayempty">
+            <span className="ds-icontile" aria-hidden="true"><Icon name="calendar" /></span>
+            <p className="ds-empty__title ds-empty__title--sm">Nenhuma publicação neste dia.</p>
+            <p className="ds-empty__text">Este dia está livre para planejar um conteúdo.</p>
+          </div>}
+      </Sheet>}
+
+      {copiedPost && <Sheet
+        open={pasteDialogOpen}
+        onClose={() => setPasting(false)}
+        eyebrow="Duplicar agendamento"
+        title="Escolha onde colar o post"
+        description={`A cópia de “${shortText(postText(copiedPost), 90)}” será criada no dia e horário abaixo. O agendamento original continuará intacto.`}
+        size="sm"
+        footer={<>
+          <button type="button" className="ds-btn ds-btn--quiet" onClick={() => setPasting(false)}>Cancelar</button>
+          <button type="submit" form="calendar-paste-form" className="ds-btn ds-btn--primary" disabled={submitting === 'paste'}>{submitting === 'paste' && <span className="ds-spinner" aria-hidden="true" />}Confirmar nova publicação</button>
+        </>}
+      >
+        <form id="calendar-paste-form" className="cal-dialog" onSubmit={pastePost}>
+          <div className="ds-field">
+            <label className="ds-label" htmlFor="calendar-paste-date">Dia e horário da nova publicação</label>
+            <DateTimeField id="calendar-paste-date" value={pasteDate} onChange={setPasteDate} required disablePast describedBy="calendar-paste-hint" sheetTitle="Dia e horário" />
+            <p className="ds-hint" id="calendar-paste-hint">{formatPasteDate(pasteDate)}</p>
           </div>
-          <footer className="ds-modal__foot">
-            <p className="ds-modal__foot-text"><strong>Quer publicar mais alguma coisa?</strong><span>Abra o Meu Post para criar o conteúdo e escolher o horário.</span></p>
-            <button type="button" className="ds-btn ds-btn--primary" onClick={() => openPostComposer(selectedDay.day)}><Icon name="plus" />Criar post</button>
-          </footer>
-        </section>
-      </div>}
+        </form>
+      </Sheet>}
 
-      {pasteDialogOpen && <div className="ds-scrim" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setPasting(false) }}>
-        <section ref={pastePanelRef} className="ds-modal ds-modal--sm" role="dialog" aria-modal="true" aria-labelledby="calendar-paste-title" aria-describedby="calendar-paste-desc">
-          <header className="ds-modal__head">
-            <div className="ds-modal__heading">
-              <p className="ds-eyebrow">Duplicar agendamento</p>
-              <h2 className="ds-modal__title" id="calendar-paste-title">Escolha onde colar o post</h2>
-              <p className="ds-modal__desc" id="calendar-paste-desc">A cópia de “{shortText(postText(copiedPost), 90)}” será criada no dia e horário abaixo. O agendamento original continuará intacto.</p>
-            </div>
-            <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-modal__close" onClick={() => setPasting(false)} aria-label="Fechar"><Icon name="close" /></button>
-          </header>
-          <form className="cal-dialog" onSubmit={pastePost}>
-            <div className="ds-modal__body cal-dialog__body">
-              <div className="ds-field">
-                <label className="ds-label" htmlFor="calendar-paste-date">Dia e horário da nova publicação</label>
-                <input ref={pasteInputRef} id="calendar-paste-date" className="ds-input cal-datetime" data-autofocus required type="datetime-local" value={pasteDate} onChange={event => setPasteDate(event.target.value)} />
-                <p className="ds-hint">{formatPasteDate(pasteDate)}</p>
-              </div>
-            </div>
-            <footer className="ds-modal__foot cal-dialog__foot">
-              <button type="button" className="ds-btn ds-btn--quiet" onClick={() => setPasting(false)}>Cancelar</button>
-              <button type="submit" className="ds-btn ds-btn--primary">Confirmar nova publicação</button>
-            </footer>
-          </form>
-        </section>
-      </div>}
-
-      {editing && <div className="ds-scrim" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setEditing(null) }}>
-        <section ref={editDialogRef} className="ds-modal ds-modal--sm" role="dialog" aria-modal="true" aria-labelledby="calendar-edit-title" aria-describedby="calendar-edit-desc">
-          <header className="ds-modal__head">
-            <div className="ds-modal__heading">
-              <p className="ds-eyebrow">Agendamento</p>
-              <h2 className="ds-modal__title" id="calendar-edit-title">{['error', 'erro'].includes(normalizePostStatus(editing)) ? 'Reagendar tentativa' : 'Reagendar publicação'}</h2>
-              <p className="ds-modal__desc" id="calendar-edit-desc">{shortText(postText(editing), 110)}</p>
-            </div>
-            <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-modal__close" onClick={() => setEditing(null)} aria-label="Fechar"><Icon name="close" /></button>
-          </header>
-          <form className="cal-dialog" onSubmit={reschedule}>
-            <div className="ds-modal__body cal-dialog__body">
-              <div className="ds-field">
-                <label className="ds-label" htmlFor="calendar-edit-date">Novo dia e horário</label>
-                <input id="calendar-edit-date" className="ds-input cal-datetime" data-autofocus required type="datetime-local" value={date} onChange={event => setDate(event.target.value)} />
-                <p className="ds-hint">Horário atual: {editingCurrent && !Number.isNaN(editingCurrent.getTime()) ? formatPasteDate(editingCurrent) : 'não informado'}</p>
-              </div>
-            </div>
-            <footer className="ds-modal__foot cal-dialog__foot">
-              <button type="button" className="ds-btn ds-btn--quiet" onClick={() => setEditing(null)}>Cancelar</button>
-              <button type="submit" className="ds-btn ds-btn--primary">Salvar</button>
-            </footer>
-          </form>
-        </section>
-      </div>}
+      {editing && <Sheet
+        open
+        onClose={() => setEditing(null)}
+        eyebrow="Agendamento"
+        title={['error', 'erro'].includes(normalizePostStatus(editing)) ? 'Reagendar tentativa' : 'Reagendar publicação'}
+        description={shortText(postText(editing), 110)}
+        size="sm"
+        footer={<>
+          <button type="button" className="ds-btn ds-btn--quiet" onClick={() => setEditing(null)}>Cancelar</button>
+          <button type="submit" form="calendar-edit-form" className="ds-btn ds-btn--primary" disabled={submitting === 'reschedule'}>{submitting === 'reschedule' && <span className="ds-spinner" aria-hidden="true" />}Salvar</button>
+        </>}
+      >
+        <form id="calendar-edit-form" className="cal-dialog" onSubmit={reschedule}>
+          <div className="ds-field">
+            <label className="ds-label" htmlFor="calendar-edit-date">Novo dia e horário</label>
+            <DateTimeField id="calendar-edit-date" value={date} onChange={setDate} required disablePast describedBy="calendar-edit-hint" sheetTitle="Novo dia e horário" />
+            <p className="ds-hint" id="calendar-edit-hint">Horário atual: {editingCurrent && !Number.isNaN(editingCurrent.getTime()) ? formatPasteDate(editingCurrent) : 'não informado'}</p>
+          </div>
+        </form>
+      </Sheet>}
     </div>
   )
 }
