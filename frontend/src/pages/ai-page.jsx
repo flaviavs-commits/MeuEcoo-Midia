@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
-import { SchedSection } from '../components/ui/sched-section.jsx'
 import { PublicationStatusModal } from '../components/ui/publication-status-modal.jsx'
 import { useToast } from '../components/ui/toast.jsx'
+import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { findPublicationResult, latestPublicationEventId, processingPublicationMessage, publicationResultMessage } from '../lib/publicationEvents.js'
-import '../styles/ai-page-publish.css'
 
 // O backend espera até 45s pelo provedor. O OpenRouter pode precisar de alguns
 // segundos adicionais para devolver a resposta ou o fallback do servidor.
 const AI_GENERATION_TIMEOUT_MS = 60_000
+const INSTRUCTION_MAX_LENGTH = 4000
 const AI_ACTIVITY_LABELS = {
   generate: 'Conteúdo criado pelo sistema',
   'analyze-media': 'Descrição de mídia gerada',
@@ -17,11 +17,32 @@ const AI_ACTIVITY_LABELS = {
   schedule: 'Agendamento processado',
   'publish-now': 'Publicação processada',
 }
+// O servidor grava sucesso / erro / fallback; versões antigas usavam success / ok.
+const AI_ACTIVITY_STATUS = {
+  sucesso: { status: 'ok', label: 'Concluído', icon: 'checkCircle' },
+  success: { status: 'ok', label: 'Concluído', icon: 'checkCircle' },
+  ok: { status: 'ok', label: 'Concluído', icon: 'checkCircle' },
+  fallback: { status: 'warning', label: 'Resposta alternativa', icon: 'info' },
+  erro: { status: 'failed', label: 'Falhou', icon: 'alertCircle' },
+  error: { status: 'failed', label: 'Falhou', icon: 'alertCircle' },
+}
 const PUBLISH_PLATFORMS = [
-  { id: 'instagram', label: 'Instagram', symbol: '◎', hint: 'Imagem obrigatória' },
-  { id: 'facebook', label: 'Facebook', symbol: 'f', hint: 'Imagem opcional' },
-  { id: 'tiktok', label: 'TikTok', symbol: '♪', hint: 'Imagem ou vídeo' },
-  { id: 'youtube', label: 'YouTube', symbol: '▶', hint: 'Exige vídeo', videoOnly: true },
+  { id: 'instagram', label: 'Instagram', hint: 'Imagem obrigatória' },
+  { id: 'facebook', label: 'Facebook', hint: 'Imagem opcional' },
+  { id: 'tiktok', label: 'TikTok', hint: 'Imagem ou vídeo' },
+  { id: 'youtube', label: 'YouTube', hint: 'Exige vídeo', videoOnly: true },
+]
+const PUBLISH_STATUS = {
+  processing: { status: 'processing', label: 'Aguardando confirmação da rede' },
+  partial: { status: 'partial', label: 'Publicada em parte' },
+  error: { status: 'failed', label: 'Não publicada' },
+  published: { status: 'published', label: 'Publicada' },
+}
+const ANALYTICS_PERIODS = [7, 30, 90]
+const PAGE_TABS = [
+  { key: 'criar', label: 'Criar', icon: 'sparkle' },
+  { key: 'desempenho', label: 'Desempenho', icon: 'chart' },
+  { key: 'atividade', label: 'Atividade', icon: 'activity' },
 ]
 
 function formatAiActivity(log) {
@@ -37,22 +58,50 @@ function formatAiActivity(log) {
   return { title, details: details || 'Processamento concluído' }
 }
 
+function activityStatus(value) {
+  const key = String(value || '').toLowerCase()
+  return AI_ACTIVITY_STATUS[key] || { status: 'muted', label: value ? String(value) : 'Sem status', icon: 'info' }
+}
+
+function formatActivityDate(value) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+}
+
+// Leva o foco para dentro do diálogo ao abrir e devolve ao elemento de origem ao fechar.
+function useDialogFocus(open, ref) {
+  useEffect(() => {
+    if (!open) return undefined
+    const previous = document.activeElement
+    const target = ref.current?.querySelector('[data-autofocus]') || ref.current?.querySelector('button, input, select, textarea, [href]')
+    target?.focus()
+    return () => { if (previous?.isConnected && typeof previous.focus === 'function') previous.focus() }
+  }, [open, ref])
+}
+
 export function AiPage() {
+  const [tab, setTab] = useState('criar')
   const [instruction, setInstruction] = useState('')
+  const [instructionError, setInstructionError] = useState('')
   const [visualFormat, setVisualFormat] = useState('single')
   const [carouselCount, setCarouselCount] = useState(5)
   const [posts, setPosts] = useState([])
   const [error, setError] = useState('')
+  const [errorSource, setErrorSource] = useState('generate')
   const [loading, setLoading] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [editingIndex, setEditingIndex] = useState(null)
   const [activityLogs, setActivityLogs] = useState([])
+  const [logsLoading, setLogsLoading] = useState(true)
+  const [logsError, setLogsError] = useState('')
   const [analyticsInsights, setAnalyticsInsights] = useState(null)
   const [analyticsDays, setAnalyticsDays] = useState(30)
+  const [analyzedDays, setAnalyzedDays] = useState(null)
   const [analyticsLoading, setAnalyticsLoading] = useState(false)
   const [analyticsError, setAnalyticsError] = useState('')
   const [imageLoadingIndex, setImageLoadingIndex] = useState(null)
   const [imageLoadingProgress, setImageLoadingProgress] = useState(null)
+  const [imageQuota, setImageQuota] = useState(null)
   const [publishingIndex, setPublishingIndex] = useState(null)
   const [connectedAccounts, setConnectedAccounts] = useState([])
   const [accountsLoaded, setAccountsLoaded] = useState(false)
@@ -63,13 +112,19 @@ export function AiPage() {
   const [publicationDialog, setPublicationDialog] = useState(null)
   const [publicationProgress, setPublicationProgress] = useState('')
   const publicationPollTimer = useRef(null)
+  const mountedRef = useRef(true)
+  const publishDialogRef = useRef(null)
   const notify = useToast()
 
-  useEffect(() => {
-    apiFetch('/api/ai/activity-log?limit=20')
+  function loadActivityLogs() {
+    setLogsLoading(true); setLogsError('')
+    return apiFetch('/api/ai/activity-log?limit=20')
       .then(data => setActivityLogs(data.logs || []))
-      .catch(() => {})
-  }, [])
+      .catch(e => setLogsError(e.message || 'Não foi possível carregar a atividade do assistente.'))
+      .finally(() => setLogsLoading(false))
+  }
+
+  useEffect(() => { loadActivityLogs() }, [])
 
   useEffect(() => {
     apiFetch('/api/accounts?ativo=true')
@@ -78,10 +133,29 @@ export function AiPage() {
       .finally(() => setAccountsLoaded(true))
   }, [])
 
-  useEffect(() => () => clearTimeout(publicationPollTimer.current), [])
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      clearTimeout(publicationPollTimer.current)
+    }
+  }, [])
+
+  useDialogFocus(publishModalIndex !== null, publishDialogRef)
+  useEffect(() => {
+    if (publishModalIndex === null) return undefined
+    const onKey = event => { if (event.key === 'Escape') closePublishPlatformModal() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   async function generate(event) {
-    event.preventDefault(); setLoading(true); setError('')
+    event.preventDefault()
+    if (!instruction.trim()) {
+      setInstructionError('Descreva o que você quer publicar para receber as ideias.')
+      return
+    }
+    setInstructionError(''); setLoading(true); setError(''); setErrorSource('generate')
     try {
       const data = await apiFetch('/api/ai/generate', { method: 'POST', timeoutMs: AI_GENERATION_TIMEOUT_MS, body: JSON.stringify({ instrucao: instruction, plataformas: ['instagram'], quantidade: 3, tom: 'profissional' }) })
       const requestedFormat = requestedVisualFormat()
@@ -95,7 +169,7 @@ export function AiPage() {
   // permite ao usuário pedir várias rodadas de ideias sem perder as
   // anteriores nem reescrever a instrução.
   async function generateMore() {
-    setLoadingMore(true); setError('')
+    setLoadingMore(true); setError(''); setErrorSource('more')
     try {
       const data = await apiFetch('/api/ai/generate', { method: 'POST', timeoutMs: AI_GENERATION_TIMEOUT_MS, body: JSON.stringify({ instrucao: instruction, plataformas: ['instagram'], quantidade: 3, tom: 'profissional' }) })
       const novos = (data.posts || []).map(post => normalizePost(post, requestedVisualFormat()))
@@ -157,6 +231,11 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
       body: JSON.stringify({ modelo: 'auto', descricao: description }),
     })
     if (!data?.image) throw new Error('O gerador não retornou uma imagem válida.')
+    // O servidor devolve o saldo do mês a cada imagem; slides em paralelo podem
+    // chegar fora de ordem, então vale o retorno com mais imagens usadas.
+    if (data.imageQuota && Number.isFinite(Number(data.imageQuota.limit))) {
+      setImageQuota(current => current && Number(current.used) > Number(data.imageQuota.used) ? current : data.imageQuota)
+    }
     return { imageUrl: data.image, imageModel: data.modelo || 'auto' }
   }
 
@@ -235,6 +314,18 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
     return accountsForPlatform(platform).length > 0
   }
 
+  // Motivo curto, com a mesma regra de isPublishPlatformAvailable, para a
+  // pessoa entender por que uma rede não pode ser escolhida.
+  function platformNote(option, targetPost) {
+    if (option.videoOnly) return 'Disponível no Meu Post com vídeo'
+    if (targetPost?.visualFormat === 'carousel' && !['instagram', 'tiktok'].includes(option.id)) return 'Carrossel só no Instagram ou TikTok'
+    if (!accountsLoaded) return 'Verificando contas conectadas…'
+    if (accountsLoadError) return option.hint
+    const count = accountsForPlatform(option.id).length
+    if (!count) return 'Nenhuma conta conectada'
+    return `${option.hint} · ${count} ${count === 1 ? 'conta' : 'contas'}`
+  }
+
   function openPublishPlatformModal(index) {
     const post = posts[index]
     if (!post) return
@@ -274,6 +365,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
     const poll = async () => {
       try {
         const { events = [] } = await apiFetch(`/api/logs/events/since/${cursor}`)
+        if (!mountedRef.current) return
         if (events.length) cursor = Math.max(cursor, ...events.map(event => Number(event.id) || 0))
         const result = findPublicationResult(events, postId)
         if (result) {
@@ -283,7 +375,8 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
       } catch {
         // Uma falha pontual não encerra o acompanhamento da publicação.
       }
-      publicationPollTimer.current = setTimeout(poll, 4000)
+      // Uma consulta ainda em andamento ao sair da página não agenda outra.
+      if (mountedRef.current) publicationPollTimer.current = setTimeout(poll, 4000)
     }
     const labels = platforms.map(platform => PUBLISH_PLATFORMS.find(option => option.id === platform)?.label || platform)
     setPublicationProgress(`Aguardando confirmação de ${labels.join(' e ')}...`)
@@ -368,22 +461,24 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
   }
 
   async function loadAnalyticsInsights() {
+    const days = analyticsDays
     setAnalyticsLoading(true); setAnalyticsError('')
     try {
-      const data = await apiFetch(`/api/ai/analytics-insights?days=${analyticsDays}`)
+      const data = await apiFetch(`/api/ai/analytics-insights?days=${days}`)
       setAnalyticsInsights(data.insights || null)
+      setAnalyzedDays(days)
     } catch (e) { setAnalyticsError(e.message || 'Não foi possível analisar o Analytics.') } finally { setAnalyticsLoading(false) }
   }
 
   async function clearActivityLogs() {
     if (!activityLogs.length) return
-    if (!window.confirm('Limpar o diagnóstico do Assistente inteligente?')) return
+    if (!window.confirm('Limpar o histórico de atividade do Assistente inteligente?')) return
     try {
       await apiFetch('/api/ai/activity-log', { method: 'DELETE' })
       setActivityLogs([])
-      notify('Diagnóstico limpo.')
+      notify('Histórico de atividade limpo.')
     } catch (e) {
-      notify(e.message || 'Não foi possível limpar o diagnóstico.', 'error')
+      notify(e.message || 'Não foi possível limpar o histórico.', 'error')
     }
   }
 
@@ -395,97 +490,411 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
     return `${Number(value || 0).toFixed(2).replace('.', ',')}%`
   }
 
-  function platformSymbol(platform) {
-    return ({ instagram: '◎', facebook: 'f', youtube: '▶', tiktok: '♪' })[platform] || '•'
+  function imageButtonLabel(post, index) {
+    if (imageLoadingIndex === index) return post.visualFormat === 'carousel' ? `Gerando carrossel ${imageLoadingProgress?.current || 0}/${imageLoadingProgress?.total || post.carouselCount}…` : 'Gerando imagem…'
+    if (post.visualFormat === 'carousel') return post.carouselImages?.length ? 'Gerar outro carrossel' : 'Gerar carrossel'
+    return post.imageUrl ? 'Gerar outra imagem' : 'Gerar imagem'
   }
 
-  return <section className={`page-view ai-page${posts.length ? ' has-results' : ' is-empty'}`}><header className="ai-page-intro"><div><p className="eyebrow">SISTEMA INTELIGENTE</p><h2>Crie conteúdo com mais agilidade</h2><p>Ganhe tempo com ideias e legendas prontas para revisar.</p></div><span className="ai-page-intro-badge"><span aria-hidden="true">✦</span> Seu copiloto de conteúdo</span></header><section className="panel ai-generator-panel">
-    <div className="ai-generator-heading"><div><p className="eyebrow">CRIAR CONTEÚDO</p><h2>O que você quer publicar?</h2><p>Quanto mais contexto você informar, mais úteis serão as sugestões.</p></div><span className="ai-generator-icon" aria-hidden="true">✦</span></div>
-    <form className="draft-form sched-form" onSubmit={generate}>
-      <SchedSection number={1} title="Instrução">
-<textarea className="ai-prompt-input" value={instruction} onChange={event => setInstruction(event.target.value)} placeholder="Ex.: crie 3 ideias para divulgar minha cafeteria" aria-label="Instrução para o sistema inteligente"/><span className="ai-prompt-help">Informe o tema, o público e o objetivo. Revise as sugestões antes de usar.</span><details className="ai-content-limits"><summary>Limites de conteúdo</summary><p>O sistema não atende temas médicos, jurídicos, adultos ou análises financeiras aprofundadas.</p></details>
-      </SchedSection>
-      <fieldset className="ai-visual-format-picker">
-        <legend>Formato visual opcional</legend>
-        <div className="ai-visual-format-options">
-          <label className={visualFormat === 'single' ? 'is-selected' : ''}><input type="radio" name="ai-visual-format" value="single" checked={visualFormat === 'single'} onChange={() => setVisualFormat('single')} /><span><strong>Imagem única</strong><small>Uma arte para acompanhar a publicação.</small></span></label>
-          <label className={visualFormat === 'carousel' ? 'is-selected' : ''}><input type="radio" name="ai-visual-format" value="carousel" checked={visualFormat === 'carousel'} onChange={() => setVisualFormat('carousel')} /><span><strong>Carrossel de fotos</strong><small>Gera uma sequência de 3 a 8 fotos para Instagram ou TikTok.</small></span></label>
+  function confirmLabel(post) {
+    if (post?.visualFormat === 'carousel') return post.carouselImages?.length ? 'Publicar carrossel' : 'Gerar carrossel e publicar'
+    return post?.imageUrl ? 'Publicar agora' : 'Gerar imagem e publicar'
+  }
+
+  function publishButtonLabel(post, index) {
+    if (publishingIndex === index) return post.visualFormat === 'carousel' ? 'Gerando e publicando carrossel…' : post.imageUrl ? 'Publicando…' : 'Gerando e publicando…'
+    if (post.publishStatus === 'published') return 'Publicado'
+    return confirmLabel(post)
+  }
+
+  function onTabKeyDown(event) {
+    const keys = PAGE_TABS.map(item => item.key)
+    const index = keys.indexOf(tab)
+    const next = event.key === 'ArrowRight' ? keys[(index + 1) % keys.length]
+      : event.key === 'ArrowLeft' ? keys[(index - 1 + keys.length) % keys.length]
+        : event.key === 'Home' ? keys[0]
+          : event.key === 'End' ? keys[keys.length - 1]
+            : null
+    if (!next) return
+    event.preventDefault()
+    setTab(next)
+    document.getElementById(`as-tab-${next}`)?.focus()
+  }
+
+  const busyIndex = imageLoadingIndex ?? publishingIndex
+  const busyMessage = imageLoadingIndex !== null
+    ? `Gerando ${posts[imageLoadingIndex]?.visualFormat === 'carousel' ? 'o carrossel' : 'a imagem'} da ideia ${String(imageLoadingIndex + 1).padStart(2, '0')}. As outras ideias ficam disponíveis quando terminar.`
+    : publishingIndex !== null
+      ? `Publicando a ideia ${String(publishingIndex + 1).padStart(2, '0')}. As outras ideias ficam disponíveis quando terminar.`
+      : ''
+  const instructionLevel = instruction.length > INSTRUCTION_MAX_LENGTH ? 'over' : instruction.length > INSTRUCTION_MAX_LENGTH * 0.9 ? 'near' : undefined
+  const modalPost = publishModalIndex !== null ? posts[publishModalIndex] : null
+  const modalAccounts = accountsForPlatform(publishPlatform)
+  const quotaUsedPct = imageQuota ? Math.min(100, Math.round((Number(imageQuota.used) / Math.max(Number(imageQuota.limit), 1)) * 100)) : 0
+  const insights = analyticsInsights
+  const profiles = insights?.profileComparison || []
+  const niches = insights?.nicheComparisons || []
+  const recommendations = insights?.recommendations || []
+  const comparisons = insights?.performanceAnalysis?.comparisons || []
+
+  const errorAlert = error && <div className="ds-alert" data-tone="danger" role="alert"><Icon name="alertCircle" className="ds-alert__icon" /><p className="ds-alert__text">{error}</p></div>
+
+  const createPanel = <div className="as-create">
+    <form className="as-compose" onSubmit={generate} noValidate>
+      <div className="ds-field">
+        <div className="ds-field__top">
+          <label className="ds-label" htmlFor="as-instruction">O que você quer publicar?</label>
+          <span className="ds-counter" data-level={instructionLevel}>{instruction.length}/{INSTRUCTION_MAX_LENGTH}</span>
         </div>
-        {visualFormat === 'carousel' && <label className="ai-carousel-count">Quantidade de slides<select value={carouselCount} onChange={event => setCarouselCount(Number(event.target.value))}>{[3, 4, 5, 6, 7, 8].map(count => <option key={count} value={count}>{count} slides</option>)}</select></label>}
-        <p>O carrossel só é criado quando você escolher este formato ou pedir “carrossel” na instrução. A geração consome uma imagem por slide.</p>
-      </fieldset>
-      <button type="submit" className="action-button ai-generate-button" disabled={loading || loadingMore}>{loading ? 'Gerando ideias...' : 'Gerar ideias'}</button>
-    </form>
-    {error && <p className="error-message" role="alert">{error}</p>}
-  </section>
-  {posts.length > 0 && <section className="panel ai-suggestions-panel">
-    <div className="ai-panel-heading"><div><p className="eyebrow">RESULTADOS</p><h2>Sugestões para você</h2><p>Revise o texto, gere uma imagem única ou um carrossel e publique a ideia escolhida.</p></div><span className="ai-result-count">{posts.length} ideias</span></div>
-    <div className="ai-suggestion-list">{posts.map((post, index) => <article className="ai-suggestion-card" key={post.id || index}><span className="ai-suggestion-number">{String(index + 1).padStart(2, '0')}</span><div className="ai-suggestion-body">
-      {editingIndex === index
-        ? <textarea className="ai-suggestion-editor" value={post.text} onChange={event => setPosts(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, text: event.target.value } : item))} aria-label={`Editar sugestão ${index + 1}`} />
-        : <p>{post.text}</p>}
-      <div className="ai-suggestion-actions" aria-label={`Ações da sugestão ${index + 1}`}>
-        <div className="ai-suggestion-secondary-actions">
-          <button type="button" className="ai-suggestion-action-button ai-edit-button" onClick={() => setEditingIndex(editingIndex === index ? null : index)}><span className="ai-suggestion-action-icon" aria-hidden="true">✎</span><span>{editingIndex === index ? 'Concluir edição' : 'Editar texto'}</span></button>
-          <button type="button" className="ai-suggestion-action-button ai-image-button" onClick={() => generateImage(index)} disabled={imageLoadingIndex !== null || publishingIndex !== null}><span className="ai-suggestion-action-icon" aria-hidden="true">✦</span><span>{imageLoadingIndex === index ? (post.visualFormat === 'carousel' ? `Gerando carrossel ${imageLoadingProgress?.current || 0}/${imageLoadingProgress?.total || post.carouselCount}...` : 'Gerando imagem...') : post.visualFormat === 'carousel' ? (post.carouselImages?.length ? 'Gerar outro carrossel' : 'Gerar carrossel') : post.imageUrl ? 'Gerar outra imagem' : 'Gerar imagem'}</span></button>
-        </div>
-        <button type="button" className="ai-suggestion-action-button ai-publish-image-button ai-suggestion-primary-action" onClick={() => openPublishPlatformModal(index)} disabled={publishingIndex !== null || imageLoadingIndex !== null || post.publishStatus === 'published'}><span className="ai-suggestion-action-icon" aria-hidden="true">↗</span><span>{publishingIndex === index ? (post.visualFormat === 'carousel' ? 'Gerando e publicando carrossel...' : post.imageUrl ? 'Publicando...' : 'Gerando e publicando...') : post.publishStatus === 'published' ? 'Publicado' : post.visualFormat === 'carousel' ? (post.carouselImages?.length ? 'Publicar carrossel' : 'Gerar carrossel e publicar') : post.imageUrl ? 'Publicar agora' : 'Gerar imagem e publicar'}</span></button>
+        <textarea
+          id="as-instruction"
+          className="ds-textarea as-instruction"
+          value={instruction}
+          onChange={event => { setInstruction(event.target.value); if (instructionError) setInstructionError('') }}
+          placeholder="Ex.: crie 3 ideias para divulgar minha cafeteria"
+          maxLength={INSTRUCTION_MAX_LENGTH}
+          aria-invalid={instructionError ? 'true' : undefined}
+          aria-describedby="as-instruction-help"
+        />
+        {instructionError
+          ? <p className="ds-fieldmsg" data-tone="danger" id="as-instruction-help"><Icon name="alertCircle" />{instructionError}</p>
+          : <p className="ds-hint" id="as-instruction-help">Informe o tema, o público e o objetivo. Quanto mais contexto, mais úteis serão as sugestões.</p>}
+        <details className="ds-disclosure as-limits">
+          <summary>Limites de conteúdo<Icon name="chevronDown" size={16} className="ds-disclosure__chev" /></summary>
+          <p className="ds-disclosure__body">O sistema não atende temas médicos, jurídicos, adultos ou análises financeiras aprofundadas.</p>
+        </details>
       </div>
-      {post.carouselImages?.length > 0
-        ? <div className="ai-generated-media ai-generated-carousel"><div className="ai-carousel-grid">{post.carouselImages.map((image, imageIndex) => <img key={`${image}-${imageIndex}`} src={image} alt={`Slide ${imageIndex + 1} do carrossel da ideia ${index + 1}`} />)}</div><small>Carrossel com {post.carouselImages.length} slides{post.imageModel ? ` · criado com ${post.imageModel}.` : ' · gerado pelo sistema inteligente.'}</small></div>
-        : post.imageUrl && <div className="ai-generated-media"><img src={post.imageUrl} alt={`Imagem gerada para a ideia ${index + 1}`} /><small>{post.imageModel ? `Imagem criada com ${post.imageModel}.` : 'Imagem gerada pelo sistema inteligente.'}</small></div>}
-      {post.imageError && <p className="ai-image-error" role="alert">{post.imageError}</p>}
-      {post.publishStatus && post.publishStatus !== 'published' && <p className={`ai-publish-status ai-publish-status-${post.publishStatus}`}>Status da publicação: {post.publishStatus === 'processing' ? 'aguardando confirmação da rede' : post.publishStatus === 'partial' ? 'publicada parcialmente' : 'não foi possível concluir'}.</p>}
-    </div></article>)}</div>
-    <button type="button" className="action-button ai-generate-more-button" onClick={generateMore} disabled={loadingMore || loading}>{loadingMore ? 'Gerando mais ideias...' : 'Gerar mais ideias sobre este assunto'}</button>
-  </section>}
-  {publishModalIndex !== null && <div className="modal-overlay ai-publish-platform-overlay" onMouseDown={event => event.target === event.currentTarget && closePublishPlatformModal()}>
-    <section className="modal-content ai-publish-platform-modal" role="dialog" aria-modal="true" aria-labelledby="ai-publish-platform-title" onMouseDown={event => event.stopPropagation()}>
-      <div className="modal-header"><div><p className="eyebrow">PUBLICAR AGORA</p><h3 id="ai-publish-platform-title">Escolha a rede social</h3></div><button type="button" className="link-button" onClick={closePublishPlatformModal} aria-label="Fechar">✕</button></div>
-      <p className="ai-publish-platform-copy">Selecione onde esta sugestão deve ser publicada. A publicação será enviada somente para a rede escolhida.</p>
-      <div className="platform-options ai-publish-platform-options" role="radiogroup" aria-label="Rede social para publicação">
-        {PUBLISH_PLATFORMS.map(option => {
-          const accounts = accountsForPlatform(option.id)
-          const targetPost = posts[publishModalIndex]
-          const unavailable = !isPublishPlatformAvailable(option.id, targetPost)
-          const accountText = accounts.length
-            ? accounts.slice(0, 2).map(accountLabel).join(', ')
-            : accountsLoaded && !accountsLoadError ? 'Nenhuma conta conectada' : 'Verificando contas conectadas...'
-          return <label key={option.id} className={`platform-option platform-option-${option.id}${unavailable ? ' is-disabled' : ''}`}>
-            <input type="radio" name="ai-publish-platform" value={option.id} checked={publishPlatform === option.id} onChange={() => setPublishPlatform(option.id)} disabled={unavailable} />
-            <span className="platform-option-icon" aria-hidden="true">{option.symbol}</span><span className="platform-option-name">{option.label}</span><span className="platform-option-hint">{option.videoOnly ? 'Disponível no Meu Post com vídeo' : option.hint}</span><span className="platform-option-account">{accountText}{accounts.length > 2 ? ` +${accounts.length - 2}` : ''}</span><span className="platform-option-check" aria-hidden="true">✓</span>
+
+      <fieldset className="as-look">
+        <legend className="ds-label">Formato visual</legend>
+        <div className="as-look__opts">
+          <label className="as-choice" data-checked={visualFormat === 'single'}>
+            <input type="radio" name="ai-visual-format" value="single" checked={visualFormat === 'single'} onChange={() => setVisualFormat('single')} />
+            <Icon name="image" />
+            <span><strong>Imagem única</strong><small>Uma arte para acompanhar a publicação.</small></span>
           </label>
-        })}
+          <label className="as-choice" data-checked={visualFormat === 'carousel'}>
+            <input type="radio" name="ai-visual-format" value="carousel" checked={visualFormat === 'carousel'} onChange={() => setVisualFormat('carousel')} />
+            <Icon name="copy" />
+            <span><strong>Carrossel de fotos</strong><small>De 3 a 8 fotos para Instagram ou TikTok.</small></span>
+          </label>
+        </div>
+        {visualFormat === 'carousel' && <div className="ds-field as-slides">
+          <label className="ds-label" htmlFor="as-slides">Quantidade de slides</label>
+          <span className="ds-select">
+            <select id="as-slides" className="ds-select__control" value={carouselCount} onChange={event => setCarouselCount(Number(event.target.value))}>
+              {[3, 4, 5, 6, 7, 8].map(count => <option key={count} value={count}>{count} slides</option>)}
+            </select>
+            <Icon name="chevronDown" className="ds-select__chev" />
+          </span>
+        </div>}
+        <p className="ds-hint">O carrossel só é criado quando você escolher este formato ou pedir “carrossel” na instrução. A geração consome uma imagem por slide.</p>
+        {imageQuota && <div className="as-quota" aria-live="polite">
+          <p><span>Imagens do mês</span><strong className="ds-num">{imageQuota.remaining} de {imageQuota.limit} disponíveis</strong></p>
+          <div className="ds-progress" aria-hidden="true"><span className="ds-progress__bar" style={{ '--value': `${quotaUsedPct}%` }} /></div>
+          {imageQuota.planName && <p className="ds-meta">Limite do plano {imageQuota.planName}.</p>}
+        </div>}
+      </fieldset>
+
+      {errorSource === 'generate' && errorAlert}
+      <div className="as-compose__go">
+        <button type="submit" className="ds-btn ds-btn--primary ds-btn--block" disabled={loading || loadingMore}>
+          {loading ? <><span className="ds-spinner" aria-hidden="true" />Gerando ideias…</> : <><Icon name="sparkle" />{posts.length ? 'Gerar novas ideias' : 'Gerar ideias'}</>}
+        </button>
+        {posts.length > 0 && <p className="ds-hint">Novas ideias substituem as sugestões atuais. Para somar, use “Gerar mais ideias”.</p>}
       </div>
-      {posts[publishModalIndex]?.visualFormat === 'carousel' && <p className="ai-carousel-publish-note">Carrosséis são publicados como uma única publicação no Instagram ou TikTok, mantendo a ordem dos slides.</p>}
-      {publishPlatform === 'tiktok' && <label className="ai-tiktok-privacy-field">Privacidade do TikTok<select value={tiktokPrivacyLevel} onChange={event => setTiktokPrivacyLevel(event.target.value)}><option value="">Selecione...</option><option value="PUBLIC_TO_EVERYONE">Público</option><option value="MUTUAL_FOLLOW_FRIENDS">Amigos</option><option value="FOLLOWER_OF_CREATOR">Seguidores do criador</option><option value="SELF_ONLY">Somente eu</option></select></label>}
-      <div className="ai-publish-platform-actions"><button type="button" className="secondary-button" onClick={closePublishPlatformModal}>Cancelar</button><button type="button" className="action-button" onClick={confirmPublishPlatform} disabled={!isPublishPlatformAvailable(publishPlatform, posts[publishModalIndex])}>{posts[publishModalIndex]?.visualFormat === 'carousel' ? (posts[publishModalIndex]?.carouselImages?.length ? 'Publicar carrossel' : 'Gerar carrossel e publicar') : posts[publishModalIndex]?.imageUrl ? 'Publicar agora' : 'Gerar imagem e publicar'}</button></div>
+    </form>
+
+    <section className="as-results" aria-labelledby="as-results-title" aria-busy={loading || undefined}>
+      <header className="as-results__head">
+        <div>
+          <h2 className="as-results__title" id="as-results-title">Sugestões {posts.length > 0 && <span className="ds-badge" data-tone="outline"><span className="ds-num">{posts.length}</span> {posts.length === 1 ? 'ideia' : 'ideias'}</span>}</h2>
+          <p className="ds-head__desc">{posts.length ? 'Revise o texto, gere uma imagem única ou um carrossel e publique a ideia escolhida.' : 'As ideias aparecem aqui, prontas para revisar.'}</p>
+        </div>
+      </header>
+      <p className="ds-sr-only" role="status">{loading ? 'Gerando ideias…' : ''}</p>
+      {busyMessage && <p className="as-busy" role="status"><span className="ds-spinner" aria-hidden="true" />{busyMessage}</p>}
+
+      {loading && !posts.length
+        ? <div className="as-ideas">{[1, 2, 3].map(item => <div className="as-idea" key={item}><span className="ds-skel ds-skel--text" /><span className="ds-skel ds-skel--text" /><span className="ds-skel as-skel" /></div>)}</div>
+        : posts.length
+          ? <ol className="as-ideas" aria-busy={loading || undefined}>
+              {posts.map((post, index) => {
+                const editing = editingIndex === index
+                const status = PUBLISH_STATUS[post.publishStatus]
+                const isCarousel = post.visualFormat === 'carousel'
+                const number = String(index + 1).padStart(2, '0')
+                return <li className="as-idea" key={post.id || index} data-busy={busyIndex === index || undefined}>
+                  <div className="as-idea__head">
+                    <span className="as-idea__num" aria-hidden="true">{number}</span>
+                    <h3 className="ds-sr-only">Ideia {number}</h3>
+                    <span className="ds-badge" data-tone="outline"><Icon name={isCarousel ? 'copy' : 'image'} size={14} />{isCarousel ? `Carrossel · ${post.carouselCount} slides` : 'Imagem única'}</span>
+                    {status && <span className="ds-status ds-status--soft" data-status={status.status}>{status.label}</span>}
+                    <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm as-idea__edit" onClick={() => setEditingIndex(editing ? null : index)} aria-pressed={editing}>
+                      <Icon name={editing ? 'check' : 'compose'} size={16} />{editing ? 'Concluir edição' : 'Editar texto'}
+                    </button>
+                  </div>
+
+                  {editing
+                    ? <textarea className="ds-textarea as-idea__editor" value={post.text} onChange={event => setPosts(current => current.map((item, itemIndex) => itemIndex === index ? { ...item, text: event.target.value } : item))} aria-label={`Editar sugestão ${index + 1}`} autoFocus />
+                    : <p className="as-idea__text">{post.text}</p>}
+
+                  {post.carouselImages?.length > 0
+                    ? <figure className="as-media">
+                        <div className="as-strip">{post.carouselImages.map((image, imageIndex) => <span className="as-strip__slide" key={`${image}-${imageIndex}`}><img src={image} alt={`Slide ${imageIndex + 1} do carrossel da ideia ${index + 1}`} /><span className="as-strip__num" aria-hidden="true">{imageIndex + 1}</span></span>)}</div>
+                        <figcaption className="ds-meta">Carrossel com {post.carouselImages.length} slides gerado pelo sistema inteligente.</figcaption>
+                      </figure>
+                    : post.imageUrl && <figure className="as-media">
+                        <img className="as-media__single" src={post.imageUrl} alt={`Imagem gerada para a ideia ${index + 1}`} />
+                        <figcaption className="ds-meta">Imagem gerada pelo sistema inteligente.</figcaption>
+                      </figure>}
+
+                  {post.imageError && <div className="ds-alert" data-tone={post.publishStatus === 'partial' ? 'warning' : 'danger'} role="alert"><Icon name={post.publishStatus === 'partial' ? 'alertTriangle' : 'alertCircle'} className="ds-alert__icon" /><p className="ds-alert__text">{post.imageError}</p></div>}
+
+                  <div className="as-idea__foot">
+                    <button type="button" className="ds-btn ds-btn--secondary" onClick={() => generateImage(index)} disabled={imageLoadingIndex !== null || publishingIndex !== null}>
+                      {imageLoadingIndex === index ? <span className="ds-spinner" aria-hidden="true" /> : <Icon name={isCarousel ? 'copy' : 'image'} />}{imageButtonLabel(post, index)}
+                    </button>
+                    <button type="button" className="ds-btn ds-btn--primary" onClick={() => openPublishPlatformModal(index)} disabled={publishingIndex !== null || imageLoadingIndex !== null || post.publishStatus === 'published'}>
+                      {publishingIndex === index ? <span className="ds-spinner" aria-hidden="true" /> : <Icon name={post.publishStatus === 'published' ? 'checkCircle' : 'send'} />}{publishButtonLabel(post, index)}
+                    </button>
+                  </div>
+                </li>
+              })}
+            </ol>
+          : <div className="as-howto">
+              <ol className="as-steps">
+                <li><span className="as-steps__num" aria-hidden="true">1</span><div><strong>Descreva a ideia</strong><p>Tema, público e objetivo. O sistema devolve três sugestões de legenda.</p></div></li>
+                <li><span className="as-steps__num" aria-hidden="true">2</span><div><strong>Revise e crie a arte</strong><p>Edite o texto e gere uma imagem única ou um carrossel para cada ideia.</p></div></li>
+                <li><span className="as-steps__num" aria-hidden="true">3</span><div><strong>Publique na hora</strong><p>Escolha a rede. Você confirma antes do envio e acompanha o resultado aqui.</p></div></li>
+              </ol>
+            </div>}
+
+      {posts.length > 0 && <div className="as-more">
+        {errorSource === 'more' && errorAlert}
+        <button type="button" className="ds-btn ds-btn--secondary" onClick={generateMore} disabled={loadingMore || loading}>
+          {loadingMore ? <><span className="ds-spinner" aria-hidden="true" />Gerando mais ideias…</> : <><Icon name="plus" />Gerar mais ideias sobre este assunto</>}
+        </button>
+      </div>}
     </section>
-  </div>}
-  {publicationDialog && <PublicationStatusModal status={publicationDialog.status} platforms={publicationDialog.platforms} progress={publicationProgress} onReview={() => setPublicationDialog(null)} onClose={() => setPublicationDialog(null)}/>}
-  <section className="panel ai-analytics-insights-panel">
-    <div className="ai-panel-heading ai-analytics-insights-heading"><div><p className="eyebrow">INTELIGÊNCIA DE PERFORMANCE</p><h2>O que está acontecendo no seu Analytics?</h2><p>Veja os melhores horários e os perfis que estão evoluindo.</p></div><span className="ai-analytics-insights-icon" aria-hidden="true">◒</span></div>
-    <div className="ai-analytics-controls"><label>Período<select value={analyticsDays} onChange={event => setAnalyticsDays(Number(event.target.value))}><option value={7}>Últimos 7 dias</option><option value={30}>Últimos 30 dias</option><option value={90}>Últimos 90 dias</option></select></label><button type="button" className="action-button ai-analytics-button" onClick={loadAnalyticsInsights} disabled={analyticsLoading}>{analyticsLoading ? 'Analisando...' : 'Analisar Analytics'}</button></div>
-    {analyticsError && <p className="error-message" role="alert">{analyticsError}</p>}
-    {!analyticsInsights && !analyticsLoading && !analyticsError && <div className="ai-analytics-empty"><span aria-hidden="true">✦</span><div><strong>Descubra o melhor momento para publicar</strong><p>Escolha o período e deixe o sistema inteligente transformar seus dados em decisões práticas.</p></div></div>}
-    {analyticsInsights && <div className="ai-analytics-insights-content">
-      <div className="ai-analytics-summary"><span className="ai-analytics-summary-mark" aria-hidden="true">✓</span><p>{analyticsInsights.summary}</p></div>
-      {analyticsInsights.performanceAnalysis?.comparisons?.length > 0 && <section className="ai-performance-analysis" aria-labelledby="ai-performance-analysis-title"><div className="analytics-section-heading"><div><span className="ai-analytics-card-kicker">COMPARAÇÃO DE VISUALIZAÇÕES</span><h3 id="ai-performance-analysis-title">Por que um post foi melhor que outro?</h3></div><small>Correlação, não causalidade</small></div>{analyticsInsights.performanceAnalysis.comparisons.map(item => <article className="ai-performance-comparison" key={item.platform}><div className="ai-performance-comparison-heading"><strong>{item.platformLabel}</strong><span>{item.sampleSize} publicação(ões) · confiança {item.confidence}</span></div><p>{item.diagnosis}</p><div className="ai-performance-actions"><div><b>Solução recomendada</b><span>{item.solution}</span></div><div><b>Outra abordagem</b><span>{item.alternativeApproach}</span></div></div></article>)}</section>}
-      <div className="ai-analytics-highlight-grid">
-        <article className="ai-analytics-highlight-card is-gold"><span className="ai-analytics-card-kicker">MELHOR HORÁRIO</span>{analyticsInsights.bestTime ? <><strong>{analyticsInsights.bestTime.hour}h · {analyticsInsights.bestTime.period}</strong><span>{analyticsInsights.bestTime.day} no {analyticsInsights.bestTime.platformLabel}</span><small>{formatMetric(analyticsInsights.bestTime.averageInteractions)} de interação média · {analyticsInsights.bestTime.postCount || 0} publicação(ões)</small></> : <><strong>Dados insuficientes</strong><span>Publique mais vezes para identificar um padrão.</span></>}</article>
-        <article className="ai-analytics-highlight-card"><span className="ai-analytics-card-kicker">PERÍODO DO DIA</span><strong>{analyticsInsights.bestPeriod || 'Ainda não identificado'}</strong><span>{analyticsInsights.bestPeriod ? 'É o período com melhor sinal no histórico analisado.' : 'Ainda não há horários suficientes para comparar.'}</span><small>Baseado nas métricas do período selecionado</small></article>
+  </div>
+
+  const performancePanel = <div className="as-perf">
+    <div className="ds-filterbar as-perf__bar">
+      <div className="ds-field as-perf__period">
+        <label className="ds-label" htmlFor="as-period">Período</label>
+        <span className="ds-select">
+          <select id="as-period" className="ds-select__control" value={analyticsDays} onChange={event => setAnalyticsDays(Number(event.target.value))}>
+            {ANALYTICS_PERIODS.map(days => <option key={days} value={days}>Últimos {days} dias</option>)}
+          </select>
+          <Icon name="chevronDown" className="ds-select__chev" />
+        </span>
       </div>
-      <div className="ai-analytics-columns">
-        <div className="ai-analytics-block"><div className="ai-analytics-block-heading"><div><span className="ai-analytics-card-kicker">COMPARAÇÃO DE PERFIS</span><strong>Quem está se saindo melhor?</strong></div><small>{analyticsInsights.profileComparison.length} perfil(is)</small></div>{analyticsInsights.profileComparison.length ? <div className="ai-profile-comparison-list">{analyticsInsights.profileComparison.map((profile, index) => <div className="ai-profile-comparison-row" key={profile.id}><span className="ai-profile-rank">{String(index + 1).padStart(2, '0')}</span><span className={`ai-profile-network ai-profile-network-${profile.platform}`} aria-hidden="true">{platformSymbol(profile.platform)}</span><div className="ai-profile-comparison-main"><strong>{profile.name}</strong><small>{profile.platformLabel} · {profile.niche}</small></div><div className="ai-profile-comparison-metrics"><strong>{formatRate(profile.engagementRate)}</strong><small>{formatMetric(profile.interactions)} interações</small></div></div>)}</div> : <p className="ai-analytics-no-data">Nenhum perfil com métricas disponíveis neste período.</p>}</div>
-        <div className="ai-analytics-block"><div className="ai-analytics-block-heading"><div><span className="ai-analytics-card-kicker">DESEMPENHO POR NICHO</span><strong>Referências para crescer</strong></div></div>{analyticsInsights.nicheComparisons.length ? <div className="ai-niche-comparison-list">{analyticsInsights.nicheComparisons.map(item => <div className="ai-niche-comparison-card" key={item.niche}><span>{item.niche}</span><strong>{item.winner?.name || 'Sem vencedor'}</strong><small>{item.winner ? `${formatRate(item.winner.engagementRate)} de interação · ${item.winner.platformLabel}` : 'Sem dados suficientes'}</small></div>)}</div> : <p className="ai-analytics-no-data">Ainda não foi possível identificar um nicho com segurança.</p>}</div>
-      </div>
-      <div className="ai-analytics-recommendations"><span className="ai-analytics-card-kicker">PRÓXIMAS AÇÕES</span>{analyticsInsights.recommendations.map((recommendation, index) => <p key={index}><b>{index + 1}</b>{recommendation}</p>)}</div>
-      <p className="ai-analytics-data-note">Análise baseada em {analyticsInsights.dataQuality.publications} publicação(ões), {analyticsInsights.dataQuality.profiles} perfil(is) e {analyticsInsights.dataQuality.timeSlots} faixa(s) de horário. O nicho é estimado a partir dos textos publicados.</p>
+      <button type="button" className="ds-btn ds-btn--primary" onClick={loadAnalyticsInsights} disabled={analyticsLoading}>
+        {analyticsLoading ? <><span className="ds-spinner" aria-hidden="true" />Analisando…</> : <><Icon name="sparkle" />{insights ? 'Analisar de novo' : 'Analisar resultados'}</>}
+      </button>
+      {insights && analyzedDays && analyzedDays !== analyticsDays && !analyticsLoading && <p className="ds-hint as-perf__stale"><Icon name="info" size={16} />A análise abaixo é dos últimos {analyzedDays} dias. Clique em “Analisar de novo” para ver {analyticsDays} dias.</p>}
+    </div>
+
+    {analyticsError && <div className="ds-alert" data-tone="danger" role="alert"><Icon name="alertCircle" className="ds-alert__icon" /><p className="ds-alert__text">{analyticsError}</p></div>}
+
+    {!insights && analyticsLoading && <div aria-busy="true"><span className="ds-skel as-perf__skel" /><span className="ds-skel as-perf__skel" /></div>}
+
+    {!insights && !analyticsLoading && !analyticsError && <div className="ds-empty ds-empty--center">
+      <span className="ds-icontile ds-icontile--lg" aria-hidden="true"><Icon name="clock" /></span>
+      <h3 className="ds-empty__title">Descubra o melhor momento para publicar</h3>
+      <p className="ds-empty__text">Escolha o período e deixe o sistema inteligente transformar seus dados em decisões práticas: melhor horário, perfis em alta e próximas ações.</p>
     </div>}
-  </section>
-  <section className="panel ai-logs-panel">
-    <div className="ai-panel-heading"><div><p className="eyebrow">DIAGNÓSTICO</p><h2>Atividade do agente</h2><p>Acompanhe as últimas execuções realizadas pelo Assistente inteligente.</p></div><div className="ai-logs-actions"><button type="button" className="ai-refresh-button link-button" onClick={() => apiFetch('/api/ai/activity-log?limit=20').then(data => setActivityLogs(data.logs || []))}>Atualizar</button><button type="button" className="ai-clear-button link-button" onClick={clearActivityLogs} disabled={!activityLogs.length}>Limpar</button></div></div>
-    {activityLogs.length ? <div className="ai-log-list">{activityLogs.map(log => { const activity = formatAiActivity(log); return <div className="ai-log-row" key={log.id}><span className={`ai-log-status ai-log-status-${log.status === 'success' || log.status === 'ok' ? 'ok' : 'info'}`} aria-hidden="true">{log.status === 'success' || log.status === 'ok' ? '✓' : '·'}</span><div><strong>{activity.title}</strong><small>{activity.details} · {new Date(log.criadoEm).toLocaleString('pt-BR')}</small></div><span className="ai-log-status-label">{log.status}</span></div> })}</div> : <p className="empty-state">Nenhum registro do agente ainda.</p>}
-  </section>
-  </section>
+
+    {insights && <div className="as-perf__body" aria-busy={analyticsLoading || undefined}>
+      <div className="as-lead"><Icon name="sparkle" /><p>{insights.summary}</p></div>
+
+      <div className="ds-stats as-perf__stats" style={{ '--cols': 2 }}>
+        <div className="ds-stat">
+          <p className="ds-stat__label">Melhor horário</p>
+          {insights.bestTime
+            ? <><p className="ds-stat__value ds-stat__value--md">{insights.bestTime.hour}h <span className="ds-stat__unit">· {insights.bestTime.period}</span></p><p className="ds-stat__caption">{insights.bestTime.day} no {insights.bestTime.platformLabel} · {formatMetric(insights.bestTime.averageInteractions)} de interação média · {insights.bestTime.postCount || 0} publicação(ões)</p></>
+            : <><p className="ds-stat__value ds-stat__value--md">Dados insuficientes</p><p className="ds-stat__caption">Publique mais vezes para identificar um padrão.</p></>}
+        </div>
+        <div className="ds-stat">
+          <p className="ds-stat__label">Período do dia</p>
+          <p className="ds-stat__value ds-stat__value--md">{insights.bestPeriod || 'Ainda não identificado'}</p>
+          <p className="ds-stat__caption">{insights.bestPeriod ? 'É o período com melhor sinal no histórico analisado.' : 'Ainda não há horários suficientes para comparar.'}</p>
+        </div>
+      </div>
+
+      {recommendations.length > 0 && <section className="as-next" aria-labelledby="as-next-title">
+        <h3 className="as-perf__title" id="as-next-title">Próximas ações</h3>
+        <ol className="as-next__list">{recommendations.map((recommendation, index) => <li key={index}><span className="as-steps__num" aria-hidden="true">{index + 1}</span><p>{recommendation}</p></li>)}</ol>
+      </section>}
+
+      <div className="as-perf__cols">
+        <section className="as-perf__col" aria-labelledby="as-profiles-title">
+          <div className="as-perf__colhead"><h3 className="as-perf__title" id="as-profiles-title">Quem está se saindo melhor?</h3><span className="ds-meta">{profiles.length} perfil(is)</span></div>
+          {profiles.length
+            ? <ol className="as-rank">{profiles.map((profile, index) => <li key={profile.id}>
+                <span className="as-rank__pos ds-num" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
+                <NetworkGlyph network={profile.platform} size={18} />
+                <span className="as-rank__who"><strong>{profile.name}</strong><small>{profile.platformLabel} · {profile.niche}</small></span>
+                <span className="as-rank__val"><strong className="ds-num">{formatRate(profile.engagementRate)}</strong><small>{formatMetric(profile.interactions)} interações</small></span>
+              </li>)}</ol>
+            : <p className="ds-hint">Nenhum perfil com métricas disponíveis neste período.</p>}
+        </section>
+        <section className="as-perf__col" aria-labelledby="as-niches-title">
+          <div className="as-perf__colhead"><h3 className="as-perf__title" id="as-niches-title">Referências por nicho</h3></div>
+          {niches.length
+            ? <ul className="as-niches">{niches.map(item => <li key={item.niche}>
+                <span className="ds-eyebrow">{item.niche}</span>
+                <strong>{item.winner?.name || 'Sem vencedor'}</strong>
+                <small>{item.winner ? `${formatRate(item.winner.engagementRate)} de interação · ${item.winner.platformLabel}` : 'Sem dados suficientes'}</small>
+              </li>)}</ul>
+            : <p className="ds-hint">Ainda não foi possível identificar um nicho com segurança.</p>}
+        </section>
+      </div>
+
+      {comparisons.length > 0 && <section className="as-why" aria-labelledby="ai-performance-analysis-title">
+        <div className="as-perf__colhead"><h3 className="as-perf__title" id="ai-performance-analysis-title">Por que um post foi melhor que outro?</h3><span className="ds-badge" data-tone="outline">Correlação, não causalidade</span></div>
+        {comparisons.map((item, index) => <details className="ds-disclosure as-why__item" key={item.platform} open={index === 0}>
+          <summary>
+            <span className="as-why__net"><NetworkGlyph network={item.platform} size={18} /><strong>{item.platformLabel}</strong></span>
+            <span className="ds-meta">{item.sampleSize} publicação(ões) · confiança {item.confidence}</span>
+            <Icon name="chevronDown" size={16} className="ds-disclosure__chev" />
+          </summary>
+          <div className="ds-disclosure__body as-why__body">
+            <p>{item.diagnosis}</p>
+            <dl className="as-why__tips">
+              <div><dt>Solução recomendada</dt><dd>{item.solution}</dd></div>
+              <div><dt>Outra abordagem</dt><dd>{item.alternativeApproach}</dd></div>
+            </dl>
+          </div>
+        </details>)}
+      </section>}
+
+      {insights.dataQuality && <p className="ds-hint as-perf__note">Análise baseada em {insights.dataQuality.publications} publicação(ões), {insights.dataQuality.profiles} perfil(is) e {insights.dataQuality.timeSlots} faixa(s) de horário. O nicho é estimado a partir dos textos publicados.</p>}
+    </div>}
+  </div>
+
+  const activityPanel = <div className="as-log">
+    <div className="as-log__head">
+      <p className="ds-head__desc">As últimas 20 ações do assistente: ideias, imagens e publicações.</p>
+      <div className="as-log__actions">
+        <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={loadActivityLogs} disabled={logsLoading}>
+          {logsLoading ? <span className="ds-spinner" aria-hidden="true" /> : <Icon name="refresh" size={16} />}Atualizar
+        </button>
+        <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm as-log__clear" onClick={clearActivityLogs} disabled={!activityLogs.length}>
+          <Icon name="trash" size={16} />Limpar histórico
+        </button>
+      </div>
+    </div>
+    {logsError && <div className="ds-alert" data-tone="danger" role="alert"><Icon name="alertCircle" className="ds-alert__icon" /><p className="ds-alert__text">{logsError}</p><div className="ds-alert__actions"><button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={loadActivityLogs}>Tentar de novo</button></div></div>}
+    {logsLoading && !activityLogs.length
+      ? <div aria-busy="true">{[1, 2, 3].map(item => <span className="ds-skel as-log__skel" key={item} />)}</div>
+      : activityLogs.length
+        ? <ul className="as-log__list">{activityLogs.map(log => {
+            const activity = formatAiActivity(log)
+            const state = activityStatus(log.status)
+            return <li className="as-log__item" key={log.id}>
+              <span className="as-log__icon" data-status={state.status} aria-hidden="true"><Icon name={state.icon} size={18} /></span>
+              <span className="as-log__main"><strong>{activity.title}</strong><small>{activity.details}</small></span>
+              <span className="as-log__side">
+                <span className="ds-status ds-status--soft" data-status={state.status}>{state.label}</span>
+                <time className="ds-meta" dateTime={log.criadoEm}>{formatActivityDate(log.criadoEm)}</time>
+              </span>
+            </li>
+          })}</ul>
+        : !logsError && <div className="ds-empty ds-empty--quiet"><h3 className="ds-empty__title ds-empty__title--sm">Nenhuma atividade do assistente ainda.</h3><p className="ds-empty__text">Gere ideias ou imagens e elas aparecem aqui.</p></div>}
+  </div>
+
+  return (
+    <div className="ds-page as" data-ds-root>
+      <header className="ds-pagehead as-head">
+        <div className="ds-pagehead__text">
+          <p className="ds-eyebrow">Ideias, imagens e análises</p>
+          <h1 className="ds-pagehead__title">Assistente inteligente</h1>
+          <p className="ds-pagehead__lede">Ganhe tempo com ideias e legendas prontas para revisar. Gere a arte, publique na hora e descubra o melhor momento para postar.</p>
+        </div>
+      </header>
+
+      <div className="ds-tabs as-tabs" role="tablist" aria-label="Seções do assistente" onKeyDown={onTabKeyDown}>
+        {PAGE_TABS.map(item => <button
+          key={item.key}
+          type="button"
+          role="tab"
+          id={`as-tab-${item.key}`}
+          className="ds-tab"
+          aria-selected={tab === item.key}
+          aria-controls={`as-panel-${item.key}`}
+          tabIndex={tab === item.key ? 0 : -1}
+          onClick={() => setTab(item.key)}
+        >
+          <Icon name={item.icon} size={16} />{item.label}
+          {item.key === 'criar' && posts.length > 0 && <span className="as-tabs__count ds-num">{posts.length}</span>}
+          {item.key === 'atividade' && activityLogs.length > 0 && <span className="as-tabs__count ds-num">{activityLogs.length}</span>}
+        </button>)}
+      </div>
+
+      <div className="as-pane" role="tabpanel" id={`as-panel-${tab}`} aria-labelledby={`as-tab-${tab}`}>
+        {tab === 'criar' ? createPanel : tab === 'desempenho' ? performancePanel : activityPanel}
+      </div>
+
+      {modalPost && <div className="ds-scrim" data-ds-root role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) closePublishPlatformModal() }}>
+        <section ref={publishDialogRef} className="ds-modal as-publish" role="dialog" aria-modal="true" aria-labelledby="ai-publish-platform-title" aria-describedby="as-publish-desc">
+          <header className="ds-modal__head">
+            <div className="ds-modal__heading">
+              <p className="ds-eyebrow">Publicar agora · ideia {String(publishModalIndex + 1).padStart(2, '0')}</p>
+              <h2 className="ds-modal__title" id="ai-publish-platform-title">Escolha a rede social</h2>
+              <p className="ds-modal__desc" id="as-publish-desc">A publicação sai na hora, na rede escolhida. Antes do envio você confirma mais uma vez.</p>
+            </div>
+            <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-modal__close" onClick={closePublishPlatformModal} aria-label="Fechar"><Icon name="close" /></button>
+          </header>
+          <div className="ds-modal__body as-publish__body">
+            <div className="as-nets" role="radiogroup" aria-label="Rede social para publicação">
+              {PUBLISH_PLATFORMS.map(option => {
+                const unavailable = !isPublishPlatformAvailable(option.id, modalPost)
+                return <label key={option.id} className="as-net" data-checked={publishPlatform === option.id} data-disabled={unavailable || undefined}>
+                  <input type="radio" name="ai-publish-platform" value={option.id} checked={publishPlatform === option.id} onChange={() => setPublishPlatform(option.id)} disabled={unavailable} data-autofocus={publishPlatform === option.id && !unavailable ? true : undefined} />
+                  <NetworkGlyph network={option.id} size={22} />
+                  <span className="as-net__text"><strong>{option.label}</strong><small>{platformNote(option, modalPost)}</small></span>
+                  <Icon name="checkCircle" size={18} className="as-net__check" />
+                </label>
+              })}
+            </div>
+
+            {isPublishPlatformAvailable(publishPlatform, modalPost) && (accountsLoadError
+              ? <div className="ds-alert" data-tone="warning"><Icon name="alertTriangle" className="ds-alert__icon" /><p className="ds-alert__text">Não foi possível verificar suas contas agora. A publicação vai para todas as contas ativas desta rede.</p></div>
+              : accountsLoaded && modalAccounts.length > 0 && <div className="as-dest">
+                  <p className="ds-label">{modalAccounts.length === 1 ? 'Conta que vai receber' : `As ${modalAccounts.length} contas que vão receber`}</p>
+                  <ul className="as-dest__list">{modalAccounts.map(account => <li key={account.id}><NetworkGlyph network={account.platform} size={14} />{accountLabel(account)}</li>)}</ul>
+                  {modalAccounts.length > 1 && <p className="ds-hint">A publicação vai para todas as contas conectadas desta rede.</p>}
+                </div>)}
+
+            {modalPost.visualFormat === 'carousel' && <p className="ds-hint as-publish__note"><Icon name="info" size={16} />Carrosséis são publicados como uma única publicação no Instagram ou TikTok, mantendo a ordem dos slides.</p>}
+
+            {publishPlatform === 'tiktok' && <div className="ds-field">
+              <label className="ds-label" htmlFor="as-tiktok">Privacidade do TikTok</label>
+              <span className="ds-select">
+                <select id="as-tiktok" className="ds-select__control" value={tiktokPrivacyLevel} onChange={event => setTiktokPrivacyLevel(event.target.value)} aria-invalid={!tiktokPrivacyLevel || undefined}>
+                  <option value="">Selecione...</option>
+                  <option value="PUBLIC_TO_EVERYONE">Público</option>
+                  <option value="MUTUAL_FOLLOW_FRIENDS">Amigos</option>
+                  <option value="FOLLOWER_OF_CREATOR">Seguidores do criador</option>
+                  <option value="SELF_ONLY">Somente eu</option>
+                </select>
+                <Icon name="chevronDown" className="ds-select__chev" />
+              </span>
+              {!tiktokPrivacyLevel && <p className="ds-fieldmsg" data-tone="danger"><Icon name="alertCircle" />Escolha quem pode ver o vídeo para publicar no TikTok.</p>}
+            </div>}
+          </div>
+          <footer className="ds-modal__foot">
+            <button type="button" className="ds-btn ds-btn--quiet" onClick={closePublishPlatformModal}>Cancelar</button>
+            <button type="button" className="ds-btn ds-btn--primary" onClick={confirmPublishPlatform} disabled={!isPublishPlatformAvailable(publishPlatform, modalPost) || (publishPlatform === 'tiktok' && !tiktokPrivacyLevel)}>
+              <Icon name="send" />{confirmLabel(modalPost)}
+            </button>
+          </footer>
+        </section>
+      </div>}
+
+      {publicationDialog && <PublicationStatusModal status={publicationDialog.status} platforms={publicationDialog.platforms} progress={publicationProgress} onClose={() => setPublicationDialog(null)} />}
+    </div>
+  )
 }
