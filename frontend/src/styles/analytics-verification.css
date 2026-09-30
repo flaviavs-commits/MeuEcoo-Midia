@@ -1,3 +1,4 @@
+@layer legacy {
 .analytics-data-verification {
   display: grid;
   gap: 14px;
@@ -63,3 +64,4 @@
   .analytics-data-verification-heading { align-items: flex-start; flex-direction: column; }
   .analytics-data-verification-facts { grid-template-columns: 1fr; }
 }
+} /* @layer legacy */

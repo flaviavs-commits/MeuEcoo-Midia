@@ -1,0 +1,2 @@
+/* Must be the first CSS the app loads: it fixes the cascade layer order for Tailwind, the legacy stylesheets and the design system. */
+@layer properties, theme, base, components, utilities, legacy, ds;

@@ -1,3 +1,4 @@
+@layer legacy {
 /*
  * Responsive layout contract
  *
@@ -41,7 +42,7 @@ video {
 }
 
 .app-shell-modern,
-.app-shell-modern > div,
+.app-shell-modern > div:where(:not([data-ds-root], [data-ds-root] *)),
 .app-main-content,
 .page-view,
 .panel {
@@ -57,10 +58,10 @@ video {
   margin-inline: auto;
 }
 
-.page-view > *,
-.page-view .panel,
-.page-view article,
-.page-view section {
+.page-view > *:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view .panel:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view article:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view section:where(:not([data-ds-root], [data-ds-root] *)) {
   min-width: 0;
 }
 
@@ -163,22 +164,22 @@ video {
     display: none !important;
   }
 
-  .app-shell-modern aside nav {
+  .app-shell-modern aside nav:where(:not([data-ds-root], [data-ds-root] *)) {
     gap: 7px;
     padding: 14px 2px;
   }
 
-  .app-shell-modern aside nav button {
+  .app-shell-modern aside nav button:where(:not([data-ds-root], [data-ds-root] *)) {
     justify-content: center;
     min-height: 46px;
     padding: 9px 6px;
   }
 
-  .app-shell-modern aside nav button > span:first-child {
+  .app-shell-modern aside nav button > span:first-child:where(:not([data-ds-root], [data-ds-root] *)) {
     gap: 0;
   }
 
-  .app-shell-modern aside nav button svg {
+  .app-shell-modern aside nav button svg:where(:not([data-ds-root], [data-ds-root] *)) {
     width: 21px;
     height: 21px;
   }
@@ -239,7 +240,6 @@ video {
     gap: 8px;
   }
 
-  .app-topbar-modern .tutorial-trigger,
   .app-topbar-modern .topbar-shortcuts-button,
   .app-topbar-modern > div:last-child > .topbar-icon-button {
     display: none !important;
@@ -487,7 +487,7 @@ video {
     min-height: 100svh;
   }
 
-  .app-shell-modern > div {
+  .app-shell-modern > div:where(:not([data-ds-root], [data-ds-root] *)) {
     width: 100%;
   }
 
@@ -618,31 +618,31 @@ video {
     gap: 10px;
   }
 
-  .page-view h1,
-  .page-view h2,
-  .page-view h3,
-  .page-view h4,
-  .page-view p,
-  .page-view strong,
-  .page-view small,
-  .page-view label,
-  .page-view a {
+  .page-view h1:where(:not([data-ds-root], [data-ds-root] *)),
+  .page-view h2:where(:not([data-ds-root], [data-ds-root] *)),
+  .page-view h3:where(:not([data-ds-root], [data-ds-root] *)),
+  .page-view h4:where(:not([data-ds-root], [data-ds-root] *)),
+  .page-view p:where(:not([data-ds-root], [data-ds-root] *)),
+  .page-view strong:where(:not([data-ds-root], [data-ds-root] *)),
+  .page-view small:where(:not([data-ds-root], [data-ds-root] *)),
+  .page-view label:where(:not([data-ds-root], [data-ds-root] *)),
+  .page-view a:where(:not([data-ds-root], [data-ds-root] *)) {
     overflow-wrap: anywhere;
   }
 
-  .page-view input:not([type='checkbox']):not([type='radio']):not([type='range']),
-  .page-view select,
-  .page-view textarea {
+  .page-view input:not([type='checkbox']):not([type='radio']):not([type='range']):where(:not([data-ds-root], [data-ds-root] *)),
+  .page-view select:where(:not([data-ds-root], [data-ds-root] *)),
+  .page-view textarea:where(:not([data-ds-root], [data-ds-root] *)) {
     max-width: 100%;
     font-size: var(--text-md);
   }
 
-  .page-view input:not([type='checkbox']):not([type='radio']):not([type='range']),
-  .page-view select {
+  .page-view input:not([type='checkbox']):not([type='radio']):not([type='range']):where(:not([data-ds-root], [data-ds-root] *)),
+  .page-view select:where(:not([data-ds-root], [data-ds-root] *)) {
     min-height: 42px;
   }
 
-  .page-view textarea {
+  .page-view textarea:where(:not([data-ds-root], [data-ds-root] *)) {
     min-height: 110px;
   }
 
@@ -1118,3 +1118,4 @@ video {
     animation-iteration-count: 1 !important;
   }
 }
+} /* @layer legacy */

@@ -1,3 +1,4 @@
+@layer legacy {
 /* Shared theme controls. The selected theme is applied before first paint. */
 .theme-selector {
   display: inline-flex;
@@ -73,3 +74,4 @@
     gap: 8px;
   }
 }
+} /* @layer legacy */

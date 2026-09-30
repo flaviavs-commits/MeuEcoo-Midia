@@ -1,3 +1,4 @@
+@layer legacy {
 /*
  * Shared page rhythm
  *
@@ -184,7 +185,6 @@
   white-space: nowrap;
 }
 
-.app-shell-modern .app-topbar-modern .tutorial-trigger::after,
 .app-shell-modern .app-topbar-modern .topbar-shortcuts-button::after {
   display: inline;
   color: inherit;
@@ -192,10 +192,6 @@
   font-weight: inherit;
   line-height: 1;
   white-space: nowrap;
-}
-
-.app-shell-modern .app-topbar-modern .tutorial-trigger::after {
-  content: 'Tutorial';
 }
 
 .app-shell-modern .app-topbar-modern .topbar-shortcuts-button::after {
@@ -242,7 +238,7 @@
   margin: 4px 0 0;
 }
 
-.app-shell-modern .page-view > * {
+.app-shell-modern .page-view > *:where(:not([data-ds-root], [data-ds-root] *)) {
   margin-top: 0;
   margin-bottom: 0;
 }
@@ -352,12 +348,12 @@ html[data-theme='light'] .app-shell-modern .analytics-profiles-section {
   gap: clamp(16px, 1.8vw, 24px) !important;
 }
 
-.app-shell-modern .page-view > * {
+.app-shell-modern .page-view > *:where(:not([data-ds-root], [data-ds-root] *)) {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
 }
 
-.app-shell-modern .page-view .panel + .panel {
+.app-shell-modern .page-view .panel + .panel:where(:not([data-ds-root], [data-ds-root] *)) {
   margin-top: 0 !important;
 }
 
@@ -400,7 +396,7 @@ html[data-theme='light'] .app-shell-modern .analytics-profiles-section {
   .inbox-workspace,
   .queues-layout,
   .workspace-layout
-) {
+):where(:not([data-ds-root], [data-ds-root] *)) {
   gap: clamp(12px, 1.5vw, 20px) !important;
 }
 
@@ -575,3 +571,4 @@ html[data-theme='light'] .app-shell-modern .accounts-page .account-platform-card
 .app-shell-modern .workspace-page .workspace-content-grid {
   gap: clamp(16px, 1.8vw, 24px) !important;
 }
+} /* @layer legacy */

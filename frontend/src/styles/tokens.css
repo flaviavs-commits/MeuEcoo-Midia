@@ -1,3 +1,4 @@
+@layer legacy {
 /*
  * Semantic theme tokens.
  *
@@ -459,3 +460,4 @@ a:focus-visible {
     font-size: var(--text-md);
   }
 }
+} /* @layer legacy */

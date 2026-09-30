@@ -1,3 +1,4 @@
+@layer legacy {
 /*
  * Global component bridge.
  *
@@ -51,7 +52,7 @@ html[data-theme='light'] .app-shell-modern .ai-prompt-input {
 html[data-theme='light'] .app-sidebar,
 html[data-theme='light'] .app-topbar-modern,
 html[data-theme='light'] .mobile-bottom-nav,
-html[data-theme='light'] .app-shell-modern aside {
+html[data-theme='light'] .app-shell-modern aside:where(:not([data-ds-root], [data-ds-root] *)) {
   color: var(--text);
   background-color: var(--surface);
   border-color: var(--border);
@@ -63,24 +64,24 @@ html[data-theme='light'] .mobile-bottom-nav {
 }
 
 /* A safe fallback for legacy module wrappers not yet using a named token. */
-html[data-theme='light'] .app-shell-modern [class*='-card'],
-html[data-theme='light'] .app-shell-modern [class*='-panel'],
-html[data-theme='light'] .app-shell-modern [class*='-section'],
-html[data-theme='light'] .app-shell-modern [class*='-toolbar'],
-html[data-theme='light'] .app-shell-modern [class*='-summary'],
-html[data-theme='light'] .app-shell-modern [class*='-list-panel'],
-html[data-theme='light'] .app-shell-modern [class*='-table-wrap'],
-html[data-theme='light'] .app-shell-modern [class*='-history'],
-html[data-theme='light'] .app-shell-modern [class*='-form'],
-html[data-theme='light'] .app-shell-modern [class*='-editor'],
-html[data-theme='light'] .app-shell-modern [class*='-row'],
-html[data-theme='light'] .app-shell-modern [class*='-kpi'],
-html[data-theme='light'] .app-shell-modern [class*='-overview'],
-html[data-theme='light'] .app-shell-modern [class*='-highlight'],
-html[data-theme='light'] .app-shell-modern [class*='-comparison'],
-html[data-theme='light'] .app-shell-modern [class*='-insight'],
-html[data-theme='light'] .app-shell-modern [class*='-detail'],
-html[data-theme='light'] .app-shell-modern [class*='-table'] {
+html[data-theme='light'] .app-shell-modern [class*='-card']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-panel']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-section']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-toolbar']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-summary']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-list-panel']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-table-wrap']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-history']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-form']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-editor']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-row']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-kpi']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-overview']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-highlight']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-comparison']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-insight']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-detail']:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-table']:where(:not([data-ds-root], [data-ds-root] *)) {
   color: var(--text);
   background-color: var(--surface);
   border-color: var(--border);
@@ -233,69 +234,69 @@ html[data-theme='light'] .token-row {
   box-shadow: none;
 }
 
-html[data-theme='light'] input:not([type='checkbox']):not([type='radio']):not([type='range']),
-html[data-theme='light'] select,
-html[data-theme='light'] textarea,
-html[data-theme='light'] .search-input,
-html[data-theme='light'] .command-palette-input,
-html[data-theme='light'] .token-search-field,
-html[data-theme='light'] .token-filter-select,
-html[data-theme='light'] .benchmark-form input,
-html[data-theme='light'] .benchmark-form select,
-html[data-theme='light'] .benchmark-form textarea {
+html[data-theme='light'] input:not([type='checkbox']):not([type='radio']):not([type='range']):where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] select:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] textarea:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .search-input:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .command-palette-input:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .token-search-field:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .token-filter-select:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .benchmark-form input:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .benchmark-form select:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .benchmark-form textarea:where(:not([data-ds-root], [data-ds-root] *)) {
   color: var(--text);
   background-color: var(--surface);
   border-color: var(--border-hover);
   caret-color: var(--accent);
 }
 
-html[data-theme='light'] input::placeholder,
-html[data-theme='light'] select::placeholder,
-html[data-theme='light'] textarea::placeholder {
+html[data-theme='light'] input:where(:not([data-ds-root], [data-ds-root] *))::placeholder,
+html[data-theme='light'] select:where(:not([data-ds-root], [data-ds-root] *))::placeholder,
+html[data-theme='light'] textarea:where(:not([data-ds-root], [data-ds-root] *))::placeholder {
   color: var(--text-muted);
   opacity: 1;
 }
 
-html[data-theme='light'] input:focus,
-html[data-theme='light'] select:focus,
-html[data-theme='light'] textarea:focus,
-html[data-theme='light'] input:focus-visible,
-html[data-theme='light'] select:focus-visible,
-html[data-theme='light'] textarea:focus-visible {
+html[data-theme='light'] input:focus:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] select:focus:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] textarea:focus:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] input:focus-visible:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] select:focus-visible:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] textarea:focus-visible:where(:not([data-ds-root], [data-ds-root] *)) {
   border-color: var(--accent);
   outline: 2px solid rgb(var(--accent-rgb) / 0.2);
   outline-offset: 1px;
 }
 
-html[data-theme='light'] .app-shell-modern h1,
-html[data-theme='light'] .app-shell-modern h2,
-html[data-theme='light'] .app-shell-modern h3,
-html[data-theme='light'] .app-shell-modern h4,
-html[data-theme='light'] .panel-heading,
-html[data-theme='light'] .section-title,
-html[data-theme='light'] .section-heading,
-html[data-theme='light'] .benchmark-section-heading,
-html[data-theme='light'] .benchmark-results-heading,
-html[data-theme='light'] .tokens-list-heading,
-html[data-theme='light'] .token-table-heading,
-html[data-theme='light'] .analytics-demographics-heading,
-html[data-theme='light'] .analytics-insight-chart-heading {
+html[data-theme='light'] .app-shell-modern h1:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern h2:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern h3:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern h4:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .panel-heading:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .section-title:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .section-heading:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .benchmark-section-heading:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .benchmark-results-heading:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .tokens-list-heading:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .token-table-heading:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .analytics-demographics-heading:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .analytics-insight-chart-heading:where(:not([data-ds-root], [data-ds-root] *)) {
   color: var(--text);
 }
 
-html[data-theme='light'] .app-shell-modern p,
-html[data-theme='light'] .app-shell-modern small,
-html[data-theme='light'] .app-shell-modern label,
-html[data-theme='light'] .app-shell-modern .muted,
-html[data-theme='light'] .app-shell-modern .text-muted,
-html[data-theme='light'] .app-shell-modern .text-secondary,
-html[data-theme='light'] .app-shell-modern .panel-description,
-html[data-theme='light'] .app-shell-modern .section-description,
-html[data-theme='light'] .benchmark-help,
-html[data-theme='light'] .benchmark-privacy-note,
-html[data-theme='light'] .benchmark-profile-copy,
-html[data-theme='light'] .analytics-section-description,
-html[data-theme='light'] .calendar-list-copy {
+html[data-theme='light'] .app-shell-modern p:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern small:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern label:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern .muted:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern .text-muted:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern .text-secondary:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern .panel-description:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern .section-description:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .benchmark-help:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .benchmark-privacy-note:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .benchmark-profile-copy:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .analytics-section-description:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .calendar-list-copy:where(:not([data-ds-root], [data-ds-root] *)) {
   color: var(--text-muted);
 }
 
@@ -361,11 +362,11 @@ html[data-theme='light'] .tokens-health-pill {
   border-color: rgb(var(--accent-rgb) / 0.32);
 }
 
-html[data-theme='light'] button:disabled,
-html[data-theme='light'] input:disabled,
-html[data-theme='light'] select:disabled,
-html[data-theme='light'] textarea:disabled,
-html[data-theme='light'] .is-disabled {
+html[data-theme='light'] button:disabled:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] input:disabled:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] select:disabled:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] textarea:disabled:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .is-disabled:where(:not([data-ds-root], [data-ds-root] *)) {
   color: var(--text-subtle);
   background-color: var(--surface-3);
   border-color: var(--border);
@@ -433,17 +434,17 @@ html[data-theme='light'] .popover {
 
 /* Resolve legacy child selectors whose specificity was higher than the old
  * light-theme bridge. These are still token-based and cover nested states. */
-html[data-theme='light'] .app-shell-modern [class*='-card'] strong,
-html[data-theme='light'] .app-shell-modern [class*='-panel'] strong,
-html[data-theme='light'] .app-shell-modern [class*='-row'] strong,
-html[data-theme='light'] .app-shell-modern [class*='-section'] strong,
-html[data-theme='light'] .app-shell-modern [class*='-summary'] strong,
-html[data-theme='light'] .app-shell-modern [class*='-card'] h1,
-html[data-theme='light'] .app-shell-modern [class*='-card'] h2,
-html[data-theme='light'] .app-shell-modern [class*='-card'] h3,
-html[data-theme='light'] .app-shell-modern [class*='-panel'] h1,
-html[data-theme='light'] .app-shell-modern [class*='-panel'] h2,
-html[data-theme='light'] .app-shell-modern [class*='-panel'] h3 {
+html[data-theme='light'] .app-shell-modern [class*='-card'] strong:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-panel'] strong:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-row'] strong:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-section'] strong:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-summary'] strong:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-card'] h1:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-card'] h2:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-card'] h3:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-panel'] h1:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-panel'] h2:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .app-shell-modern [class*='-panel'] h3:where(:not([data-ds-root], [data-ds-root] *)) {
   color: var(--text);
 }
 
@@ -590,9 +591,9 @@ html[data-theme='light'] .app-shell-modern .post-preview-video:hover {
   border-color: var(--border-hover);
 }
 
-html[data-theme='light'] button:focus-visible,
-html[data-theme='light'] [role='button']:focus-visible,
-html[data-theme='light'] a:focus-visible {
+html[data-theme='light'] button:focus-visible:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] [role='button']:focus-visible:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] a:focus-visible:where(:not([data-ds-root], [data-ds-root] *)) {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
@@ -687,13 +688,13 @@ html[data-theme='light'] .preview-close-button {
   background-color: rgb(var(--preview-bg-rgb) / 0.78);
 }
 
-html[data-theme='light'] .app-shell-modern hr,
-html[data-theme='light'] .panel hr,
-html[data-theme='light'] .modal hr {
+html[data-theme='light'] .app-shell-modern hr:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .panel hr:where(:not([data-ds-root], [data-ds-root] *)),
+html[data-theme='light'] .modal hr:where(:not([data-ds-root], [data-ds-root] *)) {
   border-color: var(--border);
 }
 
-html[data-theme='light'] ::selection {
+html[data-theme='light'] :where(:not([data-ds-root], [data-ds-root] *))::selection {
   color: var(--on-accent);
   background-color: var(--accent);
 }
@@ -2103,3 +2104,4 @@ html[data-theme='light'] .app-shell-modern .analytics-account-insights .analytic
 html[data-theme='light'] .app-shell-modern .analytics-account-insights .analytics-demographic-detail {
   background: var(--surface);
 }
+} /* @layer legacy */

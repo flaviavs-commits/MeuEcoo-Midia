@@ -1,3 +1,4 @@
+@layer legacy {
 /* TikTok controls share the product palette; the social preview remains dark. */
 .platform-option-tiktok .platform-option-icon,
 .preview-network-tab-tiktok .preview-network-tab-icon,
@@ -218,3 +219,4 @@
     flex-direction: column;
   }
 }
+} /* @layer legacy */

@@ -1,3 +1,4 @@
+@layer legacy {
 .drafts-v2-howto {
   display: flex;
   align-items: flex-start;
@@ -65,3 +66,4 @@
     justify-content: center;
   }
 }
+} /* @layer legacy */

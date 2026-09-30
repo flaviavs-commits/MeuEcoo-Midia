@@ -1,3 +1,4 @@
+@layer legacy {
 /*
  * Compatibility mappings for utility classes that predate the semantic
  * tokens. This file intentionally contains no component-specific patches;
@@ -49,3 +50,4 @@ html[data-theme='light'] .placeholder-zinc-400::placeholder {
   color: var(--text-muted);
   opacity: 1;
 }
+} /* @layer legacy */

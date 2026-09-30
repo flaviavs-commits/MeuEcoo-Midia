@@ -1,3 +1,4 @@
+@layer legacy {
 .calendar-platform-badges {
   display: inline-flex;
   flex: 0 0 auto;
@@ -443,3 +444,4 @@
   .calendar-day-create-buttons { width: 100%; }
   .calendar-day-create-button { flex: 1; }
 }
+} /* @layer legacy */

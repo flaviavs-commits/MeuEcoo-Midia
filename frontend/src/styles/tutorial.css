@@ -1,3 +1,4 @@
+@layer legacy {
 .tutorial-overlay {
   position: fixed;
   inset: 0;
@@ -144,10 +145,6 @@
   justify-content: flex-end;
 }
 
-.tutorial-trigger {
-  font-family: var(--mono, monospace);
-}
-
 .tutorial-status-card {
   display: flex;
   align-items: center;
@@ -211,3 +208,4 @@
   .tutorial-nav-buttons { justify-content: stretch; }
   .tutorial-nav-buttons > * { flex: 1; min-height: 44px; }
 }
+} /* @layer legacy */

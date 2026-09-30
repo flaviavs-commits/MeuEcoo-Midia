@@ -1,3 +1,4 @@
+@layer legacy {
 * {
   scrollbar-width: thin;
   scrollbar-color: rgb(var(--accent-rgb) / 0.72) rgb(var(--surface-rgb) / 0.72);
@@ -179,3 +180,4 @@
 .sombra-suave {
   box-shadow: var(--sombra-suave);
 }
+} /* @layer legacy */

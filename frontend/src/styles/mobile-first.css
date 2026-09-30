@@ -1,3 +1,4 @@
+@layer legacy {
 /*
  * Mobile-first layout contract
  *
@@ -51,17 +52,17 @@ canvas {
   min-height: 100svh;
 }
 
-.app-shell-modern > div,
-.app-main-content,
-.page-view,
-.page-view > *,
-.page-view .panel,
-.page-view article,
-.page-view section {
+.app-shell-modern > div:where(:not([data-ds-root], [data-ds-root] *)),
+.app-main-content:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view > *:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view .panel:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view article:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view section:where(:not([data-ds-root], [data-ds-root] *)) {
   min-width: 0;
 }
 
-.app-shell-modern > div {
+.app-shell-modern > div:where(:not([data-ds-root], [data-ds-root] *)) {
   width: 100%;
 }
 
@@ -116,36 +117,36 @@ canvas {
   max-width: 100%;
 }
 
-.page-view h1,
-.page-view h2,
-.page-view h3,
-.page-view h4,
-.page-view p,
-.page-view strong,
-.page-view small,
-.page-view label,
-.page-view a {
+.page-view h1:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view h2:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view h3:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view h4:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view p:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view strong:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view small:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view label:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view a:where(:not([data-ds-root], [data-ds-root] *)) {
   overflow-wrap: anywhere;
 }
 
-.page-view input:not([type='checkbox']):not([type='radio']):not([type='range']),
-.page-view select,
-.page-view textarea,
-.auth-input {
+.page-view input:not([type='checkbox']):not([type='radio']):not([type='range']):where(:not([data-ds-root], [data-ds-root] *)),
+.page-view select:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view textarea:where(:not([data-ds-root], [data-ds-root] *)),
+.auth-input:where(:not([data-ds-root], [data-ds-root] *)) {
   max-width: 100%;
   font-size: var(--text-md);
 }
 
-.page-view input:not([type='checkbox']):not([type='radio']):not([type='range']),
-.page-view select,
-.auth-input,
-.auth-button,
-.page-view .action-button,
-.page-view .secondary-button {
+.page-view input:not([type='checkbox']):not([type='radio']):not([type='range']):where(:not([data-ds-root], [data-ds-root] *)),
+.page-view select:where(:not([data-ds-root], [data-ds-root] *)),
+.auth-input:where(:not([data-ds-root], [data-ds-root] *)),
+.auth-button:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view .action-button:where(:not([data-ds-root], [data-ds-root] *)),
+.page-view .secondary-button:where(:not([data-ds-root], [data-ds-root] *)) {
   min-height: var(--touch-target);
 }
 
-.page-view textarea {
+.page-view textarea:where(:not([data-ds-root], [data-ds-root] *)) {
   min-height: 110px;
 }
 
@@ -590,7 +591,7 @@ html[data-theme='light'] .app-shell-modern .profile-plan-option .secondary-butto
     flex-direction: row;
   }
 
-  .app-shell-modern > div {
+  .app-shell-modern > div:where(:not([data-ds-root], [data-ds-root] *)) {
     width: auto;
   }
 
@@ -846,3 +847,4 @@ html[data-theme='light'] .app-shell-modern .profile-plan-option .secondary-butto
     scroll-behavior: auto;
   }
 }
+} /* @layer legacy */

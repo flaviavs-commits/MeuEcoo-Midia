@@ -1,3 +1,4 @@
+@layer legacy {
 .auth-page {
   min-height: 100vh;
   min-height: 100dvh;
@@ -385,3 +386,4 @@
   outline: 2px solid var(--accent-strong);
   outline-offset: 3px;
 }
+} /* @layer legacy */

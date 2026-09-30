@@ -1,3 +1,4 @@
+@layer legacy {
 .analytics-demographic-category-grid{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
 .analytics-demographic-category{min-width:0;padding:13px;border:1px solid #30343e;border-radius:10px;background:linear-gradient(145deg,rgba(209,153,62,.06),#1c1e25 58%)}
 .analytics-demographic-category-heading{display:flex;align-items:center;gap:9px;padding-bottom:10px;border-bottom:1px solid #2a2d36}
@@ -21,3 +22,4 @@ html[data-theme='light'] .analytics-demographic-category-heading strong{color:va
 html[data-theme='light'] .analytics-demographic-category-list span{color:var(--muted,#626b7b)}
 html[data-theme='light'] .analytics-demographic-category-count{border-color:var(--border,#dfe3ea);color:var(--muted,#626b7b)}
 @media(max-width:760px){.analytics-demographic-category-grid{grid-template-columns:1fr}}
+} /* @layer legacy */

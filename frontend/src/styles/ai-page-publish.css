@@ -1,3 +1,4 @@
+@layer legacy {
 .ai-publish-platform-modal {
   max-width: 620px;
 }
@@ -205,3 +206,4 @@
     width: 100%;
   }
 }
+} /* @layer legacy */

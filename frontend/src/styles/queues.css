@@ -1,3 +1,4 @@
+@layer legacy {
 .queues-hero-stats {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   min-width: 300px;
@@ -455,3 +456,4 @@
     text-overflow: ellipsis;
   }
 }
+} /* @layer legacy */

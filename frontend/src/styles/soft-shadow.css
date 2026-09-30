@@ -1,3 +1,4 @@
+@layer legacy {
 /* A sombra fica restrita a superfícies que são realmente cards ou painéis.
  * Wrappers de layout continuam transparentes e não criam faixas visuais. */
 :where(
@@ -44,3 +45,4 @@
 ) {
   box-shadow: var(--sombra-suave);
 }
+} /* @layer legacy */
