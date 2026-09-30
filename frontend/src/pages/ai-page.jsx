@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { apiFetch } from '../lib/api.js'
+import { apiFetch, ApiError } from '../lib/api.js'
 import { PublicationStatusModal } from '../components/ui/publication-status-modal.jsx'
+import { Sheet } from '../components/ui/floating.jsx'
 import { useToast } from '../components/ui/toast.jsx'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { findPublicationResult, latestPublicationEventId, processingPublicationMessage, publicationResultMessage } from '../lib/publicationEvents.js'
@@ -68,15 +69,17 @@ function formatActivityDate(value) {
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
-// Leva o foco para dentro do diálogo ao abrir e devolve ao elemento de origem ao fechar.
-function useDialogFocus(open, ref) {
-  useEffect(() => {
-    if (!open) return undefined
-    const previous = document.activeElement
-    const target = ref.current?.querySelector('[data-autofocus]') || ref.current?.querySelector('button, input, select, textarea, [href]')
-    target?.focus()
-    return () => { if (previous?.isConnected && typeof previous.focus === 'function') previous.focus() }
-  }, [open, ref])
+// Mensagem do backend quando existe; falha de rede ou resposta fora do formato
+// vira o texto da ação. Erros criados pela própria tela já trazem texto pronto.
+function messageOf(error, fallback) {
+  return error instanceof ApiError ? error.message : fallback
+}
+
+// fetch direto (imagem gerada, upload assinado): a falha de rede chega como
+// TypeError em inglês ("Failed to fetch"); aqui vira a frase da etapa.
+async function fetchOrExplain(url, options, message) {
+  try { return await fetch(url, options) }
+  catch { throw new Error(message) }
 }
 
 export function AiPage() {
@@ -111,16 +114,16 @@ export function AiPage() {
   const [tiktokPrivacyLevel, setTiktokPrivacyLevel] = useState('PUBLIC_TO_EVERYONE')
   const [publicationDialog, setPublicationDialog] = useState(null)
   const [publicationProgress, setPublicationProgress] = useState('')
+  const [clearingLogs, setClearingLogs] = useState(false)
   const publicationPollTimer = useRef(null)
   const mountedRef = useRef(true)
-  const publishDialogRef = useRef(null)
   const notify = useToast()
 
   function loadActivityLogs() {
     setLogsLoading(true); setLogsError('')
     return apiFetch('/api/ai/activity-log?limit=20')
-      .then(data => setActivityLogs(data.logs || []))
-      .catch(e => setLogsError(e.message || 'Não foi possível carregar a atividade do assistente.'))
+      .then(data => setActivityLogs(data?.logs || []))
+      .catch(e => setLogsError(messageOf(e, 'Não foi possível carregar a atividade do assistente.')))
       .finally(() => setLogsLoading(false))
   }
 
@@ -128,7 +131,7 @@ export function AiPage() {
 
   useEffect(() => {
     apiFetch('/api/accounts?ativo=true')
-      .then(data => setConnectedAccounts(Array.isArray(data.data) ? data.data : []))
+      .then(data => setConnectedAccounts(Array.isArray(data?.data) ? data.data : []))
       .catch(() => setAccountsLoadError(true))
       .finally(() => setAccountsLoaded(true))
   }, [])
@@ -141,14 +144,6 @@ export function AiPage() {
     }
   }, [])
 
-  useDialogFocus(publishModalIndex !== null, publishDialogRef)
-  useEffect(() => {
-    if (publishModalIndex === null) return undefined
-    const onKey = event => { if (event.key === 'Escape') closePublishPlatformModal() }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  })
-
   async function generate(event) {
     event.preventDefault()
     if (!instruction.trim()) {
@@ -159,9 +154,17 @@ export function AiPage() {
     try {
       const data = await apiFetch('/api/ai/generate', { method: 'POST', timeoutMs: AI_GENERATION_TIMEOUT_MS, body: JSON.stringify({ instrucao: instruction, plataformas: ['instagram'], quantidade: 3, tom: 'profissional' }) })
       const requestedFormat = requestedVisualFormat()
-      setPosts((data.posts || []).map(post => normalizePost(post, requestedFormat)))
+      setPosts((data?.posts || []).map(post => normalizePost(post, requestedFormat)))
       setEditingIndex(null)
-    } catch (e) { setError(e.message) } finally { setLoading(false) }
+      // O compositor fica em cima e as ideias chegam embaixo, fora da tela no
+      // celular: leva a pessoa (e o foco) até elas.
+      window.requestAnimationFrame(() => {
+        const title = document.getElementById('as-results-title')
+        const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+        title?.scrollIntoView?.({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+        title?.focus({ preventScroll: true })
+      })
+    } catch (e) { setError(messageOf(e, 'Não foi possível gerar as ideias agora. Tente de novo.')) } finally { setLoading(false) }
   }
 
   // Gera mais ideias sobre o mesmo assunto (mesma instrução e modelo já
@@ -172,9 +175,9 @@ export function AiPage() {
     setLoadingMore(true); setError(''); setErrorSource('more')
     try {
       const data = await apiFetch('/api/ai/generate', { method: 'POST', timeoutMs: AI_GENERATION_TIMEOUT_MS, body: JSON.stringify({ instrucao: instruction, plataformas: ['instagram'], quantidade: 3, tom: 'profissional' }) })
-      const novos = (data.posts || []).map(post => normalizePost(post, requestedVisualFormat()))
+      const novos = (data?.posts || []).map(post => normalizePost(post, requestedVisualFormat()))
       setPosts(current => [...current, ...novos])
-    } catch (e) { setError(e.message) } finally { setLoadingMore(false) }
+    } catch (e) { setError(messageOf(e, 'Não foi possível gerar mais ideias agora. Tente de novo.')) } finally { setLoadingMore(false) }
   }
 
   function requestedVisualFormat() {
@@ -279,7 +282,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
     if (!sourceImages.length) throw new Error('Gere uma imagem antes de publicar.')
     if (post.mediaItems?.length) return { mediaPath: post.mediaPath || post.mediaItems[0].path, mediaItems: post.mediaItems, mediaSize: post.mediaItems[0].size }
     const uploadedItems = await Promise.all(sourceImages.map(async (source, index) => {
-      const imageBlob = await fetch(source).then(response => {
+      const imageBlob = await fetchOrExplain(source, undefined, 'Não foi possível preparar uma imagem gerada.').then(response => {
         if (!response.ok) throw new Error('Não foi possível preparar uma imagem gerada.')
         return response.blob()
       })
@@ -288,7 +291,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
         method: 'POST',
         body: JSON.stringify({ filename: `ia-${Date.now()}-${index + 1}.png`, mimetype: mimeType }),
       })
-      const uploadResponse = await fetch(signed.uploadUrl, { method: 'PUT', headers: { 'Content-Type': mimeType }, body: imageBlob })
+      const uploadResponse = await fetchOrExplain(signed.uploadUrl, { method: 'PUT', headers: { 'Content-Type': mimeType }, body: imageBlob }, 'Não foi possível enviar uma imagem para publicação. Verifique sua conexão e tente de novo.')
       if (!uploadResponse.ok) throw new Error('Não foi possível enviar uma imagem para publicação.')
       const uploaded = await uploadResponse.json().catch(() => null)
       const mediaUrl = signed.mediaUrl || uploaded?.url
@@ -467,19 +470,20 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
       const data = await apiFetch(`/api/ai/analytics-insights?days=${days}`)
       setAnalyticsInsights(data.insights || null)
       setAnalyzedDays(days)
-    } catch (e) { setAnalyticsError(e.message || 'Não foi possível analisar o Analytics.') } finally { setAnalyticsLoading(false) }
+    } catch (e) { setAnalyticsError(messageOf(e, 'Não foi possível analisar os resultados agora.')) } finally { setAnalyticsLoading(false) }
   }
 
   async function clearActivityLogs() {
-    if (!activityLogs.length) return
+    if (!activityLogs.length || clearingLogs) return
     if (!window.confirm('Limpar o histórico de atividade do Assistente inteligente?')) return
+    setClearingLogs(true)
     try {
       await apiFetch('/api/ai/activity-log', { method: 'DELETE' })
       setActivityLogs([])
       notify('Histórico de atividade limpo.')
     } catch (e) {
-      notify(e.message || 'Não foi possível limpar o histórico.', 'error')
-    }
+      notify(messageOf(e, 'Não foi possível limpar o histórico.'), 'error')
+    } finally { setClearingLogs(false) }
   }
 
   function formatMetric(value) {
@@ -565,30 +569,30 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
         </details>
       </div>
 
+      {/* Opções curtas; a explicação do carrossel só aparece quando ele é escolhido. */}
       <fieldset className="as-look">
         <legend className="ds-label">Formato visual</legend>
-        <div className="as-look__opts">
-          <label className="as-choice" data-checked={visualFormat === 'single'}>
-            <input type="radio" name="ai-visual-format" value="single" checked={visualFormat === 'single'} onChange={() => setVisualFormat('single')} />
-            <Icon name="image" />
-            <span><strong>Imagem única</strong><small>Uma arte para acompanhar a publicação.</small></span>
-          </label>
-          <label className="as-choice" data-checked={visualFormat === 'carousel'}>
-            <input type="radio" name="ai-visual-format" value="carousel" checked={visualFormat === 'carousel'} onChange={() => setVisualFormat('carousel')} />
-            <Icon name="copy" />
-            <span><strong>Carrossel de fotos</strong><small>De 3 a 8 fotos para Instagram ou TikTok.</small></span>
-          </label>
-        </div>
-        {visualFormat === 'carousel' && <div className="ds-field as-slides">
-          <label className="ds-label" htmlFor="as-slides">Quantidade de slides</label>
-          <span className="ds-select">
-            <select id="as-slides" className="ds-select__control" value={carouselCount} onChange={event => setCarouselCount(Number(event.target.value))}>
+        <div className="as-look__row">
+          <div className="as-look__opts">
+            <label className="as-choice" data-checked={visualFormat === 'single'}>
+              <input type="radio" name="ai-visual-format" value="single" checked={visualFormat === 'single'} onChange={() => setVisualFormat('single')} />
+              <Icon name="image" size={16} />Imagem única
+            </label>
+            <label className="as-choice" data-checked={visualFormat === 'carousel'}>
+              <input type="radio" name="ai-visual-format" value="carousel" checked={visualFormat === 'carousel'} onChange={() => setVisualFormat('carousel')} />
+              <Icon name="copy" size={16} />Carrossel de fotos
+            </label>
+          </div>
+          {visualFormat === 'carousel' && <span className="ds-select as-slides">
+            <select id="as-slides" className="ds-select__control" value={carouselCount} onChange={event => setCarouselCount(Number(event.target.value))} aria-label="Quantidade de slides">
               {[3, 4, 5, 6, 7, 8].map(count => <option key={count} value={count}>{count} slides</option>)}
             </select>
             <Icon name="chevronDown" className="ds-select__chev" />
-          </span>
-        </div>}
-        <p className="ds-hint">O carrossel só é criado quando você escolher este formato ou pedir “carrossel” na instrução. A geração consome uma imagem por slide.</p>
+          </span>}
+        </div>
+        <p className="ds-hint">{visualFormat === 'carousel'
+          ? 'De 3 a 8 fotos, para Instagram ou TikTok. Cada slide usa uma imagem do limite do mês.'
+          : 'Uma arte para acompanhar a publicação. Pedir “carrossel” na instrução também gera um carrossel.'}</p>
         {imageQuota && <div className="as-quota" aria-live="polite">
           <p><span>Imagens do mês</span><strong className="ds-num">{imageQuota.remaining} de {imageQuota.limit} disponíveis</strong></p>
           <div className="ds-progress" aria-hidden="true"><span className="ds-progress__bar" style={{ '--value': `${quotaUsedPct}%` }} /></div>
@@ -598,7 +602,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
 
       {errorSource === 'generate' && errorAlert}
       <div className="as-compose__go">
-        <button type="submit" className="ds-btn ds-btn--primary ds-btn--block" disabled={loading || loadingMore}>
+        <button type="submit" className="ds-btn ds-btn--primary as-compose__submit" disabled={loading || loadingMore}>
           {loading ? <><span className="ds-spinner" aria-hidden="true" />Gerando ideias…</> : <><Icon name="sparkle" />{posts.length ? 'Gerar novas ideias' : 'Gerar ideias'}</>}
         </button>
         {posts.length > 0 && <p className="ds-hint">Novas ideias substituem as sugestões atuais. Para somar, use “Gerar mais ideias”.</p>}
@@ -608,7 +612,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
     <section className="as-results" aria-labelledby="as-results-title" aria-busy={loading || undefined}>
       <header className="as-results__head">
         <div>
-          <h2 className="as-results__title" id="as-results-title">Sugestões {posts.length > 0 && <span className="ds-badge" data-tone="outline"><span className="ds-num">{posts.length}</span> {posts.length === 1 ? 'ideia' : 'ideias'}</span>}</h2>
+          <h2 className="as-results__title" id="as-results-title" tabIndex={-1}>Sugestões {posts.length > 0 && <span className="ds-badge" data-tone="outline"><span className="ds-num">{posts.length}</span> {posts.length === 1 ? 'ideia' : 'ideias'}</span>}</h2>
           <p className="ds-head__desc">{posts.length ? 'Revise o texto, gere uma imagem única ou um carrossel e publique a ideia escolhida.' : 'As ideias aparecem aqui, prontas para revisar.'}</p>
         </div>
       </header>
@@ -781,8 +785,8 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
         <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={loadActivityLogs} disabled={logsLoading}>
           {logsLoading ? <span className="ds-spinner" aria-hidden="true" /> : <Icon name="refresh" size={16} />}Atualizar
         </button>
-        <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm as-log__clear" onClick={clearActivityLogs} disabled={!activityLogs.length}>
-          <Icon name="trash" size={16} />Limpar histórico
+        <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm as-log__clear" onClick={clearActivityLogs} disabled={!activityLogs.length || clearingLogs}>
+          {clearingLogs ? <span className="ds-spinner" aria-hidden="true" /> : <Icon name="trash" size={16} />}{clearingLogs ? 'Limpando…' : 'Limpar histórico'}
         </button>
       </div>
     </div>
@@ -837,17 +841,22 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
         {tab === 'criar' ? createPanel : tab === 'desempenho' ? performancePanel : activityPanel}
       </div>
 
-      {modalPost && <div className="ds-scrim" data-ds-root role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) closePublishPlatformModal() }}>
-        <section ref={publishDialogRef} className="ds-modal as-publish" role="dialog" aria-modal="true" aria-labelledby="ai-publish-platform-title" aria-describedby="as-publish-desc">
-          <header className="ds-modal__head">
-            <div className="ds-modal__heading">
-              <p className="ds-eyebrow">Publicar agora · ideia {String(publishModalIndex + 1).padStart(2, '0')}</p>
-              <h2 className="ds-modal__title" id="ai-publish-platform-title">Escolha a rede social</h2>
-              <p className="ds-modal__desc" id="as-publish-desc">A publicação sai na hora, na rede escolhida. Antes do envio você confirma mais uma vez.</p>
-            </div>
-            <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-modal__close" onClick={closePublishPlatformModal} aria-label="Fechar"><Icon name="close" /></button>
-          </header>
-          <div className="ds-modal__body as-publish__body">
+      {/* Folha do DS: prende o foco, fecha no Escape e no fundo, trava a rolagem da página e devolve o foco ao botão. */}
+      {modalPost && <Sheet
+        open
+        onClose={closePublishPlatformModal}
+        eyebrow={`Publicar agora · ideia ${String(publishModalIndex + 1).padStart(2, '0')}`}
+        title="Escolha a rede social"
+        description="A publicação sai na hora, na rede escolhida. Antes do envio você confirma mais uma vez."
+        className="as-publish"
+        footer={<>
+          <button type="button" className="ds-btn ds-btn--quiet" onClick={closePublishPlatformModal}>Cancelar</button>
+          <button type="button" className="ds-btn ds-btn--primary" onClick={confirmPublishPlatform} disabled={!isPublishPlatformAvailable(publishPlatform, modalPost) || (publishPlatform === 'tiktok' && !tiktokPrivacyLevel)}>
+            <Icon name="send" />{confirmLabel(modalPost)}
+          </button>
+        </>}
+      >
+          <div className="as-publish__body">
             <div className="as-nets" role="radiogroup" aria-label="Rede social para publicação">
               {PUBLISH_PLATFORMS.map(option => {
                 const unavailable = !isPublishPlatformAvailable(option.id, modalPost)
@@ -885,14 +894,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
               {!tiktokPrivacyLevel && <p className="ds-fieldmsg" data-tone="danger"><Icon name="alertCircle" />Escolha quem pode ver o vídeo para publicar no TikTok.</p>}
             </div>}
           </div>
-          <footer className="ds-modal__foot">
-            <button type="button" className="ds-btn ds-btn--quiet" onClick={closePublishPlatformModal}>Cancelar</button>
-            <button type="button" className="ds-btn ds-btn--primary" onClick={confirmPublishPlatform} disabled={!isPublishPlatformAvailable(publishPlatform, modalPost) || (publishPlatform === 'tiktok' && !tiktokPrivacyLevel)}>
-              <Icon name="send" />{confirmLabel(modalPost)}
-            </button>
-          </footer>
-        </section>
-      </div>}
+      </Sheet>}
 
       {publicationDialog && <PublicationStatusModal status={publicationDialog.status} platforms={publicationDialog.platforms} progress={publicationProgress} onClose={() => setPublicationDialog(null)} />}
     </div>
