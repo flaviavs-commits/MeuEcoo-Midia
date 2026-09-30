@@ -73,7 +73,8 @@
   .dash-top { display: grid; }
   .dash-top__item { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px 0; }
   .dash-top__item + .dash-top__item { border-top: 1px solid var(--ds-line); }
-  .dash-top__rank { font: var(--ds-weight-medium) 20px/1 var(--ds-font-serif); color: var(--ds-accent-graphic); font-variant-numeric: lining-nums; }
+  /* 20px medium is normal-size text: the small-text gold keeps it at 4.5:1 */
+  .dash-top__rank { font: var(--ds-weight-medium) 20px/1 var(--ds-font-serif); color: var(--ds-accent-text); font-variant-numeric: lining-nums; }
   .dash-top__body { display: grid; gap: 3px; min-width: 0; }
   .dash-top__title { font: var(--ds-weight-medium) var(--ds-text-sm)/1.4 var(--ds-font-sans); color: var(--ds-ink); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .dash-top__metric { display: grid; justify-items: end; gap: 2px; text-align: right; }
