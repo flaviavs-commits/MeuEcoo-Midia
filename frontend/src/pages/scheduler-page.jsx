@@ -2,9 +2,10 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { TEAM_APPROVAL_UI_ENABLED } from '../lib/feature-flags.js'
 import { buildValidationIssues, INSTAGRAM_CAROUSEL_MAX_ITEMS, TIKTOK_PHOTO_MAX_ITEMS, mediaFileKey, readVideoMeta } from '../lib/postValidation.js'
-import { SchedSection } from '../components/ui/sched-section.jsx'
+import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
+import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
-import { PublicationStatusModal } from '../components/ui/publication-status-modal.jsx'
+import { PublicationResultGroups, PublicationStatusModal } from '../components/ui/publication-status-modal.jsx'
 import { createPostValidationWorker } from '../lib/postValidationWorker.js'
 import { findPublicationResult, latestPublicationEventId, processingPublicationMessage, scheduledPublicationDetails } from '../lib/publicationEvents.js'
 import { useToast } from '../components/ui/toast.jsx'
@@ -19,6 +20,57 @@ const platformLabels = { instagram: 'Instagram', facebook: 'Facebook', youtube: 
 const AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
 const AI_POST_DRAFT_KEY = 'meu-ecoo:ai-post-draft'
 const IMAGE_MIME_BY_EXTENSION = { heic: 'image/heic', heif: 'image/heif', avif: 'image/avif', tif: 'image/tiff', tiff: 'image/tiff', bmp: 'image/bmp' }
+const TOKEN_STATUS = { valid: ['ok', 'Token válido'], expiring: ['warning', 'Expirando'], expired: ['failed', 'Requer atenção'], error: ['failed', 'Requer atenção'] }
+const atHandle = value => (value.startsWith('@') ? value : `@${value}`)
+const accountLabelOf = account => account.handle || account.name || account.tokens?.find(token => token.accountName)?.accountName || `Conta ${account.id}`
+function handleOf(account) {
+  const raw = account.handle || account.name
+  return raw ? atHandle(raw) : accountLabelOf(account)
+}
+
+function useMediaQuery(query) {
+  const [matches, setMatches] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches)
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined
+    const media = window.matchMedia(query)
+    const update = () => setMatches(media.matches)
+    update()
+    media.addEventListener?.('change', update)
+    return () => media.removeEventListener?.('change', update)
+  }, [query])
+  return matches
+}
+
+// Setas, Home e End movem entre abas (padrão ARIA de tablist).
+function handleTabKeys(event, items, current, setCurrent, idPrefix) {
+  const index = items.indexOf(current)
+  const next = event.key === 'ArrowRight' ? items[(index + 1) % items.length]
+    : event.key === 'ArrowLeft' ? items[(index - 1 + items.length) % items.length]
+      : event.key === 'Home' ? items[0]
+        : event.key === 'End' ? items[items.length - 1]
+          : null
+  if (!next) return
+  event.preventDefault()
+  setCurrent(next)
+  document.getElementById(`${idPrefix}${next}`)?.focus()
+}
+
+function scheduleChipLabel(value) {
+  const parsed = new Date(value)
+  return Number.isNaN(parsed.getTime()) ? 'Agendamento' : `Agendar · ${parsed.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
+}
+
+function SelectField({ id, label, value, onChange, options, required = false }) {
+  return <div className="ds-field">
+    <label className="ds-label" htmlFor={id}>{label}{required && <span className="ds-label__req">obrigatório</span>}</label>
+    <span className="ds-select">
+      <select id={id} className="ds-select__control" value={value} onChange={event => onChange(event.target.value)}>
+        {options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}
+      </select>
+      <Icon name="chevronDown" className="ds-select__chev" />
+    </span>
+  </div>
+}
 
 // O TikTok usa uma chave de estado diferente porque o formulário separa
 // título e descrição, mas o payload ainda precisa considerar a rede `tiktok`.
@@ -356,40 +408,37 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
   }
 
   const ready = files.length > 0 && selected.length > 0 && (!hasVideo || hasVideoContext)
+  const needs = [
+    !files.length && 'Selecione uma imagem ou vídeo',
+    !selected.length && 'Selecione ao menos uma rede social',
+    hasVideo && !hasVideoContext && 'Escreva uma frase sobre o vídeo',
+  ].filter(Boolean)
 
-  return <section className="media-ai-generator" aria-label="Gerar descrição do post com inteligência avançada" aria-busy={busy}>
-    <div className="media-ai-generator-icon" aria-hidden="true">✦</div>
-    <div className="media-ai-generator-content">
-      <div className="media-ai-generator-heading">
-        <div>
-          <p className="eyebrow">MEUS POSTS</p>
-          <strong>Gere uma descrição para sua mídia</strong>
-        </div>
-        <span className={`media-ai-generator-state${busy ? ' is-loading' : ''}${successMessage ? ' is-success' : ''}`}>
-          <i aria-hidden="true" />{busy ? 'Analisando' : successMessage ? 'Pronto' : 'Análise visual'}
-        </span>
+  return <section className="mp-ai" aria-labelledby="mp-ai-title" aria-busy={busy}>
+    <div className="mp-ai__head">
+      <span className="ds-icontile mp-ai__mark" aria-hidden="true"><Icon name="sparkle" /></span>
+      <div className="mp-ai__intro">
+        <h3 className="mp-ai__title" id="mp-ai-title">Descrição a partir da mídia</h3>
+        <p className="ds-hint">{hasVideo ? 'Descreva o vídeo em uma frase para receber uma legenda para cada rede.' : contexto.trim() ? 'Melhora os textos que você já escreveu com base na mídia.' : 'Cria uma legenda para cada rede a partir da sua imagem ou vídeo.'} Substitui os textos das redes selecionadas.</p>
       </div>
-      <p className="media-ai-generator-copy">{hasVideo ? 'Descreva o vídeo em uma frase para receber uma sugestão de legenda.' : contexto.trim() ? 'Receba sugestões de legenda a partir do seu texto e da mídia.' : 'Gere legendas para cada rede a partir da sua imagem ou vídeo.'}</p>
-      {hasVideo && <label className="media-ai-video-context">
-        <span className="media-ai-video-context-label"><strong>Sobre o que é este vídeo?</strong><small>Uma frase curta já é suficiente</small></span>
-        <textarea value={videoDescription} onChange={event => { setVideoDescription(event.target.value); setAnalysisError(''); setSuccessMessage('') }} maxLength={500} placeholder="Ex.: Mostro como organizar uma rotina de estudos em poucos passos." aria-label="Descreva em uma frase sobre o que o vídeo fala" />
-        <small className="media-ai-video-context-hint">Esse texto serve de direção para o sistema inteligente e não substitui as descrições finais das redes.</small>
-      </label>}
-      <div className="media-ai-generator-footer">
-        <div className="media-ai-generator-hints" aria-live="polite">
-          {!files.length && <span><b>1</b> Selecione uma imagem ou vídeo</span>}
-          {!selected.length && <span><b>2</b> Selecione ao menos uma rede social</span>}
-          {hasVideo && !hasVideoContext && <span><b>2</b> Escreva uma frase sobre o vídeo</span>}
-          {files.length > analysisLimit && <span>As primeiras {analysisLimit} mídias serão analisadas.</span>}
-          {ready && !analysisError && !successMessage && <span className="media-ai-generator-ready">Pronto para analisar sua mídia.</span>}
-          {analysisError && <span className="media-ai-generator-error" role="alert">{analysisError}</span>}
-          {successMessage && <span className="media-ai-generator-success" role="status">✓ {successMessage}</span>}
-          {analysisNotes.length > 0 && <span className="media-ai-generator-notes">{analysisNotes.slice(0, 2).join(' · ')}</span>}
-        </div>
-        <button type="button" className="media-ai-generator-button" onClick={analyzeMedia} disabled={busy || !ready}>
-          <span aria-hidden="true">{busy ? '◌' : '✦'}</span>{busy ? 'Analisando mídia…' : analysisContext ? 'Melhorar descrição' : 'Gerar descrição'}
-        </button>
+    </div>
+    {hasVideo && <div className="ds-field">
+      <div className="ds-field__top"><label className="ds-label" htmlFor="mp-ai-video">Sobre o que é este vídeo?</label><span className="ds-counter">{videoDescription.length}/500</span></div>
+      <textarea id="mp-ai-video" className="ds-textarea mp-ai__context" value={videoDescription} onChange={event => { setVideoDescription(event.target.value); setAnalysisError(''); setSuccessMessage('') }} maxLength={500} placeholder="Ex.: Mostro como organizar uma rotina de estudos em poucos passos." aria-describedby="mp-ai-video-hint" />
+      <p className="ds-hint" id="mp-ai-video-hint">Uma frase curta já basta. Ela orienta o sistema inteligente e não substitui os textos finais.</p>
+    </div>}
+    <div className="mp-ai__foot">
+      <div className="mp-ai__status" aria-live="polite">
+        {needs.length > 0 && <ol className="mp-ai__needs">{needs.map(need => <li key={need}>{need}</li>)}</ol>}
+        {files.length > analysisLimit && <p className="ds-hint">As primeiras {analysisLimit} mídias serão analisadas.</p>}
+        {ready && !analysisError && !successMessage && <p className="ds-hint">Pronto para analisar sua mídia.</p>}
+        {analysisError && <p className="ds-fieldmsg" role="alert"><Icon name="alertCircle" size={16} />{analysisError}</p>}
+        {successMessage && <p className="ds-fieldmsg" data-tone="success" role="status"><Icon name="checkCircle" size={16} />{successMessage}</p>}
+        {analysisNotes.length > 0 && <p className="ds-hint">{analysisNotes.slice(0, 2).join(' · ')}</p>}
       </div>
+      <button type="button" className="ds-btn ds-btn--secondary mp-ai__btn" onClick={analyzeMedia} disabled={busy || !ready}>
+        {busy ? <span className="ds-spinner" aria-hidden="true" /> : <Icon name="sparkle" />}{busy ? 'Analisando mídia…' : analysisContext ? 'Melhorar descrição' : 'Gerar descrição'}
+      </button>
     </div>
   </section>
 }
@@ -577,15 +626,25 @@ function VideoCoverPicker({ file, value, onChange, coverUrl, onCapture, onImageS
     }, 'image/jpeg', 0.92)
   }
 
-  return <div className="video-cover-picker">
-    <div className="video-cover-picker-heading"><div><strong>Escolha a capa do vídeo</strong><small>Arraste o controle até o frame que deve aparecer na rede social.</small></div>{coverUrl && <button type="button" className="video-cover-clear" onClick={onClear}>Usar capa automática</button>}</div>
-    <div className="video-cover-picker-body">
-      <video ref={videoRef} src={videoUrl} muted playsInline preload="metadata" onLoadedMetadata={handleMetadata} />
-      {coverUrl && <img src={coverUrl} alt="Frame escolhido como capa"/>}
+  return <details className="ds-disclosure mp-cover">
+    <summary><Icon name="image" /><span>Capa do vídeo</span><span className="ds-badge" data-tone={coverUrl ? 'gold' : 'outline'}>{coverUrl ? 'Personalizada' : 'Automática'}</span><Icon name="chevronDown" className="ds-disclosure__chev" /></summary>
+    <div className="ds-disclosure__body mp-cover__body">
+      <p className="ds-hint">Arraste o controle até o frame que deve aparecer na rede social, ou envie uma imagem.</p>
+      <div className="mp-cover__stage">
+        <video ref={videoRef} src={videoUrl} muted playsInline preload="metadata" onLoadedMetadata={handleMetadata} />
+        {coverUrl && <figure className="mp-cover__chosen"><img src={coverUrl} alt="Frame escolhido como capa" /><figcaption className="ds-meta">Capa escolhida</figcaption></figure>}
+      </div>
+      <div className="ds-field">
+        <div className="ds-field__top"><label className="ds-label" htmlFor="mp-cover-range">Frame selecionado</label><output className="ds-counter" htmlFor="mp-cover-range">{formatVideoTime(value || 0)}</output></div>
+        <input id="mp-cover-range" className="mp-range" type="range" min="0" max={duration || 0.1} step="0.01" value={Math.min(value || 0, duration || 0.1)} onChange={handleTimeChange} disabled={!duration} />
+      </div>
+      <div className="mp-cover__actions">
+        <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={captureFrame} disabled={!duration || capturing}>{capturing ? 'Criando capa…' : 'Usar este frame como capa'}</button>
+        <label className="ds-btn ds-btn--quiet ds-btn--sm mp-filebtn"><Icon name="upload" size={16} />Escolher outra imagem<input className="mp-fileinput" type="file" accept="image/*" onChange={onImageSelect} /></label>
+        {coverUrl && <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm" onClick={onClear}>Usar capa automática</button>}
+      </div>
     </div>
-    <label className="video-cover-range">Frame selecionado <output>{formatVideoTime(value || 0)}</output><input type="range" min="0" max={duration || 0.1} step="0.01" value={Math.min(value || 0, duration || 0.1)} onChange={handleTimeChange} disabled={!duration}/></label>
-    <div className="video-cover-actions"><button type="button" className="secondary-button" onClick={captureFrame} disabled={!duration || capturing}>{capturing ? 'Criando capa…' : 'Usar este frame como capa'}</button><label className="secondary-button video-cover-file-button">Escolher outra imagem<input type="file" accept="image/*" onChange={onImageSelect}/></label></div>
-  </div>
+  </details>
 }
 
 function formatVideoTime(value) {
@@ -672,10 +731,10 @@ function FacebookCard({ accountLabel, avatarUrl, previews, mediaProfile, aspectR
     <p className={`pv-fb-text${caption ? '' : ' is-placeholder'}`}>{caption || 'O texto da sua publicação aparecerá aqui.'}</p>
       <PreviewMedia platform="facebook" previews={previews} facebookFormat={facebookFormat} aspectRequest={aspectRequest} mediaProfile={mediaProfile} coverUrl={coverUrl}/>
     <div className="pv-fb-stats"><span className="pv-fb-stats-reactions"><i className="pv-fb-reaction-dot"><ThumbsUpIcon/></i>0</span><span>0 comentários · 0 compartilhamentos</span></div>
-    <div className="pv-fb-actions">
-      <button type="button"><ThumbsUpIcon/> Curtir</button>
-      <button type="button"><CommentIcon/> Comentar</button>
-      <button type="button"><ShareArrowIcon/> Compartilhar</button>
+    <div className="pv-fb-actions" aria-hidden="true">
+      <button type="button" tabIndex={-1}><ThumbsUpIcon/> Curtir</button>
+      <button type="button" tabIndex={-1}><CommentIcon/> Comentar</button>
+      <button type="button" tabIndex={-1}><ShareArrowIcon/> Compartilhar</button>
     </div>
   </>
 }
@@ -744,7 +803,7 @@ function formatDuration(seconds) {
   return `${minutes}:${String(secs).padStart(2, '0')}`
 }
 
-function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesByPlatform = {}, previews, publishNow, approvalRequested, date, youtubeTitle, igFormat, igAspect, tiktokAspect, youtubeFormat, facebookFormat, mediaProfile, accounts, coverUrl = '' }) {
+function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesByPlatform = {}, previews, publishNow, approvalRequested, date, youtubeTitle, igFormat, igAspect, onIgAspectChange, tiktokAspect, youtubeFormat, facebookFormat, mediaProfile, accounts, coverUrl = '' }) {
   const availablePlatforms = selected.length ? selected : platforms
   const [activePlatform, setActivePlatform] = useState(availablePlatforms[0])
   useEffect(() => {
@@ -784,10 +843,34 @@ function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesBy
           ? `Vídeo TikTok · ${TIKTOK_VIDEO_DIMENSIONS.label} · 9:16`
           : activePlatform === 'tiktok' ? `Foto TikTok · ${TIKTOK_VIDEO_DIMENSIONS.label} sem corte` : `Feed · ${mediaLabel}`
   const resolutionHint = socialMediaResolutionHint(activePlatform, { instagramFormat: igFormat, facebookFormat, youtubeFormat, mediaKind: activeMediaProfile?.kind })
-  return <aside className="post-preview" aria-label="Pré-visualização da publicação">
-    <div className="post-preview-heading"><div><p className="eyebrow">PREVIEW REALISTA</p><h3>Veja em cada rede</h3></div><span className="post-preview-status">{approvalRequested ? 'Aguardando aprovação' : publishNow ? 'Agora' : date ? 'Agendada' : 'Rascunho'}</span></div>
-    <div className="preview-network-tabs" role="tablist" aria-label="Prévia por rede social">{availablePlatforms.map(platform => <button type="button" role="tab" aria-selected={activePlatform === platform} className={`preview-network-tab preview-network-tab-${platform}${activePlatform === platform ? ' is-active' : ''}`} key={platform} onClick={() => setActivePlatform(platform)}><span className="preview-network-tab-icon"><PlatformIcon platform={platform} className="h-4 w-4"/></span>{previewLabels[platform]}</button>)}</div>
-     <div className="social-preview-format"><span>Formato simulado</span><strong>{formatLabel}</strong><small>Resolução recomendada: {resolutionHint}</small></div><div className="social-preview-detection" role="status"><span className={activeMediaProfile?.kind === 'video' ? 'is-video' : 'is-image'}>{activeMediaProfile ? mediaKindLabel(activeMediaProfile.kind) : 'Aguardando mídia'}</span><small>{activeMediaProfile?.ratio ? `Original ${ratioLabel(activeMediaProfile.width, activeMediaProfile.height)}` : 'A proporção será detectada ao adicionar a mídia.'}</small></div>{instagramVideoIsReel && <p className="social-preview-format-note">Vídeo único será enviado como Reels e compartilhado no feed.</p>}<div className={`social-preview-card social-preview-card-${activePlatform}${isFullBleedCard ? ' is-fullbleed' : ''}`}>
+  const statusLabel = approvalRequested ? 'Aguardando aprovação' : publishNow ? 'Publicar agora' : date ? scheduleChipLabel(date) : 'Rascunho'
+  const detectionText = activeMediaProfile
+    ? `${mediaKindLabel(activeMediaProfile.kind)}${activeMediaProfile.ratio ? ` · original ${ratioLabel(activeMediaProfile.width, activeMediaProfile.height)}` : ''}`
+    : 'Aguardando mídia · a proporção será detectada ao adicionar'
+  return <section className="mp-preview" aria-labelledby="mp-preview-title">
+    <div className="mp-preview__head">
+      <h2 className="mp-preview__title" id="mp-preview-title">Prévia</h2>
+      <span className="ds-badge" data-tone={approvalRequested ? 'info' : publishNow ? 'gold' : date ? 'info' : 'outline'}>{statusLabel}</span>
+    </div>
+    <div className="ds-netswitch mp-preview__tabs" role="tablist" aria-label="Prévia por rede social" onKeyDown={event => handleTabKeys(event, availablePlatforms, activePlatform, setActivePlatform, 'mp-pv-tab-')}>
+      {availablePlatforms.map(platform => <button type="button" role="tab" id={`mp-pv-tab-${platform}`} aria-controls="mp-preview-stage" aria-selected={activePlatform === platform} tabIndex={activePlatform === platform ? 0 : -1} className="ds-netswitch__opt" key={platform} onClick={() => setActivePlatform(platform)}><NetworkGlyph network={platform} size={16} />{previewLabels[platform]}</button>)}
+    </div>
+    <div className="mp-preview__stage" id="mp-preview-stage" role="tabpanel" aria-labelledby={`mp-pv-tab-${activePlatform}`}>
+      <div className="mp-preview__format">
+        <p><span className="ds-meta">Formato simulado</span> <strong>{formatLabel}</strong></p>
+        <p className="ds-meta">{detectionText} · Resolução recomendada: {resolutionHint}</p>
+        {instagramVideoIsReel && <p className="ds-meta">Vídeo único será enviado como Reels e compartilhado no feed.</p>}
+      </div>
+      {activePlatform === 'instagram' && igFormat === 'post' && onIgAspectChange && <div className="ds-field mp-preview__aspect">
+        <label className="ds-label" htmlFor="mp-pv-aspect">Proporção da prévia</label>
+        <span className="ds-select"><select id="mp-pv-aspect" className="ds-select__control" value={igAspect} onChange={event => onIgAspectChange(event.target.value)}>
+          <option value="auto">Automático · detectar</option>
+          <option value="square">Foto · 1:1 · 1080 × 1080</option>
+          <option value="portrait">Foto · 4:5 · 1080 × 1350</option>
+          <option value="instagramWide">Foto · 1,91:1 · 1080 × 566</option>
+        </select><Icon name="chevronDown" className="ds-select__chev" /></span>
+      </div>}
+      <div className={`social-preview-card social-preview-card-${activePlatform}${isFullBleedCard ? ' is-fullbleed' : ''}`}>
       {activePlatform === 'instagram' ? (
         isInstagramFullBleed
            ? <InstagramFullBleedCard accountHandle={accountHandle} avatarUrl={avatarUrl} previews={activePreviews} igFormat={igFormat} aspectRequest={requestedAspect} mediaProfile={activeMediaProfile} caption={activeText} isStory={isInstagramStory} coverUrl={coverUrl}/>
@@ -801,29 +884,27 @@ function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesBy
        ) : (
         <TiktokCard accountHandle={accountHandle} avatarUrl={avatarUrl} previews={activePreviews} mediaProfile={activeMediaProfile} aspectRequest={requestedAspect} caption={activeText} title={activeTitle} coverUrl={coverUrl}/>
       )}
+      </div>
+      <p className="ds-hint mp-preview__note">A prévia simula a estrutura visual da rede. O resultado final pode variar conforme o formato e a conta.{activeFiles.length > 1 && !['instagram', 'tiktok', 'facebook'].includes(activePlatform) ? ` ${activeFiles.length} mídias selecionadas — apenas a primeira aparece na prévia desta rede.` : ''}</p>
     </div>
-     <p className="post-preview-hint">A prévia simula a estrutura visual da rede. O resultado final pode variar conforme o formato e a conta. {activeFiles.length > 1 && !['instagram', 'tiktok', 'facebook'].includes(activePlatform) ? `${activeFiles.length} mídias selecionadas — apenas a primeira aparece na prévia desta rede.` : ''}</p>
-  </aside>
+  </section>
 }
 
-function SchedulerErrorCard({ message, resultSummary, onReview, onClose }) {
-  return <div className="scheduler-feedback-card scheduler-error-card" role="alert">
-    <div className="scheduler-feedback-icon" aria-hidden="true">!</div>
-    <div className="scheduler-feedback-copy">
-      <p className="scheduler-feedback-kicker">PRECISA DE ATENÇÃO</p>
-      <h3>Não foi possível concluir a publicação</h3>
-      <p>{message || 'Revise os dados do post antes de tentar novamente.'}</p>
-      {resultSummary && <div className="scheduler-result-summary">
-        {resultSummary.published.length > 0 && <div className="scheduler-result-group is-published"><strong>Publicadas</strong>{resultSummary.published.map(label => <span key={label}>✓ {label}</span>)}</div>}
-        {resultSummary.failures.length > 0 && <div className="scheduler-result-group is-failed"><strong>Não publicadas</strong>{resultSummary.failures.map(item => <span key={`${item.label}-${item.error}`}><b>{item.label}</b><small>{item.error}</small></span>)}</div>}
-      </div>}
-      <div className="scheduler-feedback-actions"><button type="button" className="scheduler-feedback-primary" onClick={onReview}>Revisar no editor</button><button type="button" className="scheduler-feedback-secondary" onClick={onClose}>Fechar aviso</button></div>
+function SchedulerErrorCard({ title = 'Não foi possível concluir a publicação', message, resultSummary, onReview, onClose }) {
+  return <div className="ds-alert mp-alert" data-tone="danger" role="alert">
+    <Icon name="alertCircle" className="ds-alert__icon" />
+    <p className="ds-alert__title">{title}</p>
+    <p className="ds-alert__text">{message || 'Revise os dados do post antes de tentar novamente.'}</p>
+    {resultSummary && <PublicationResultGroups summary={resultSummary} />}
+    <div className="ds-alert__actions">
+      <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={onReview}>Revisar no editor</button>
+      <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm" onClick={onClose}>Fechar aviso</button>
     </div>
-    <button type="button" className="scheduler-feedback-close" onClick={onClose} aria-label="Fechar erro">×</button>
+    <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-btn--sm ds-alert__close" onClick={onClose} aria-label="Fechar erro"><Icon name="close" size={16} /></button>
   </div>
 }
 
-export function SchedulerPage() {
+export function SchedulerPage({ onNavigate } = {}) {
   const [textByPlatform, setTextByPlatform] = useState({})
   const [titleByPlatform, setTitleByPlatform] = useState({})
   const [date, setDate] = useState('')
@@ -865,6 +946,14 @@ export function SchedulerPage() {
   const [draftReady, setDraftReady] = useState(false)
   const [draftSavedAt, setDraftSavedAt] = useState(null)
   const [serverDraftStatus, setServerDraftStatus] = useState('')
+  const [accountsError, setAccountsError] = useState(false)
+  const [accountsAttempt, setAccountsAttempt] = useState(0)
+  const [lastResult, setLastResult] = useState(null)
+  const [textTab, setTextTab] = useState('instagram')
+  const [issuesOpen, setIssuesOpen] = useState(false)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const previewCloseRef = useRef(null)
+  const compactLayout = useMediaQuery('(max-width: 1023px)')
   const notify = useToast()
   const validationRequest = useRef(0)
   const publicationPollTimer = useRef(null)
@@ -876,20 +965,32 @@ export function SchedulerPage() {
     if (igFormat === 'post' && !['auto', 'square', 'portrait', 'instagramWide'].includes(igAspect)) setIgAspect('auto')
   }, [igFormat, igAspect])
   const serverDraftId = useRef(null)
-  const validationWorker = useMemo(() => createPostValidationWorker(({ requestId, issues }) => {
-    if (requestId === validationRequest.current) setWorkerIssues(issues)
-  }), [])
+  // O worker nasce e morre com o efeito: no StrictMode (desenvolvimento) a
+  // montagem dupla encerrava o worker memoizado e a validação parava de responder.
+  const [validationWorker, setValidationWorker] = useState(null)
+  useEffect(() => {
+    const worker = createPostValidationWorker(({ requestId, issues }) => {
+      if (requestId === validationRequest.current) setWorkerIssues(issues)
+    })
+    setValidationWorker(worker)
+    return () => {
+      worker?.terminate()
+      setValidationWorker(null)
+    }
+  }, [])
 
   function clearComposer() {
     setTextByPlatform({}); setTitleByPlatform({}); setDate(''); setFiles([]); setFilesByPlatform({}); setCoverFile(null); setCoverSourceKey(''); setCoverTime(null); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setIgFormat('post'); setIgAspect('auto'); setFacebookFormat('post'); setTiktokAspect('auto'); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setPublishNow(false); setApprovalWorkspaceId(''); setSavedMessage(null); localStorage.removeItem(AUTOSAVE_KEY); setDraftSavedAt(null); setServerDraftStatus('')
   }
 
   function reviewError() {
+    // Mantém à vista o resultado por rede para evitar reenviar a quem já recebeu.
+    if (['warning', 'error'].includes(publicationStatus?.type) && publicationStatus?.resultSummary) setLastResult(publicationStatus.resultSummary)
     setError('')
     setPublicationStatus(null)
     setPublicationModalOpen(false)
     window.requestAnimationFrame(() => {
-      const editor = document.querySelector('.sched-form')
+      const editor = document.querySelector('.mp-compose')
       editor?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       editor?.querySelector('textarea, input, select')?.focus({ preventScroll: true })
     })
@@ -900,13 +1001,24 @@ export function SchedulerPage() {
       const accounts = data.data || []
       setConnectedAccounts(accounts)
       setSelectedAccountIds(accounts.map(account => account.id))
+      setAccountsError(false)
       setAccountsLoaded(true)
     }).catch(() => {
       setConnectedAccounts([])
       setSelectedAccountIds([])
+      setAccountsError(true)
       setAccountsLoaded(true)
     })
-  }, [])
+  }, [accountsAttempt])
+
+  useEffect(() => { if (!compactLayout) setPreviewOpen(false) }, [compactLayout])
+  useEffect(() => {
+    if (!previewOpen) return undefined
+    previewCloseRef.current?.focus()
+    const onKey = event => { if (event.key === 'Escape') setPreviewOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [previewOpen])
 
   useEffect(() => {
     if (!TEAM_APPROVAL_UI_ENABLED) return undefined
@@ -938,10 +1050,7 @@ export function SchedulerPage() {
     return () => { cancelled = true }
   }, [notify])
 
-  useEffect(() => () => {
-    validationWorker?.terminate()
-    clearTimeout(publicationPollTimer.current)
-  }, [validationWorker])
+  useEffect(() => () => clearTimeout(publicationPollTimer.current), [])
 
   useEffect(() => {
     try {
@@ -1010,9 +1119,9 @@ export function SchedulerPage() {
           const result = await apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify({ title: 'Autosave', textByPlatform, titleByPlatform, platforms: selected, igFormat, facebookFormat, youtubeFormat }) })
           serverDraftId.current = result.id
         }
-        setServerDraftStatus('Sincronizado na conta')
+        setServerDraftStatus('Texto sincronizado na conta')
       } catch {
-        setServerDraftStatus('Salvo somente neste dispositivo')
+        setServerDraftStatus('Texto salvo só neste dispositivo')
       }
     }, 1800)
     return () => clearTimeout(timer)
@@ -1347,7 +1456,7 @@ export function SchedulerPage() {
   }
 
   async function submit(event) {
-    event.preventDefault(); setError(''); setSavedMessage(null); setPublicationStatus(null); setPublicationModalOpen(false); setProgress('')
+    event.preventDefault(); setError(''); setLastResult(null); setIssuesOpen(false); setSavedMessage(null); setPublicationStatus(null); setPublicationModalOpen(false); setProgress('')
     if (blockingIssues.length > 0) { setError(blockingIssues[0].message); return }
     const requestingApproval = TEAM_APPROVAL_UI_ENABLED && Boolean(approvalWorkspaceId)
     if (requestingApproval && publishNow) { setError('Desative "Publicar agora" para enviar o conteúdo para aprovação.'); return }
@@ -1411,7 +1520,7 @@ export function SchedulerPage() {
     if (!Object.values(textByPlatform).some(value => value?.trim())) { notify('Escreva algum conteúdo antes de salvar um modelo.', 'error'); return }
     try {
       await apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify({ title: 'Modelo de publicação', textByPlatform, titleByPlatform, platforms: selected, isTemplate: true, igFormat, facebookFormat, youtubeFormat }) })
-      notify('Modelo salvo nos seus rascunhos.')
+      notify('Modelo salvo no Baú de Ideias.')
     } catch (caught) {
       notify(caught.message, 'error')
     }
@@ -1432,107 +1541,356 @@ export function SchedulerPage() {
     setPublicationStatus(null)
   }
 
-  return <section className="page-view scheduler-page"><section className="panel scheduler-panel"><header className="scheduler-heading"><div><p className="eyebrow">PUBLICAÇÃO</p><h2>{approvalWorkspaceId ? 'Enviar para aprovação' : publishNow ? 'Publicar agora' : 'Agendar publicação'}</h2><p>Prepare uma publicação e distribua para as redes selecionadas.</p></div>{(draftSavedAt || serverDraftStatus) && <span className="autosave-status" role="status">{serverDraftStatus || `Salvo localmente às ${draftSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`}</span>}</header><div className="scheduler-workspace"><form className="draft-form sched-form" onSubmit={submit}>
+  const isAccountSelected = account => selectedAccountIds.some(id => accountIdKey(id) === accountIdKey(account))
+  const submitVerb = publishNow ? 'publicar' : approvalWorkspaceId ? 'enviar para aprovação' : 'agendar'
+  const submitLabel = approvalWorkspaceId ? 'Enviar para aprovação' : publishNow ? 'Publicar agora' : 'Agendar'
+  const hasAnyText = Object.values(textByPlatform).some(value => value?.trim())
+  const hasVideoFile = files.some(file => file.type.startsWith('video/'))
+  const activeTextPlatform = selected.includes(textTab) ? textTab : selected[0]
+  const issueCountByPlatform = blockingIssues.reduce((counts, issue) => (issue.platform ? { ...counts, [issue.platform]: (counts[issue.platform] || 0) + 1 } : counts), {})
+  const saveStatus = serverDraftStatus || (draftSavedAt ? `Texto salvo às ${draftSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '')
+  const previewAccounts = [...connectedAccounts.filter(isAccountSelected), ...connectedAccounts.filter(account => !isAccountSelected(account))]
+  const selectableAccounts = connectedAccounts.filter(account => selected.includes(account.platform))
+  const markedAccountCount = selectableAccounts.filter(isAccountSelected).length
+  const mediaHeading = isPhotoCarousel ? `${files.length} fotos em sequência` : mediaProfile?.kind === 'video' ? 'Vídeo detectado' : mediaProfile?.kind === 'image' ? 'Foto detectada' : 'Fotos, design ou vídeo'
 
-    <SchedSection number={1} title="Plataformas">
-      <div className="platform-options">{platforms.map(platform => {
-        const platformAccounts = accountsForPlatform(connectedAccounts, platform)
-        const selectedCount = platformAccounts.filter(account => selectedAccountIds.some(id => accountIdKey(id) === accountIdKey(account))).length
-        const connectedAccount = platformAccounts.find(account => selectedAccountIds.some(id => accountIdKey(id) === accountIdKey(account))) || platformAccounts[0]
-        const accountLabel = connectedAccount?.handle || connectedAccount?.name
-        const isSelected = selected.includes(platform)
-        return <div className={`platform-selection platform-selection-${platform}`} key={platform}><label className={`platform-option platform-option-${platform}`}>
-          <input type="checkbox" checked={isSelected} onChange={() => toggle(platform)} aria-label={`${isSelected ? 'Desmarcar' : 'Selecionar'} ${platform}`}/>
-          <span className="platform-option-icon" aria-hidden="true"><PlatformIcon platform={platform} className="h-6 w-6"/></span>
-          <span className="platform-option-name">{platform[0].toUpperCase() + platform.slice(1)}</span>
-          <span className="platform-option-hint">{isSelected ? 'Selecionada' : 'Selecionar'}</span>
-          <span className="platform-option-account">{selectedCount > 1 ? `${selectedCount} contas selecionadas` : accountLabel ? (accountLabel.startsWith('@') ? accountLabel : `@${accountLabel}`) : 'Nenhuma conta conectada'}</span>
-          <span className="platform-option-check" aria-hidden="true">{isSelected ? '✓' : ''}</span>
-        </label></div>
-      })}</div>
-      <div className="person-account-groups" aria-label="Contas organizadas por pessoa">
-        <div className="person-account-groups-heading"><div><strong>Contas por pessoa</strong><small>Cada pessoa reúne todas as suas redes. O post será enviado somente às contas marcadas.</small></div><span>{connectedAccounts.length} conta{connectedAccounts.length === 1 ? '' : 's'}</span></div>
-        {accountGroups.length ? <div className="person-account-groups-list">{accountGroups.map(group => {
-          const selectedGroupAccounts = group.accounts.filter(account => selectedAccountIds.some(id => accountIdKey(id) === accountIdKey(account)))
-          const groupPlatforms = Array.from(new Set(group.accounts.map(account => platformLabels[account.platform] || account.platform)))
-          return <article className="person-account-group" key={group.key}>
-            <header className="person-account-group-heading"><div><strong>{group.label}</strong><small>{group.accounts.length} conta{group.accounts.length === 1 ? '' : 's'} · {groupPlatforms.join(' · ')}</small></div><div className="person-account-group-actions"><span>{selectedGroupAccounts.length} selecionada{selectedGroupAccounts.length === 1 ? '' : 's'}</span><button type="button" onClick={() => selectAllPersonAccounts(group.key, true)}>Todas</button><button type="button" onClick={() => selectAllPersonAccounts(group.key, false)}>Nenhuma</button></div></header>
-            <div className="person-account-group-list">{group.accounts.map(account => {
-              const accountSelected = selectedAccountIds.some(id => accountIdKey(id) === accountIdKey(account))
-              const networkSelected = selected.includes(account.platform)
-              const label = account.handle || account.name || account.tokens?.find(token => token.accountName)?.accountName || `Conta ${account.id}`
-              const tokenStatus = account.tokens?.find(token => token.status)?.status || 'unknown'
-              return <label className={`person-account-row${accountSelected ? ' is-selected' : ''}${!networkSelected ? ' is-disabled' : ''}`} key={account.id}>
-                <input type="checkbox" checked={accountSelected} disabled={!networkSelected} onChange={() => toggleAccount(account.id)} aria-label={`Usar ${label} no ${platformLabels[account.platform] || account.platform}`}/>
-                {account.avatarUrl ? <img src={account.avatarUrl} alt="" aria-hidden="true"/> : <span className={`person-account-platform person-account-platform-${account.platform}`} aria-hidden="true"><PlatformIcon platform={account.platform} className="h-4 w-4"/></span>}
-                <span className="person-account-row-copy"><strong>{label}</strong><small>{platformLabels[account.platform] || account.platform}{account.name && account.handle ? ` · ${account.name}` : ''}{account.ownerEmail ? ` · ${account.ownerEmail}` : ''}</small></span>
-                <span className={`person-account-token person-account-token-${tokenStatus}`}>{tokenStatus === 'valid' ? 'Token válido' : tokenStatus === 'expiring' ? 'Expirando' : tokenStatus === 'expired' || tokenStatus === 'error' ? 'Requer atenção' : 'Sem status'}</span>
-                {!networkSelected && <small className="person-account-disabled-note">Selecione a rede</small>}
+  useEffect(() => { if (!blockingIssues.length) setIssuesOpen(false) }, [blockingIssues.length])
+
+  function retryAccounts() {
+    setAccountsLoaded(false)
+    setAccountsAttempt(attempt => attempt + 1)
+  }
+
+  function networkSummary(platform) {
+    if (!accountsLoaded) return 'Carregando contas…'
+    if (accountsError) return 'Contas indisponíveis'
+    const platformAccounts = accountsForPlatform(connectedAccounts, platform)
+    if (!platformAccounts.length) return 'Nenhuma conta conectada'
+    const chosen = platformAccounts.filter(isAccountSelected)
+    if (!chosen.length) return 'Nenhuma conta marcada'
+    return chosen.length > 1 ? `${chosen.length} contas` : handleOf(chosen[0])
+  }
+
+  // Leva a pessoa até o campo que resolve a pendência clicada.
+  function focusIssue(issue) {
+    const text = String(issue.message || '').toLowerCase()
+    const pane = issue.platform && selected.includes(issue.platform) ? issue.platform : activeTextPlatform
+    let selector = '.mp-drop .mp-fileinput'
+    if (/antecedência|no passado|data e hora/.test(text)) selector = '#mp-date'
+    else if (/conta/.test(text)) selector = '.mp-accts input, .mp-accts button, .mp-nets input'
+    else if (/rede social|plataformas/.test(text)) selector = '.mp-nets input'
+    else if (/título|feito para crianças|quem pode ver|caracteres|texto|descrição/.test(text) && pane) {
+      setTextTab(pane)
+      selector = `#mp-pane-${pane} input, #mp-pane-${pane} textarea, #mp-pane-${pane} select`
+    }
+    window.requestAnimationFrame(() => {
+      const target = document.querySelector(selector)
+      target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      target?.focus({ preventScroll: true })
+    })
+  }
+
+  function levelOf(length, max) {
+    if (length >= max) return 'over'
+    return length >= max * 0.9 ? 'near' : undefined
+  }
+
+  function renderNetworkPane(platform) {
+    const label = PLATFORM_TEXT_LIMITS[platform]?.label || platformLabels[platform] || platform
+    const limit = getPlatformTextLimit(platform)
+    const value = textByPlatform[platform] || ''
+    const targets = accountsForPlatform(connectedAccounts, platform).filter(isAccountSelected)
+    const tiktokTitle = titleByPlatform.tiktok || ''
+    const tiktokText = textByPlatform.tiktokDescription || ''
+    const vertical = platform === 'tiktok' || (platform === 'facebook' && facebookFormat === 'reel')
+    return <div className="mp-pane" role="tabpanel" id={`mp-pane-${platform}`} aria-labelledby={`mp-tab-${platform}`} hidden={platform !== activeTextPlatform} key={platform}>
+      <p className="ds-meta mp-pane__to">
+        {targets.length ? <>Vai para <strong>{targets.map(handleOf).join(', ')}</strong></> : accountsLoaded ? `Nenhuma conta do ${label} marcada em “Redes e contas”.` : 'Carregando contas…'}
+        {vertical && <span className="ds-badge" data-tone="outline">9:16 · 1080 × 1920</span>}
+      </p>
+      {platform === 'tiktok'
+        ? <>
+          <div className="ds-field">
+            <div className="ds-field__top"><label className="ds-label" htmlFor="mp-tiktok-title">Título chamativo</label><span className="ds-counter" data-level={levelOf(tiktokTitle.length, 90)}>{tiktokTitle.length}/90</span></div>
+            <input id="mp-tiktok-title" className="ds-input" value={tiktokTitle} onChange={event => updatePlatformTitle('tiktok', event.target.value)} maxLength={90} placeholder="Adicione um título chamativo" />
+          </div>
+          <div className="ds-field">
+            <div className="ds-field__top"><label className="ds-label" htmlFor="mp-tiktok-desc">Descrição</label><span className="ds-counter" data-level={levelOf(tiktokText.length, 4000)}>{tiktokText.length}/4000</span></div>
+            <textarea id="mp-tiktok-desc" className="ds-textarea mp-textarea" value={tiktokText} onChange={event => updatePlatformText('tiktok', event.target.value)} maxLength={4000} placeholder="Escrever uma descrição longa pode ajudar a obter, em média, 3x mais visualizações" />
+            <div className="mp-tokens">
+              <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm" onClick={() => insertTiktokToken('#')}># Hashtags</button>
+              <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm" onClick={() => insertTiktokToken('@')}>@ Mencionar</button>
+            </div>
+          </div>
+        </>
+        : <div className="ds-field">
+          <div className="ds-field__top"><label className="ds-label" htmlFor={`mp-text-${platform}`}>{platform === 'youtube' ? 'Descrição do vídeo' : `Texto do ${label}`}</label><span className="ds-counter" data-level={levelOf(value.length, limit)}>{value.length}/{limit}</span></div>
+          <textarea id={`mp-text-${platform}`} className="ds-textarea mp-textarea" value={value} onChange={event => updatePlatformText(platform, event.target.value)} maxLength={limit} placeholder={`Escreva o texto do ${label}...`} />
+        </div>}
+
+      {platform === 'instagram' && <div className="ds-fieldrow mp-settings">
+        <SelectField id="mp-ig-format" label="Formato" value={igFormat} onChange={setIgFormat} options={[['post', 'Feed (imagem/carrossel)'], ['reel', 'Reels'], ['story', 'Story']]} />
+      </div>}
+      {platform === 'facebook' && <div className="ds-fieldrow mp-settings">
+        <SelectField id="mp-fb-format" label="Formato" value={facebookFormat} onChange={setFacebookFormat} options={[['post', 'Feed (imagem/vídeo)'], ['reel', 'Reels · vídeo 9:16']]} />
+      </div>}
+      {platform === 'youtube' && <>
+        <div className="ds-field">
+          <div className="ds-field__top"><label className="ds-label" htmlFor="mp-yt-title">Título do vídeo<span className="ds-label__req">obrigatório</span></label><span className="ds-counter" data-level={levelOf(youtubeTitle.length, 100)}>{youtubeTitle.length}/100</span></div>
+          <input id="mp-yt-title" className="ds-input" value={youtubeTitle} onChange={event => setYoutubeTitle(event.target.value)} maxLength={100} />
+        </div>
+        <div className="ds-fieldrow mp-settings">
+          <SelectField id="mp-yt-kids" label="Feito para crianças" required value={youtubeMadeForKids} onChange={setYoutubeMadeForKids} options={[['', 'Selecione...'], ['false', 'Não'], ['true', 'Sim']]} />
+          <SelectField id="mp-yt-format" label="Formato" value={youtubeFormat} onChange={setYoutubeFormat} options={[['', 'Automático · detectar'], ['video', 'Vídeo · 1920 × 1080'], ['short', 'Short · 9:16 · 1080 × 1920 · menos de 60s']]} />
+        </div>
+        <details className="ds-disclosure mp-more">
+          <summary>Mais opções do YouTube<Icon name="chevronDown" className="ds-disclosure__chev" /></summary>
+          <div className="ds-disclosure__body ds-fieldrow">
+            <SelectField id="mp-yt-visibility" label="Visibilidade" value={youtubeVisibility} onChange={setYoutubeVisibility} options={[['public', 'Público'], ['unlisted', 'Não listado'], ['private', 'Privado']]} />
+            <SelectField id="mp-yt-category" label="Categoria" value={youtubeCategoryId} onChange={setYoutubeCategoryId} options={[['', 'Automática'], ...youtubeCategories.map(category => [category.id, category.label])]} />
+          </div>
+        </details>
+      </>}
+      {platform === 'tiktok' && <>
+        <div className="ds-fieldrow mp-settings">
+          <SelectField id="mp-tt-privacy" label="Quem pode ver" value={tiktokPrivacyLevel} onChange={setTiktokPrivacyLevel} options={[['PUBLIC_TO_EVERYONE', 'Público'], ['MUTUAL_FOLLOW_FRIENDS', 'Amigos'], ['FOLLOWER_OF_CREATOR', 'Seguidores do criador'], ['SELF_ONLY', 'Somente eu']]} />
+          <div className="ds-field">
+            <p className="ds-label">Formato</p>
+            <p className="mp-static">{files.length > 1 && isPhotoCarousel ? `Carrossel de fotos · até ${TIKTOK_PHOTO_MAX_ITEMS} imagens · ajuste sem corte` : files[0]?.type.startsWith('image/') ? 'Foto · qualquer proporção · ajuste sem corte para 1080 × 1920 px' : `${TIKTOK_VIDEO_DIMENSIONS.label} · vídeo 9:16`}</p>
+          </div>
+        </div>
+        <details className="ds-disclosure mp-more">
+          <summary>Interações do TikTok<Icon name="chevronDown" className="ds-disclosure__chev" /></summary>
+          <div className="ds-disclosure__body mp-checks">
+            <label className="ds-check"><input type="checkbox" className="ds-checkbox" checked={tiktokDisableComment} onChange={event => setTiktokDisableComment(event.target.checked)} />Bloquear comentários</label>
+            <label className="ds-check"><input type="checkbox" className="ds-checkbox" checked={tiktokDisableDuet} onChange={event => setTiktokDisableDuet(event.target.checked)} />Bloquear duet</label>
+            <label className="ds-check"><input type="checkbox" className="ds-checkbox" checked={tiktokDisableStitch} onChange={event => setTiktokDisableStitch(event.target.checked)} />Bloquear stitch</label>
+          </div>
+        </details>
+      </>}
+      <p className="ds-hint mp-pane__limits">
+        {platform === 'instagram' && socialMediaLimitHint('instagram', { instagramFormat: igFormat })}
+        {platform === 'facebook' && `${facebookFormat === 'reel' ? 'Reels: um único vídeo vertical 9:16 · 1080 × 1920 px.' : `Feed: ${SOCIAL_MEDIA_RESOLUTIONS.facebook.feed.map(item => item.dimensions).join(' · ')}.`} ${socialMediaLimitHint('facebook', { facebookFormat })}`}
+        {platform === 'youtube' && socialMediaLimitHint('youtube', { youtubeFormat })}
+        {platform === 'tiktok' && socialMediaLimitHint('tiktok')}
+      </p>
+    </div>
+  }
+
+  const postPreview = <PostPreview textByPlatform={textByPlatform} titleByPlatform={titleByPlatform} selected={selected} files={files} filesByPlatform={filesByPlatform} previews={mediaPreviews} publishNow={publishNow} approvalRequested={TEAM_APPROVAL_UI_ENABLED && Boolean(approvalWorkspaceId)} date={date} youtubeTitle={youtubeTitle} igFormat={igFormat} igAspect={igAspect} onIgAspectChange={setIgAspect} tiktokAspect={tiktokAspect} youtubeFormat={youtubeFormat} facebookFormat={facebookFormat} mediaProfile={mediaProfile} coverUrl={coverPreviewUrl} accounts={previewAccounts} />
+
+  return <div className="ds-page mp" data-ds-root>
+    <header className="ds-pagehead mp-head">
+      <div className="ds-pagehead__text">
+        <p className="ds-eyebrow">{approvalWorkspaceId ? 'Enviar para aprovação' : publishNow ? 'Publicar agora' : 'Agendar publicação'}</p>
+        <h1 className="ds-pagehead__title">Meu Post</h1>
+        <p className="ds-pagehead__lede">Escolha as redes, adicione a mídia e adapte o texto de cada uma. No fim, publique na hora ou agende.</p>
+      </div>
+    </header>
+
+    <div className="mp-body">
+      <form className="mp-compose" onSubmit={submit}>
+        <fieldset className="mp-step">
+          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">1</span>Redes e contas</legend>
+          {lastResult && <div className="ds-alert mp-alert" data-tone="warning" role="status">
+            <Icon name="alertTriangle" className="ds-alert__icon" />
+            <p className="ds-alert__title">Resultado da última tentativa</p>
+            <PublicationResultGroups summary={lastResult} />
+            {lastResult.published?.length > 0 && <p className="ds-alert__text">Desmarque as redes que já receberam o post antes de enviar de novo, para não publicar em dobro.</p>}
+            <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-btn--sm ds-alert__close" onClick={() => setLastResult(null)} aria-label="Dispensar resultado"><Icon name="close" size={16} /></button>
+          </div>}
+          <div className="mp-nets" role="group" aria-label="Redes sociais">
+            {platforms.map(platform => {
+              const isSelected = selected.includes(platform)
+              return <label className="mp-net" data-selected={isSelected || undefined} key={platform}>
+                <input type="checkbox" className="ds-checkbox" checked={isSelected} onChange={() => toggle(platform)} />
+                <NetworkGlyph network={platform} size={20} />
+                <span className="mp-net__text"><span className="mp-net__name">{platformLabels[platform]}</span><span className="mp-net__acct">{networkSummary(platform)}</span></span>
               </label>
-            })}</div>
-          </article>
-        })}</div> : <p className="platform-account-empty">Nenhuma conta conectada. Conecte uma conta antes de continuar.</p>}
-      </div>
-    </SchedSection>
+            })}
+          </div>
+          <div className="mp-accts">
+            <div className="mp-accts__head">
+              <p className="mp-sublabel">Contas que vão receber</p>
+              {accountsLoaded && !accountsError && selectableAccounts.length > 0 && <span className="ds-meta">{markedAccountCount} de {selectableAccounts.length} marcadas</span>}
+            </div>
+            {!accountsLoaded
+              ? <div className="mp-accts__loading" aria-busy="true"><span className="ds-sr-only">Carregando contas...</span>{[1, 2].map(item => <span className="ds-skel mp-accts__skel" key={item} />)}</div>
+              : accountsError
+                ? <div className="ds-alert" data-tone="danger" role="alert">
+                  <Icon name="alertCircle" className="ds-alert__icon" />
+                  <p className="ds-alert__text">Não foi possível carregar suas contas conectadas.</p>
+                  <div className="ds-alert__actions"><button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={retryAccounts}><Icon name="refresh" size={16} />Tentar novamente</button></div>
+                </div>
+                : !connectedAccounts.length
+                  ? <div className="mp-accts__empty">
+                    <p className="ds-hint">Nenhuma conta conectada. Conecte uma conta antes de continuar.</p>
+                    {onNavigate && <button type="button" className="ds-go" onClick={() => onNavigate('integracoes')}>Conectar conta<Icon name="arrow" /></button>}
+                  </div>
+                  : accountGroups.map(group => {
+                    const visible = group.accounts.filter(account => selected.includes(account.platform))
+                    return <div className="mp-person" key={group.key}>
+                      <div className="mp-person__head">
+                        <span className="ds-meta mp-person__label">{group.label}</span>
+                        {visible.length > 1 && <span className="mp-person__actions">
+                          <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm" onClick={() => selectAllPersonAccounts(group.key, true)}>Marcar todas</button>
+                          <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm" onClick={() => selectAllPersonAccounts(group.key, false)}>Desmarcar</button>
+                        </span>}
+                      </div>
+                      {visible.length
+                        ? <ul className="mp-acctlist">{visible.map(account => {
+                          const label = accountLabelOf(account)
+                          const [tone, tokenLabel] = TOKEN_STATUS[account.tokens?.find(token => token.status)?.status] || ['muted', 'Sem status']
+                          const networkLabel = platformLabels[account.platform] || account.platform
+                          return <li key={account.id}><label className="mp-acct">
+                            <input type="checkbox" className="ds-checkbox" checked={isAccountSelected(account)} disabled={!selected.includes(account.platform)} onChange={() => toggleAccount(account.id)} aria-label={`Usar ${label} no ${networkLabel}`} />
+                            {account.avatarUrl ? <img className="mp-acct__avatar" src={account.avatarUrl} alt="" /> : <span className="mp-acct__avatar" aria-hidden="true"><NetworkGlyph network={account.platform} size={16} /></span>}
+                            <span className="mp-acct__text"><span className="mp-acct__name">{label}</span><span className="mp-acct__net"><NetworkGlyph network={account.platform} size={14} />{networkLabel}{account.name && account.handle ? ` · ${account.name}` : ''}</span></span>
+                            <span className="ds-status" data-status={tone}>{tokenLabel}</span>
+                          </label></li>
+                        })}</ul>
+                        : <p className="ds-hint">Nenhuma conta desta pessoa nas redes marcadas.</p>}
+                    </div>
+                  })}
+          </div>
+        </fieldset>
 
-    <MediaAiSuggestions files={files} selected={selected} contexto={aiContext} previews={mediaPreviews} onApply={applyMediaSuggestion}/>
+        <fieldset className="mp-step">
+          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">2</span>Mídia</legend>
+          <div className="mp-drop" data-filled={files.length > 0 || undefined} onDragOver={event => event.preventDefault()} onDrop={dropFiles}>
+            <span className="ds-icontile" aria-hidden="true"><Icon name={mediaProfile?.kind === 'video' ? 'video' : 'image'} /></span>
+            <div className="mp-drop__text">
+              <p className="mp-drop__title">{mediaHeading}</p>
+              <p className="ds-hint">Arraste os arquivos até aqui{carouselPlatforms.length ? ` · carrossel com até ${carouselLimit} fotos, na ordem escolhida` : ''}</p>
+            </div>
+            <label className="ds-btn ds-btn--secondary mp-filebtn"><Icon name="upload" />Adicionar mídia<input className="mp-fileinput" type="file" multiple={carouselPlatforms.length > 0} accept="image/*,image/heic,image/heif,video/*" onChange={selectFiles} aria-label={selected.includes('tiktok') ? 'Selecionar imagens ou vídeo para o TikTok' : 'Selecionar imagens ou vídeos'} /></label>
+          </div>
+          {files.length > 0 && <ul className="mp-thumbs" aria-label="Arquivos selecionados">
+            {mediaPreviews.map((item, index) => {
+              const isVideo = item.file.type.startsWith('video/')
+              return <li className="mp-thumb" key={item.key}>
+                <div className="mp-thumb__media">
+                  {isVideo ? <video src={item.url} muted playsInline preload="metadata" aria-label={`Prévia do vídeo ${item.file.name}`} /> : <img src={item.url} alt={`Prévia de ${item.file.name}`} />}
+                  {isPhotoCarousel && <span className="mp-thumb__num" aria-hidden="true">{index + 1}</span>}
+                  {isPhotoCarousel && index === 0 && <span className="mp-thumb__badge">Capa</span>}
+                  <button type="button" className="mp-thumb__remove" onClick={() => removeFile(item.key)} aria-label={`Remover ${item.file.name}`}><Icon name="close" size={16} /></button>
+                </div>
+                <p className="mp-thumb__name" title={item.file.name}>{item.file.name}</p>
+                <p className="ds-meta">{isVideo ? 'Vídeo' : 'Foto'} · {formatFileSize(item.file.size)}</p>
+                {isPhotoCarousel && <div className="mp-thumb__tools">
+                  <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-btn--sm" onClick={() => moveFile(index, -1)} disabled={index === 0} aria-label={`Mover ${item.file.name} para a esquerda`}><Icon name="chevronLeft" size={16} /></button>
+                  <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-btn--sm" onClick={() => moveFile(index, 1)} disabled={index === files.length - 1} aria-label={`Mover ${item.file.name} para a direita`}><Icon name="chevronRight" size={16} /></button>
+                  {index > 0 && <button type="button" className="ds-btn ds-btn--quiet ds-btn--sm mp-thumb__cover" onClick={() => chooseImageCover(item.key)}>Usar como capa</button>}
+                </div>}
+              </li>
+            })}
+            {carouselPlatforms.length > 0 && !hasVideoFile && <li><label className="mp-thumb mp-thumb--add"><Icon name="plus" /><span>Adicionar fotos</span><input className="mp-fileinput" type="file" multiple accept="image/*" onChange={selectFiles} aria-label="Adicionar fotos ao carrossel" /></label></li>}
+          </ul>}
+          {mediaProfile && <p className="mp-detect">
+            <strong>{mediaKindLabel(mediaProfile.kind)}</strong>
+            <span>{mediaProfile.ratio ? `Original ${ratioLabel(mediaProfile.width, mediaProfile.height)}` : 'Lendo a proporção original…'}</span>
+            <span>{mediaProfile.width && mediaProfile.height ? `${mediaProfile.width} × ${mediaProfile.height}px` : 'A prévia será ajustada automaticamente.'}</span>
+            {selected.includes('tiktok') && mediaProfile.kind === 'video' && <span>Versão enviada ao TikTok: {TIKTOK_VIDEO_DIMENSIONS.label} · vertical 9:16</span>}
+          </p>}
+          {isPhotoCarousel && carouselQualityNotes.length > 0 && <div className="mp-notes">
+            <p className="mp-sublabel"><Icon name="info" size={16} />Revisão visual do carrossel</p>
+            <ul>{carouselQualityNotes.map(note => <li key={note}>{note}</li>)}</ul>
+          </div>}
+          {isPhotoCarousel && <p className="ds-hint">A primeira foto será a capa do carrossel. Use “Usar como capa” para trocar.</p>}
+          {videoCoverFile && <VideoCoverPicker file={videoCoverFile} value={coverTime} onChange={setCoverTime} coverUrl={coverFilePreviewUrl} onCapture={file => { if (file.size > 2 * 1024 * 1024) { setError('O frame escolhido ficou maior que 2 MB. Escolha outro frame.'); return } setCoverFile(file); setCoverSourceKey('custom') }} onImageSelect={selectCoverImage} onClear={() => { setCoverFile(null); setCoverSourceKey(''); setCoverTime(null) }} />}
+          {videoCoverFile && selected.includes('youtube') && youtubeFormat === 'short' && <p className="ds-hint">O YouTube não aplica capas personalizadas em Shorts; nos demais formatos e redes compatíveis, a capa escolhida será enviada.</p>}
+          {files.length > 0 && <p className="ds-hint mp-keepnote"><Icon name="info" size={14} />As mídias ficam só nesta tela. Se sair antes de publicar, será preciso adicioná-las de novo.</p>}
+          <MediaAiSuggestions files={files} selected={selected} contexto={aiContext} previews={mediaPreviews} onApply={applyMediaSuggestion} />
+        </fieldset>
 
-    <SchedSection number={2} title="Mídia e conteúdo">
-      <div className="upload-field" onDragOver={event => event.preventDefault()} onDrop={dropFiles}>
-      <div className="upload-field-heading"><div><p className="eyebrow">{isPhotoCarousel ? 'CARROSSEL' : mediaProfile?.kind === 'video' ? 'VÍDEO' : mediaProfile?.kind === 'image' ? 'FOTO' : 'MÍDIAS'}</p><strong>{isPhotoCarousel ? `${files.length} fotos em sequência` : mediaProfile?.kind === 'video' ? 'Vídeo detectado' : mediaProfile?.kind === 'image' ? 'Foto detectada' : 'Escolha os arquivos da publicação'}</strong></div><span aria-hidden="true">▧</span></div>
-       <label className="upload-picker"><span className="upload-picker-icon" aria-hidden="true">↑</span><span className="upload-picker-copy"><strong>Adicionar mídia (fotos, design ou vídeo)</strong><small>{carouselPlatforms.length ? `Para carrossel: máximo de ${carouselLimit} fotos` : 'Para carrossel: máximo de 10 fotos'}</small></span><input className="upload-picker-input" type="file" multiple={carouselPlatforms.length > 0} accept="image/*,image/heic,image/heif,video/*" onChange={selectFiles} aria-label={selected.includes('tiktok') ? 'Selecionar imagens ou vídeo para o TikTok' : 'Selecionar imagens ou vídeos'}/></label>
-        <p className="upload-drop-hint">ou arraste os arquivos até aqui · a ordem das fotos será mantida na publicação</p>
-      </div>
-      {files.length > 0 && <div className={`media-preview-grid${selected.includes('tiktok') ? ' media-preview-grid-tiktok' : ''}`} aria-label="Arquivos selecionados">{mediaPreviews.map((item, index) => <article className="media-preview-card" key={item.key}>
-        {isPhotoCarousel && index === 0 && <span className="media-cover-badge">Capa</span>}
-         {item.file.type.startsWith('image/') ? <img src={item.url} alt={`Prévia de ${item.file.name}`} /> : <video className="media-video-thumb" src={item.url} muted playsInline preload="metadata" aria-label={`Prévia do vídeo ${item.file.name}`} />}
-         <div className="media-preview-info"><strong title={item.file.name}>{isPhotoCarousel ? `${index + 1}. ${item.file.name}` : item.file.name}</strong><small>{item.file.type.startsWith('video/') ? 'Vídeo' : 'Foto'} · {formatFileSize(item.file.size)}</small></div>
-         {isPhotoCarousel && <button type="button" className={`media-cover-select${index === 0 ? ' is-selected' : ''}`} onClick={() => chooseImageCover(item.key)}>{index === 0 ? 'Capa selecionada' : 'Usar como capa'}</button>}
-         {isPhotoCarousel && <div className="media-order-actions"><button type="button" onClick={() => moveFile(index, -1)} disabled={index === 0} aria-label={`Mover ${item.file.name} para a esquerda`}>←</button><button type="button" onClick={() => moveFile(index, 1)} disabled={index === files.length - 1} aria-label={`Mover ${item.file.name} para a direita`}>→</button></div>}
-        <button type="button" className="media-remove-button" onClick={() => removeFile(item.key)} aria-label={`Remover ${item.file.name}`}>×</button>
-      </article>)}{carouselPlatforms.length > 0 && <label className="media-add-card"><span aria-hidden="true">＋</span><small>Adicionar fotos</small><input className="upload-picker-input" type="file" multiple accept="image/*" onChange={selectFiles} aria-label="Adicionar fotos ao carrossel"/></label>}</div>}
-      {videoCoverFile && <VideoCoverPicker file={videoCoverFile} value={coverTime} onChange={setCoverTime} coverUrl={coverFilePreviewUrl} onCapture={file => { if (file.size > 2 * 1024 * 1024) { setError('O frame escolhido ficou maior que 2 MB. Escolha outro frame.'); return } setCoverFile(file); setCoverSourceKey('custom') }} onImageSelect={selectCoverImage} onClear={() => { setCoverFile(null); setCoverSourceKey(''); setCoverTime(null) }} />}
-      {videoCoverFile && selected.includes('youtube') && youtubeFormat === 'short' && <p className="media-cover-hint">O YouTube não aplica capas personalizadas em Shorts; nos demais formatos e redes compatíveis, a capa escolhida será enviada.</p>}
-       {isPhotoCarousel && <p className="media-cover-hint">A primeira foto será a capa do carrossel. Clique em “Usar como capa” para trocar.</p>}
-       {mediaProfile && <div className="media-detection-panel" role="status"><div><strong>{mediaKindLabel(mediaProfile.kind)}</strong><span>{mediaProfile.ratio ? `Original ${ratioLabel(mediaProfile.width, mediaProfile.height)}` : 'Lendo a proporção original…'}</span></div><small>{mediaProfile.width && mediaProfile.height ? `${mediaProfile.width} × ${mediaProfile.height}px` : 'A prévia será ajustada automaticamente.'}</small>{selected.includes('tiktok') && mediaProfile.kind === 'video' && <small>Versão enviada ao TikTok: {TIKTOK_VIDEO_DIMENSIONS.label} · vertical 9:16</small>}</div>}
-      {isPhotoCarousel && carouselQualityNotes.length > 0 && <div className="carousel-quality-panel" role="status"><strong>Revisão visual do carrossel</strong>{carouselQualityNotes.map(note => <span key={note}>• {note}</span>)}</div>}
-      {selected.length > 0 && <div className="platform-text-editors" aria-label="Textos e configurações específicas por rede"><div className="platform-text-editors-heading"><strong>Texto de cada rede</strong><span>Adapte o conteúdo para cada rede social. A mídia usada é a selecionada acima.</span></div><div className="platform-composer-list">{selected.map(platform => {
-        const platformLabel = PLATFORM_TEXT_LIMITS[platform]?.label || aiPlatformLabels[platform] || platform
-        const connectedAccount = connectedAccounts.find(account => account.platform === platform)
-        const accountLabel = connectedAccount?.handle || connectedAccount?.name
-        const limit = getPlatformTextLimit(platform)
-         const value = textByPlatform[platform] || ''
-        return <article className={`platform-composer-card platform-composer-card-${platform}`} key={platform}>
-           <header className="platform-composer-card-heading"><span className="platform-composer-card-icon"><PlatformIcon platform={platform} className="h-5 w-5"/></span><div><strong>{platformLabel}</strong><small>{accountLabel ? (accountLabel.startsWith('@') ? accountLabel : `@${accountLabel}`) : 'Nenhuma conta conectada'}</small></div><span className={`platform-composer-account-state ${accountLabel ? 'is-connected' : 'is-pending'}`}>{accountLabel ? 'Conta conectada' : 'Conta pendente'}</span>{platform === 'tiktok' && <span className="platform-composer-badge">9:16 · 1080 × 1920</span>}{platform === 'facebook' && facebookFormat === 'reel' && <span className="platform-composer-badge">9:16 · 1080 × 1920</span>}</header>
-          <div className="platform-composer-content"><div className="platform-composer-content-heading"><strong>Conteúdo da publicação</strong><span>{platform === 'tiktok' ? 'Título e descrição do TikTok.' : `Texto exclusivo para ${platformLabel}.`}</span></div>
-          {platform === 'tiktok' ? <div className="platform-composer-tiktok-fields">
-            <label className="tiktok-title-field"><span><span>Título chamativo</span><small>{(titleByPlatform.tiktok || '').length}/90</small></span><input value={titleByPlatform.tiktok || ''} onChange={event => updatePlatformTitle('tiktok', event.target.value)} maxLength={90} placeholder="Adicione um título chamativo" aria-label="Título chamativo do TikTok"/></label>
-            <label className="tiktok-description-field"><span><span>Descrição</span><small>{(textByPlatform.tiktokDescription || '').length}/4000</small></span><textarea value={textByPlatform.tiktokDescription || ''} onChange={event => updatePlatformText('tiktok', event.target.value)} maxLength={4000} placeholder="Escrever uma descrição longa pode ajudar a obter, em média, 3x mais visualizações" aria-label="Descrição do TikTok"/><span className="tiktok-description-actions"><button type="button" onClick={() => insertTiktokToken('#')}># Hashtags</button><button type="button" onClick={() => insertTiktokToken('@')}>@ Mencionar</button></span></label>
-          </div> : <label className={`platform-text-editor platform-text-editor-${platform}`}><span className="platform-text-editor-label"><span>{platformLabel}</span><span>{value.length}/{limit} caracteres</span></span><textarea value={value} onChange={event => updatePlatformText(platform, event.target.value)} maxLength={limit} placeholder={`Escreva o texto do ${platformLabel}...`} aria-label={`Texto específico do ${platformLabel}`}/><small>Este conteúdo é enviado somente para o {platformLabel}.</small></label>}
-           </div><section className="platform-composer-settings" aria-label={`Configurações do ${platformLabel}`}><div className="platform-composer-settings-heading"><div><strong>Configurações da rede</strong><span>Ajustes aplicados somente ao {platformLabel}.</span></div><span className="platform-composer-settings-scope">Somente {platformLabel}</span></div>
-             {platform === 'instagram' && <div className="platform-composer-settings-grid"><label>Formato Instagram<select value={igFormat} onChange={event => setIgFormat(event.target.value)}><option value="post">Feed (imagem/carrossel)</option><option value="reel">Reels</option><option value="story">Story</option></select></label><label>Proporção da prévia Instagram<select value={igAspect} onChange={event => setIgAspect(event.target.value)}>{igFormat === 'post' && <><option value="auto">Automático · detectar</option><option value="square">Foto · 1:1 · 1080 × 1080</option><option value="portrait">Foto · 4:5 · 1080 × 1350</option><option value="instagramWide">Foto · 1,91:1 · 1080 × 566</option></>}{['reel', 'story'].includes(igFormat) && <option value="vertical">Vídeo vertical · 9:16 · 1080 × 1920</option>}</select></label><p className="platform-composer-no-settings">{socialMediaLimitHint('instagram', { instagramFormat: igFormat })}</p></div>}
-              {platform === 'facebook' && <div className="platform-composer-settings-grid"><label>Formato Facebook<select value={facebookFormat} onChange={event => setFacebookFormat(event.target.value)}><option value="post">Feed (imagem/vídeo)</option><option value="reel">Reels · vídeo 9:16</option></select></label><p className="platform-composer-no-settings">{facebookFormat === 'reel' ? 'Reels: um único vídeo vertical 9:16 · 1080 × 1920 px.' : `Feed: ${SOCIAL_MEDIA_RESOLUTIONS.facebook.feed.map(item => item.dimensions).join(' · ')}.`} {socialMediaLimitHint('facebook', { facebookFormat })}</p></div>}
-              {platform === 'youtube' && <div className="platform-composer-settings-grid"><label>Título do YouTube<input value={youtubeTitle} onChange={event => setYoutubeTitle(event.target.value)} maxLength={100}/></label><label>Visibilidade<select value={youtubeVisibility} onChange={event => setYoutubeVisibility(event.target.value)}><option value="public">Público</option><option value="unlisted">Não listado</option><option value="private">Privado</option></select></label><label>Feito para crianças (YouTube)<select value={youtubeMadeForKids} onChange={event => setYoutubeMadeForKids(event.target.value)}><option value="">Selecione...</option><option value="false">Não</option><option value="true">Sim</option></select></label><label>Categoria do YouTube<select value={youtubeCategoryId} onChange={event => setYoutubeCategoryId(event.target.value)}><option value="">Automática</option>{youtubeCategories.map(category => <option key={category.id} value={category.id}>{category.label}</option>)}</select></label><label>Formato do YouTube<select value={youtubeFormat} onChange={event => setYoutubeFormat(event.target.value)}><option value="">Automático · detectar</option><option value="video">Vídeo · 1920 × 1080</option><option value="short">Short · 9:16 · 1080 × 1920 · menos de 60s</option></select></label><p className="platform-composer-no-settings">{socialMediaLimitHint('youtube', { youtubeFormat })}</p></div>}
-        {platform === 'tiktok' && <div className="platform-composer-settings-grid"><label>Formato do TikTok<span className="platform-composer-fixed-format">{files.length > 1 && isPhotoCarousel ? `Carrossel de fotos · até ${TIKTOK_PHOTO_MAX_ITEMS} imagens · ajuste sem corte` : files[0]?.type.startsWith('image/') ? 'Foto · qualquer proporção · ajuste sem corte para 1080 × 1920 px' : `${TIKTOK_VIDEO_DIMENSIONS.label} · vídeo 9:16`}</span></label><label>Privacidade TikTok<select value={tiktokPrivacyLevel} onChange={event => setTiktokPrivacyLevel(event.target.value)}><option value="PUBLIC_TO_EVERYONE">Público</option><option value="MUTUAL_FOLLOW_FRIENDS">Amigos</option><option value="FOLLOWER_OF_CREATOR">Seguidores do criador</option><option value="SELF_ONLY">Somente eu</option></select></label><fieldset className="checkbox-group"><legend>Interações do TikTok</legend><div className="checkbox-row"><label><input type="checkbox" checked={tiktokDisableComment} onChange={event => setTiktokDisableComment(event.target.checked)}/> Bloquear comentários</label><label><input type="checkbox" checked={tiktokDisableDuet} onChange={event => setTiktokDisableDuet(event.target.checked)}/> Bloquear duet</label><label><input type="checkbox" checked={tiktokDisableStitch} onChange={event => setTiktokDisableStitch(event.target.checked)}/> Bloquear stitch</label></div></fieldset><p className="platform-composer-no-settings">{socialMediaLimitHint('tiktok')}</p></div>}
-          </section>
-        </article>
-      })}</div></div>}
-    </SchedSection>
+        <fieldset className="mp-step">
+          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">3</span>Texto de cada rede</legend>
+          {selected.length
+            ? <>
+              <div className="ds-tabs mp-tabs" role="tablist" aria-label="Texto por rede" onKeyDown={event => handleTabKeys(event, selected, activeTextPlatform, setTextTab, 'mp-tab-')}>
+                {selected.map(platform => <button type="button" role="tab" id={`mp-tab-${platform}`} aria-controls={`mp-pane-${platform}`} aria-selected={platform === activeTextPlatform} tabIndex={platform === activeTextPlatform ? 0 : -1} className="ds-tab mp-tab" key={platform} onClick={() => setTextTab(platform)}>
+                  <NetworkGlyph network={platform} size={16} />{platformLabels[platform]}
+                  {issueCountByPlatform[platform] > 0 && <span className="ds-badge mp-tab__count" data-tone="danger"><span aria-hidden="true">{issueCountByPlatform[platform]}</span><span className="ds-sr-only">, {issueCountByPlatform[platform]} {issueCountByPlatform[platform] === 1 ? 'pendência' : 'pendências'}</span></span>}
+                </button>)}
+              </div>
+              {selected.map(platform => renderNetworkPane(platform))}
+            </>
+            : <p className="ds-hint mp-empty">Escolha ao menos uma rede em “Redes e contas” para escrever o texto.</p>}
+        </fieldset>
 
-    <SchedSection number={3} title="Agendamento">
-      {TEAM_APPROVAL_UI_ENABLED && workspaces.length > 0 && <div className={`approval-request-card${approvalWorkspaceId ? ' is-active' : ''}`}>
-        <div className="approval-request-copy"><span className="approval-request-icon" aria-hidden="true">✓</span><div><strong>Revisar antes de publicar</strong><small>O post ficará bloqueado até um aprovador aceitar.</small></div></div>
-        <label className="mode-toggle"><input type="checkbox" checked={Boolean(approvalWorkspaceId)} onChange={event => { setApprovalWorkspaceId(event.target.checked ? String(workspaces[0].id) : ''); if (event.target.checked) setPublishNow(false) }}/><span>{approvalWorkspaceId ? 'Ativado' : 'Ativar'}</span></label>
-        {approvalWorkspaceId && <label className="approval-workspace-select">Espaço de aprovação<select value={approvalWorkspaceId} onChange={event => { setApprovalWorkspaceId(event.target.value); setPublishNow(false) }}>{workspaces.map(workspace => <option key={workspace.id} value={workspace.id}>{workspace.name}</option>)}</select></label>}
-      </div>}
-      {!approvalWorkspaceId && <div className={`publish-now-card${publishNow ? ' is-active' : ''}`}>
-        <div className="publish-now-copy"><span className="publish-now-icon" aria-hidden="true">⚡</span><div><strong>Publicar agora</strong><small>Envie para as redes assim que concluir a publicação.</small></div></div>
-        <label className="mode-toggle"><input type="checkbox" checked={publishNow} onChange={event => setPublishNow(event.target.checked)}/><span>{publishNow ? 'Ativado' : 'Ativar'}</span></label>
-      </div>}
-      {(!publishNow || approvalWorkspaceId) && <label>Data e hora<input required type="datetime-local" value={date} onChange={event => setDate(event.target.value)}/></label>}
-    </SchedSection>
+        <fieldset className="mp-step">
+          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">4</span>Quando publicar</legend>
+          {TEAM_APPROVAL_UI_ENABLED && workspaces.length > 0 && <div className="mp-approval">
+            <label className="ds-check"><input type="checkbox" className="ds-switch" checked={Boolean(approvalWorkspaceId)} onChange={event => { setApprovalWorkspaceId(event.target.checked ? String(workspaces[0].id) : ''); if (event.target.checked) setPublishNow(false) }} /><span className="ds-check__text"><span>Revisar antes de publicar</span><span className="ds-check__hint">O post ficará bloqueado até um aprovador aceitar.</span></span></label>
+            {approvalWorkspaceId && <SelectField id="mp-approval-space" label="Espaço de aprovação" value={approvalWorkspaceId} onChange={value => { setApprovalWorkspaceId(value); setPublishNow(false) }} options={workspaces.map(workspace => [String(workspace.id), workspace.name])} />}
+          </div>}
+          {!approvalWorkspaceId && <div className="mp-when" role="radiogroup" aria-label="Quando publicar">
+            <label className="mp-when__opt" data-selected={!publishNow || undefined}>
+              <input type="radio" className="ds-radio" name="mp-when" checked={!publishNow} onChange={() => setPublishNow(false)} />
+              <span className="mp-when__text"><span className="mp-when__title">Agendar</span><span className="ds-hint">Escolha o dia e o horário</span></span>
+              <Icon name="calendar" className="mp-when__icon" />
+            </label>
+            <label className="mp-when__opt" data-selected={publishNow || undefined}>
+              <input type="radio" className="ds-radio" name="mp-when" checked={publishNow} onChange={() => setPublishNow(true)} />
+              <span className="mp-when__text"><span className="mp-when__title">Publicar agora</span><span className="ds-hint">Envia para as redes assim que você confirmar</span></span>
+              <Icon name="send" className="mp-when__icon" />
+            </label>
+          </div>}
+          {(!publishNow || approvalWorkspaceId) && <div className="ds-field mp-date">
+            <label className="ds-label" htmlFor="mp-date">Data e hora</label>
+            <input id="mp-date" className="ds-input" required type="datetime-local" value={date} onChange={event => setDate(event.target.value)} />
+            {selected.includes('instagram') && <p className="ds-hint">No Instagram, o horário precisa ter pelo menos 20 minutos de antecedência.</p>}
+          </div>}
+        </fieldset>
 
-      {blockingIssues.length > 0 && <div className="validation-panel" aria-live="polite"><p className="validation-panel-heading">⚠ {blockingIssues.length} {blockingIssues.length === 1 ? 'pendência' : 'pendências'} antes de {publishNow ? 'publicar' : approvalWorkspaceId ? 'enviar para aprovação' : 'agendar'}</p><ul className="validation-panel-list">{blockingIssues.map((issue, index) => <li key={index}>{issue.message}</li>)}</ul></div>}
-    <div className="scheduler-submit-actions"><button type="submit" className="action-button" disabled={loading || blockingIssues.length > 0}>{loading ? progress || 'Processando...' : approvalWorkspaceId ? 'Enviar para aprovação' : publishNow ? 'Publicar agora' : 'Agendar'}</button><button type="button" className="secondary-button" onClick={saveAsTemplate} disabled={loading || !Object.values(textByPlatform).some(value => value?.trim())}>Salvar como modelo</button></div>
-  </form><PostPreview textByPlatform={textByPlatform} titleByPlatform={titleByPlatform} selected={selected} files={files} filesByPlatform={filesByPlatform} previews={mediaPreviews} publishNow={publishNow} approvalRequested={TEAM_APPROVAL_UI_ENABLED && Boolean(approvalWorkspaceId)} date={date} youtubeTitle={youtubeTitle} igFormat={igFormat} igAspect={igAspect} tiktokAspect={tiktokAspect} youtubeFormat={youtubeFormat} facebookFormat={facebookFormat} mediaProfile={mediaProfile} coverUrl={coverPreviewUrl} accounts={connectedAccounts}/></div>{publicationModalOpen && publicationStatus && <PublicationStatusModal status={publicationStatus} platforms={selected} progress={progress} onReview={reviewError} onClose={closePublicationModal}/>} {savedMessage && !publicationStatus && <div className="scheduler-success-card" role="status"><div className="scheduler-success-icon" aria-hidden="true">✓</div><div className="scheduler-success-copy"><p className="scheduler-success-kicker">TUDO CERTO!</p><h3>{savedMessage.approval ? 'Enviado para aprovação' : 'Seu post está na agenda'}</h3><p>{savedMessage.approval ? <>O post foi salvo no espaço <strong>{savedMessage.workspaceName}</strong> e ficará bloqueado até a aprovação.</> : <>Ele será publicado em <strong>{savedMessage.date}</strong>.</>}</p><div className="scheduler-success-platforms"><span>Redes selecionadas</span>{savedMessage.platformList.map(platform => <span key={platform} className="scheduler-success-platform">✓ {platform}</span>)}</div><p className="scheduler-success-hint">{savedMessage.approval ? 'O aprovador pode analisar o conteúdo na área Equipe.' : 'Você pode acompanhar ou editar esse agendamento no calendário.'}</p></div><button type="button" className="scheduler-success-close" onClick={() => setSavedMessage(null)} aria-label="Fechar confirmação">×</button></div>}{publicationStatus?.type === 'error' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'warning' && <SchedulerErrorCard message={publicationStatus.message} resultSummary={publicationStatus.resultSummary} onReview={reviewError} onClose={() => setPublicationStatus(null)} />}{publicationStatus && publicationStatus.type === 'success' && <p className="success-message" role="status">{publicationStatus.message}</p>}{error && <SchedulerErrorCard message={error} onReview={reviewError} onClose={() => setError('')} />}</section></section>
+        <div className="mp-bar">
+          {error && <SchedulerErrorCard title="Precisa de atenção" message={error} onReview={reviewError} onClose={() => setError('')} />}
+          {savedMessage && !publicationStatus && <div className="ds-alert mp-alert" data-tone="success" role="status">
+            <Icon name="checkCircle" className="ds-alert__icon" />
+            <p className="ds-alert__title">{savedMessage.approval ? 'Enviado para aprovação' : 'Seu post está na agenda'}</p>
+            <p className="ds-alert__text">{savedMessage.approval ? <>O post foi salvo no espaço <strong>{savedMessage.workspaceName}</strong> e ficará bloqueado até a aprovação.</> : <>Ele será publicado em <strong>{savedMessage.date}</strong>.</>}</p>
+            <p className="ds-alert__text">{savedMessage.approval ? 'O aprovador pode analisar o conteúdo na área Equipe.' : 'Você pode acompanhar ou editar esse agendamento no calendário.'}</p>
+            <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-btn--sm ds-alert__close" onClick={() => setSavedMessage(null)} aria-label="Fechar confirmação"><Icon name="close" size={16} /></button>
+          </div>}
+          {issuesOpen && blockingIssues.length > 0 && <div className="mp-issues" id="mp-issues">
+            <p className="mp-sublabel">Antes de {submitVerb}</p>
+            <ul>{blockingIssues.map((issue, index) => <li key={index}><button type="button" className="mp-issue" onClick={() => focusIssue(issue)}>
+              {issue.platform ? <NetworkGlyph network={issue.platform} size={16} /> : <Icon name="alertTriangle" size={16} />}
+              <span>{issue.message}</span>
+              <Icon name="arrow" size={16} className="mp-issue__go" />
+            </button></li>)}</ul>
+          </div>}
+          <div className="mp-bar__main">
+            {blockingIssues.length > 0
+              ? <button type="button" className="mp-bar__issues" aria-expanded={issuesOpen} aria-controls={issuesOpen ? 'mp-issues' : undefined} onClick={() => setIssuesOpen(open => !open)}>
+                <Icon name="alertTriangle" size={18} />
+                <span><strong>{blockingIssues.length} {blockingIssues.length === 1 ? 'pendência' : 'pendências'}</strong> antes de {submitVerb}</span>
+                <Icon name={issuesOpen ? 'chevronDown' : 'chevronUp'} size={16} />
+              </button>
+              : <span className="mp-bar__ready"><Icon name="checkCircle" size={18} />Pronto para {submitVerb}</span>}
+            {saveStatus && <span className="mp-bar__save" role="status">{saveStatus}</span>}
+            <span className="mp-bar__actions">
+              {compactLayout && <button type="button" className="ds-btn ds-btn--quiet mp-bar__preview" onClick={() => setPreviewOpen(true)}><Icon name="eye" />Prévia</button>}
+              <button type="button" className="ds-btn ds-btn--secondary mp-bar__template" onClick={saveAsTemplate} disabled={loading || !hasAnyText}>Salvar como modelo</button>
+              <span className="mp-bar__more"><OverflowMenu label="Mais ações do post" items={[{ label: 'Salvar como modelo', icon: 'bookmark', disabled: loading || !hasAnyText, onSelect: saveAsTemplate }]} /></span>
+              <button type="submit" className="ds-btn ds-btn--primary mp-bar__submit" disabled={loading || blockingIssues.length > 0}>
+                {loading ? <><span className="ds-spinner" aria-hidden="true" />{progress || 'Processando...'}</> : <>{submitLabel}<Icon name={publishNow ? 'send' : 'arrow'} /></>}
+              </button>
+            </span>
+          </div>
+        </div>
+      </form>
+
+      {!compactLayout && <aside className="mp-aside">{postPreview}</aside>}
+    </div>
+
+    {compactLayout && previewOpen && <div className="ds-scrim ds-scrim--drawer" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setPreviewOpen(false) }}>
+      <section className="ds-drawer mp-sheet" role="dialog" aria-modal="true" aria-label="Prévia da publicação">
+        <div className="mp-sheet__close"><button ref={previewCloseRef} type="button" className="ds-btn ds-btn--quiet ds-btn--icon" onClick={() => setPreviewOpen(false)} aria-label="Fechar prévia"><Icon name="close" /></button></div>
+        <div className="ds-drawer__body">{postPreview}</div>
+      </section>
+    </div>}
+
+    {publicationModalOpen && publicationStatus && <PublicationStatusModal status={publicationStatus} platforms={selected} progress={progress} onReview={reviewError} onClose={closePublicationModal} />}
+  </div>
 }
