@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../../lib/api.js'
 import { Icon, NetworkGlyph } from '../ui/icon.jsx'
+import { Sheet } from '../ui/floating.jsx'
 
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', linkedin: 'LinkedIn', threads: 'Threads', reddit: 'Reddit', bluesky: 'Bluesky', x: 'X', twitter: 'X', tiktok: 'TikTok' }
 const COMMENTS_REFRESH_INTERVAL_MS = 60_000
@@ -150,7 +151,7 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
 
   async function send() {
     const text = replyText.trim()
-    if (!text) return setError('Escreva uma resposta antes de enviar')
+    if (!text) { setNotice(''); return setError('Escreva uma resposta antes de enviar.') }
     setSending(true)
     setError('')
     setNotice('')
@@ -177,7 +178,7 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
 
   async function saveReply() {
     const text = replyText.trim()
-    if (!text) return setError('Escreva a resposta antes de salvar.')
+    if (!text) { setNotice(''); return setError('Escreva a resposta antes de salvar.') }
     try {
       await apiFetch('/api/saved-texts', { method: 'POST', body: JSON.stringify({ title: 'Resposta salva', body: text }) })
       setError('')
@@ -206,7 +207,7 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
     {topLevel && replySupported
       ? <div className="cm-reply" data-active={replyText ? 'true' : undefined}>
           <div className="cm-reply__form">
-            <input type="text" className="ds-input" value={replyText} onChange={event => setReplyText(event.target.value)} placeholder="Responder este comentário..." aria-label="Resposta ao comentário" disabled={sending} onKeyDown={event => { if (event.key === 'Enter') send() }} />
+            <input type="text" className="ds-input" value={replyText} onChange={event => { setReplyText(event.target.value); setNotice('') }} placeholder="Responder este comentário..." aria-label="Resposta ao comentário" disabled={sending} onKeyDown={event => { if (event.key === 'Enter') send() }} />
             <button type="button" className="ds-btn ds-btn--primary ds-btn--sm" onClick={send} disabled={sending}>{sending ? 'Publicando…' : 'Responder'}</button>
           </div>
           <div className="cm-reply__tools">
@@ -229,8 +230,9 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [waitingForComments, setWaitingForComments] = useState(false)
+  // Falha de uma atualização em segundo plano: a conversa carregada continua na tela.
+  const [staleNotice, setStaleNotice] = useState(false)
   const [savedTexts, setSavedTexts] = useState([])
-  const dialogRef = useRef(null)
   // A lista do Inbox é recriada a cada atualização; guardar o post e o onClose
   // em refs evita reiniciar a conversa (e apagar rascunhos) sem troca de post.
   const initialPostRef = useRef(initialPost)
@@ -239,27 +241,38 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
   onCloseRef.current = onClose
   const remoteKey = initialPost?.remote ? [initialPost.externalPlatform, initialPost.zernioAccountId, initialPost.externalPostId].join('|') : ''
 
+  // Uma atualização silenciosa (60 s, foco da janela, depois de responder) só troca a
+  // conversa quando dá certo; se falhar, a última versão boa fica na tela com um aviso
+  // discreto, e os rascunhos e respostas recém-enviadas continuam onde estavam.
   const load = useCallback((silent = false, signal) => {
     const source = initialPostRef.current
-    if (!silent) setLoading(true)
-    setError('')
+    if (!silent) {
+      setLoading(true)
+      setError('')
+    }
     const remote = source?.remote
       ? `?platform=${encodeURIComponent(source.externalPlatform)}&accountId=${encodeURIComponent(source.zernioAccountId)}&postId=${encodeURIComponent(source.externalPostId)}`
       : ''
+    const failed = message => {
+      if (silent) setStaleNotice(true)
+      else setError(message)
+      return { hasComments: false, hasError: true }
+    }
     return apiFetch(remote ? `/api/posts/inbox/remote-comments${remote}` : `/api/posts/${postId}/comments`, { signal })
       .then(result => {
         if (signal?.aborted) return { aborted: true }
         const nextComments = flattenComments(result.comments || [])
+        if (result.error && !nextComments.length) return failed(result.error)
         setComments(nextComments)
         setPost(current => ({ ...(current || {}), ...(result.post || {}) }))
         setError(result.error || '')
+        setStaleNotice(false)
         if (nextComments.length && !source?.remote) apiFetch(`/api/posts/${postId}/comments/seen`, { method: 'POST', body: JSON.stringify({ commentIds: nextComments.map(comment => comment.id) }) }).catch(() => {})
         return { hasComments: nextComments.length > 0, hasError: Boolean(result.error) }
       })
       .catch(caught => {
         if (signal?.aborted) return { aborted: true }
-        setError(caught.message)
-        return { hasComments: false, hasError: true }
+        return failed(caught.message)
       })
       .finally(() => { if (!silent && !signal?.aborted) setLoading(false) })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -275,6 +288,7 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
     setPost(previewFromInboxPost(initialPostRef.current))
     setComments([])
     setError('')
+    setStaleNotice(false)
     setWaitingForComments(false)
     setLoading(true)
     const emptyRetryUntil = Date.now() + COMMENTS_EVENTUAL_CONSISTENCY_WINDOW_MS
@@ -296,23 +310,16 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
     const onFocus = () => refresh(true)
     refresh()
     window.addEventListener('focus', onFocus)
-    const closeWithEscape = event => { if (event.key === 'Escape') onCloseRef.current?.() }
-    document.addEventListener('keydown', closeWithEscape)
     return () => {
       active = false
       if (timer) window.clearTimeout(timer)
       controller.abort()
       window.removeEventListener('focus', onFocus)
-      document.removeEventListener('keydown', closeWithEscape)
     }
   }, [load, postId])
 
   const loadSavedTexts = useCallback(() => apiFetch('/api/saved-texts').then(data => setSavedTexts(data.savedTexts || [])).catch(() => {}), [])
   useEffect(() => { loadSavedTexts() }, [loadSavedTexts])
-  useEffect(() => {
-    if (embedded) return
-    dialogRef.current?.querySelector('.cm-close')?.focus({ preventScroll: true })
-  }, [embedded])
 
   const visiblePost = post && String(post.id) === String(postId) ? post : previewFromInboxPost(initialPost)
   const repliesByParent = new Map()
@@ -331,10 +338,11 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
     <PostPreview post={visiblePost} />
     <div className="cm-body">
       {error && <p className="ds-alert cm-state" data-tone="danger" role="alert"><Icon name="alertCircle" className="ds-alert__icon" /><span className="ds-alert__text">{error}</span></p>}
+      {staleNotice && comments.length > 0 && <p className="cm-stale" role="status"><Icon name="refresh" size={16} />Não conseguimos atualizar os comentários agora. Mostrando a última versão; tentamos de novo em instantes.</p>}
       {!error && loading && <p className="cm-state" aria-live="polite"><span className="ds-spinner" aria-hidden="true" />Carregando publicação e comentários...</p>}
       {!error && !loading && !comments.length && waitingForComments && <p className="cm-state" role="status" aria-live="polite">Aguardando a sincronização dos comentários… verificando novamente.</p>}
       {!error && !loading && !comments.length && !waitingForComments && <p className="cm-state">Nenhum comentário ainda.</p>}
-      {!error && !loading && topLevelComments.length > 0 && <div className={`cm-thread cm-thread--${platformClass}`} aria-label="Comentários da publicação">
+      {!loading && topLevelComments.length > 0 && <div className={`cm-thread cm-thread--${platformClass}`} aria-label="Comentários da publicação">
         {topLevelComments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={() => load(true)} onReplySent={onReplySent} onSavedText={loadSavedTexts} savedTexts={savedTexts} remoteReplies={repliesFor(comment.id)} replies={repliesFor(comment.id)} repliesFor={repliesFor} />)}
       </div>}
     </div>
@@ -350,16 +358,7 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
     </section>
   }
 
-  return <div className="ds-scrim cm-scrim" data-ds-root role="presentation" onClick={onClose}>
-    <section ref={dialogRef} className="ds-modal ds-modal--lg cm cm--modal" role="dialog" aria-modal="true" aria-labelledby="cm-dialog-title" onClick={event => event.stopPropagation()}>
-      <header className="ds-modal__head">
-        <div className="ds-modal__heading">
-          <p className="ds-eyebrow">Conversa</p>
-          <h2 className="ds-modal__title" id="cm-dialog-title">Comentários e respostas</h2>
-        </div>
-        <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-modal__close cm-close" onClick={onClose} aria-label="Fechar"><Icon name="close" /></button>
-      </header>
-      <div className="ds-modal__body cm-scroll">{body}</div>
-    </section>
-  </div>
+  return <Sheet open onClose={() => onCloseRef.current?.()} eyebrow="Conversa" title="Comentários e respostas" size="lg" className="cm cm--modal">
+    <div className="cm-scroll">{body}</div>
+  </Sheet>
 }

@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { CommentsModal } from '../../src/components/analytics/comments-modal.jsx'
 import * as api from '../../src/lib/api.js'
@@ -122,5 +123,55 @@ describe('CommentsModal', () => {
 
     expect(screen.getByPlaceholderText('Responder este comentário...')).toHaveValue('Rascunho em andamento')
     expect(apiFetchMock.mock.calls.filter(([path]) => path === '/api/posts/42/comments')).toHaveLength(1)
+  })
+})
+
+describe('CommentsModal — falhas e foco', () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  it('mantém a conversa e o rascunho quando uma atualização em segundo plano falha', async () => {
+    let calls = 0
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/posts/42/comments') {
+        calls += 1
+        return calls === 1
+          ? Promise.resolve({ comments: [{ id: 'comment-1', author: 'Ana', text: 'Comentário original' }], post: { id: 42, platform: 'instagram', replySupported: true } })
+          : Promise.reject(new Error('Tempo esgotado. Verifique sua conexão e tente novamente.'))
+      }
+      if (path === '/api/saved-texts') return Promise.resolve({ savedTexts: [] })
+      return Promise.resolve({})
+    })
+    render(<CommentsModal embedded postId={42} initialPost={{ id: 42, platform: 'instagram', text: 'Meu post', replySupported: true }} />)
+
+    const input = await screen.findByPlaceholderText('Responder este comentário...')
+    fireEvent.change(input, { target: { value: 'Rascunho que não pode sumir' } })
+    await act(async () => { window.dispatchEvent(new Event('focus')) })
+
+    expect(await screen.findByText(/Não conseguimos atualizar os comentários agora/)).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Responder este comentário...')).toHaveValue('Rascunho que não pode sumir')
+    expect(screen.getByText('Comentário original')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('em modo diálogo, devolve o foco ao botão que abriu a conversa', async () => {
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => path === '/api/saved-texts'
+      ? Promise.resolve({ savedTexts: [] })
+      : Promise.resolve({ comments: [], post: { id: 7, platform: 'instagram' } }))
+    function Harness() {
+      const [open, setOpen] = useState(false)
+      return <>
+        <button type="button" onClick={() => setOpen(true)}>Ver comentários</button>
+        {open && <CommentsModal postId={7} onClose={() => setOpen(false)} />}
+      </>
+    }
+    render(<Harness />)
+    const trigger = screen.getByRole('button', { name: 'Ver comentários' })
+    trigger.focus()
+    fireEvent.click(trigger)
+
+    expect(await screen.findByRole('dialog', { name: 'Comentários e respostas' })).toBeInTheDocument()
+    fireEvent.keyDown(document.activeElement, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Comentários e respostas' })).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
   })
 })
