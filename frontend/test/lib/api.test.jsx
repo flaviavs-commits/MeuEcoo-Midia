@@ -1,4 +1,4 @@
-import { publicApiFetch } from '../../src/lib/api.js'
+import { apiFetch, publicApiFetch } from '../../src/lib/api.js'
 
 function fetchThatAborts(_url, { signal }) {
   return new Promise((resolve, reject) => {
@@ -36,5 +36,25 @@ describe('cliente HTTP', () => {
     controller.abort()
 
     await assertion
+  })
+
+  it('nunca mostra a página HTML de um proxy como mensagem de erro', async () => {
+    const html = '<!DOCTYPE html><html><head><title>502 Bad Gateway</title></head><body><h1>502 Bad Gateway</h1></body></html>'
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502, text: async () => html })))
+
+    await expect(apiFetch('/api/posts')).rejects.toMatchObject({ name: 'ApiError', status: 502, message: 'Não foi possível concluir a operação' })
+  })
+
+  it('também descarta texto com marcação dentro de um JSON de erro', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, text: async () => JSON.stringify({ erro: '<b>Internal</b> failure' }) })))
+
+    await expect(apiFetch('/api/posts')).rejects.toMatchObject({ status: 500, message: 'Não foi possível concluir a operação' })
+  })
+
+  it('mantém a mensagem escrita pelo backend para a pessoa', async () => {
+    const erro = 'Escolha uma data pelo menos 20 minutos à frente.'
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 400, text: async () => JSON.stringify({ erro }) })))
+
+    await expect(apiFetch('/api/posts')).rejects.toMatchObject({ status: 400, message: erro })
   })
 })

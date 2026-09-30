@@ -73,13 +73,24 @@ async function ensureCsrfToken(timeoutMs = 15_000, externalSignal) {
   return csrfToken
 }
 
+// Corpo que não é JSON (a página HTML de um proxy num 502, por exemplo): o
+// texto fica guardado em "texto", mas nunca vira mensagem para a pessoa.
 function parseBody(text) {
   if (!text) return null
-  try { return JSON.parse(text) } catch { return { mensagem: text } }
+  try { return JSON.parse(text) } catch { return { texto: text } }
+}
+
+// As mensagens do backend são frases curtas em português; marcação ou um texto
+// longo demais é sinal de página de erro de outro servidor, e aí vale a padrão.
+function readableMessage(value) {
+  if (typeof value !== 'string') return null
+  const message = value.trim()
+  if (!message || message.length > 300 || /<\/?[a-z!][^>]*>/i.test(message)) return null
+  return message
 }
 
 function errorMessage(body, fallback) {
-  return body?.erro || body?.message || body?.mensagem || fallback
+  return readableMessage(body?.erro) || readableMessage(body?.message) || readableMessage(body?.mensagem) || fallback
 }
 
 async function request(path, options = {}) {
