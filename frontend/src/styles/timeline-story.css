@@ -1,3 +1,4 @@
+@layer legacy {
 .marketing-page:has(.mkt-timeline) { overflow-x: clip; }
 html:has(.mkt-timeline), body:has(.mkt-timeline), #root:has(.mkt-timeline) { overflow-x: clip; overflow-y: visible; }
 .mkt-timeline-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
@@ -51,11 +52,19 @@ html:has(.mkt-timeline), body:has(.mkt-timeline), #root:has(.mkt-timeline) { ove
 .mkt-timeline-step:nth-of-type(even) .mkt-timeline-number { left: 42px; }
 .mkt-timeline-step[aria-current="step"] .mkt-timeline-number {
   color: #241d0d; background: var(--mkt-gold); border-color: var(--mkt-gold);
+  animation: mkt-timeline-glow 2.4s ease-in-out infinite;
+}
+@keyframes mkt-timeline-glow {
+  0%, 100% { box-shadow: 0 0 0 5px var(--mkt-bg), 0 0 0 0 color-mix(in srgb, var(--mkt-gold) 45%, transparent); }
+  50% { box-shadow: 0 0 0 5px var(--mkt-bg), 0 0 18px 4px color-mix(in srgb, var(--mkt-gold) 45%, transparent); }
 }
 .mkt-timeline-rail { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
 .mkt-timeline-rail path { fill: none; stroke-linecap: round; stroke-linejoin: round; }
-.mkt-timeline-rail-track { stroke: color-mix(in srgb, var(--mkt-green) 38%, var(--mkt-border)); stroke-width: 3; }
-.mkt-timeline-rail-progress { stroke: var(--mkt-gold); stroke-width: 4; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--segment-progress, 0)); }
+.mkt-timeline-rail-track {
+  stroke: color-mix(in srgb, color-mix(in srgb, var(--mkt-green) 65%, var(--mkt-gold)) 45%, var(--mkt-border));
+  stroke-width: 4;
+}
+.mkt-timeline-rail-progress { stroke: var(--mkt-gold); stroke-width: 5; stroke-dasharray: 1; stroke-dashoffset: calc(1 - var(--segment-progress, 0)); }
 @media (min-width: 861px) and (min-height: 561px) and (prefers-reduced-motion: no-preference) {
   .mkt-timeline[data-motion="full"] { height: 620svh; }
   .mkt-timeline[data-motion="full"] .mkt-timeline-stage {
@@ -91,6 +100,7 @@ html:has(.mkt-timeline), body:has(.mkt-timeline), #root:has(.mkt-timeline) { ove
 }
 @media (prefers-reduced-motion: reduce) {
   .mkt-timeline-number, .mkt-timeline-letter { transition: none; }
+  .mkt-timeline-step[aria-current="step"] .mkt-timeline-number { animation: none; }
   .mkt-timeline-letter { opacity: 1; transform: none; }
 }
 
@@ -106,3 +116,4 @@ html:has(.mkt-timeline), body:has(.mkt-timeline), #root:has(.mkt-timeline) { ove
   .marketing-page .mkt-timeline-step h3 { font-size: clamp(25px, 6vw, 34px); }
   .marketing-page .mkt-timeline-step p { font-size: 16px; }
 }
+} /* @layer legacy */

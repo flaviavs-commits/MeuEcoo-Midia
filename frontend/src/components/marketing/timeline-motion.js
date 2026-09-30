@@ -47,10 +47,11 @@ export function timelineStepFrame(progress, index) {
   const arrival = smooth(-.42, -.24, local)
   const departure = smooth(.26, .48, local)
   const overviewPresence = smooth(5.65, 6, phase)
-  const presence = Math.max(arrival, overviewPresence)
+  // Faint titles before scrolling; fades out before any step's own arrival.
+  const ghost = 1 - smooth(0, .3, phase)
   return {
-    presence,
-    title: Math.max(smooth(-.25, 0, local), overviewPresence),
+    presence: Math.max(arrival, overviewPresence, ghost * .38),
+    title: Math.max(smooth(-.25, 0, local), overviewPresence, ghost),
     description: Math.max(smooth(-.05, .08, local), overviewPresence),
     emphasis: arrival * (1 - smooth(.26, .5, local)),
   }

@@ -1,3 +1,4 @@
+@layer legacy {
 /* Four camera planes; nothing runs when scroll is at rest. No wallpaper motifs. */
 .story-atmosphere { position: absolute; left: 50%; top: 0; width: 100vw; height: 100%; transform: translateX(-50%); pointer-events: none; z-index: -1; overflow: clip; mask-image: linear-gradient(to bottom,transparent,#000 9%,#000 91%,transparent); }
 .story-ambient-lights { position: absolute; inset: -12%; transform: translate3d(var(--ambient-light-x,0px),var(--ambient-light-y,0px),0); }
@@ -22,3 +23,4 @@
 .story-passing-frame b { display: block; margin-top: 95px; font-size: 38px; line-height: 1.05; }
 @media (max-width: 860px) { .story-far-space,.story-mid-space,.story-near-space { display: none; } .story-ambient-lights { inset: -5%; } }
 @media (prefers-reduced-motion: reduce) { .story-far-space,.story-mid-space,.story-near-space { display: none; } .story-ambient-lights { transform: none; } }
+} /* @layer legacy */

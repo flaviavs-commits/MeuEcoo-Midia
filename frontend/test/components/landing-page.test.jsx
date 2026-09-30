@@ -5,11 +5,11 @@ import { PLANS } from '../../src/lib/plans.js'
 describe('LandingPage', () => {
   it('leads with the product promise and keeps pricing below the explanation', () => {
     const { container } = render(<LandingPage />)
-    const hero = screen.getByRole('region', { name: /^sua rotina\s*nas redes,\s*resolvida\.$/i })
-    expect(hero).toHaveTextContent('resolvida.')
+    const hero = screen.getByRole('region', { name: /^seu ano\s*nas redes,\s*planejado\.$/i })
+    expect(hero).toHaveTextContent('planejado.')
     expect(hero.textContent).not.toMatch(/planos|preços|R\$/i)
     expect(within(hero).getByRole('button', { name: /Veja como funciona/ })).toBeInTheDocument()
-    expect(hero).toHaveTextContent('Centralize suas redes sociais, organize publicações, automatize tarefas e acompanhe seus resultados em um só lugar.')
+    expect(hero).toHaveTextContent('Gerencie todas as suas redes em um só lugar: planeje o ano inteiro, agende publicações e acompanhe seus resultados.')
     expect(hero.querySelector('.mkt-hero-benefits')).not.toBeInTheDocument()
     expect(container.querySelector('.mkt-scrollcue')).not.toBeInTheDocument()
     expect(container.querySelector('.mkt-stage')).toBeInTheDocument()

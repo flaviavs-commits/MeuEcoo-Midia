@@ -1,3 +1,4 @@
+@layer legacy {
 /* Local scene materials. Brand colours remain sourced from the landing tokens. */
 html:has(.mkt-product-story), body:has(.mkt-product-story), #root:has(.mkt-product-story) { overflow-x: clip; overflow-y: visible; }
 .mkt-product-story {
@@ -262,3 +263,4 @@ html:has(.mkt-product-story), body:has(.mkt-product-story), #root:has(.mkt-produ
 @media (prefers-reduced-motion: reduce) {
   .story-copy, .marketing-page .story-copy h3 { transform: none !important; filter: none !important; }
 }
+} /* @layer legacy */

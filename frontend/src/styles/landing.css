@@ -1,3 +1,4 @@
+@layer legacy {
 .marketing-page {
   --mkt-bg: #f7f4ea;           /* creme de fundo */
   --mkt-surface: #ffffff;
@@ -178,6 +179,8 @@ html[data-theme="dark"] .marketing-page .mkt-button--primary { color: #1c160a; }
   gap: clamp(32px, 4vw, 64px); padding-block: clamp(40px, 5vh, 72px) clamp(64px, 8vh, 112px); min-height: calc(100svh - var(--mkt-nav-h));
 }
 .mkt-hero-copy {
+  /* Acima da decoração do palco (grade e blob), que invade a coluna do texto em telas largas. */
+  position: relative; z-index: 2;
   width: min(100%, 620px); max-width: 620px; justify-self: start;
   align-self: start; margin-top: clamp(20px, 5vh, 64px);
   margin-left: clamp(28px, 6vw, 96px);
@@ -1123,7 +1126,7 @@ html[data-theme="dark"] .marketing-page {
 .marketing-page .mkt-hero-sub,
 .marketing-page .mkt-hero-network-list { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
 .marketing-page .mkt-hero-sub {
-  max-width: 540px; margin-top: 24px; font-size: 20px; line-height: 1.55;
+  max-width: 500px; margin-top: 24px; font-size: 20px; line-height: 1.55;
 }
 .mkt-hero-actions { gap: 12px; margin-top: 32px; flex-wrap: wrap; }
 .mkt-hero-actions .mkt-button--lg { min-height: 58px; padding: 15px 26px; font-size: 16px; }
@@ -1189,3 +1192,4 @@ html[data-theme="dark"] .marketing-page {
   .mkt-final-cta-actions { flex-direction: column; }
   .mkt-final-cta-actions .mkt-button { width: 100%; }
 }
+} /* @layer legacy */

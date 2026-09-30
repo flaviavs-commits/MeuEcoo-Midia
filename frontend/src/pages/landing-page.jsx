@@ -306,8 +306,8 @@ export function LandingPage() {
     <main id="conteudo">
       <section className="mkt-hero mkt-container" aria-labelledby="hero-title">
         <div className="mkt-hero-copy">
-          <h1 id="hero-title">Sua rotina<br />nas redes,<br /><em>resolvida.</em></h1>
-          <p className="mkt-hero-sub">Centralize suas redes sociais, organize publicações, automatize tarefas e acompanhe seus resultados em um só lugar.</p>
+          <h1 id="hero-title">Seu ano<br />nas redes,<br /><em>planejado.</em></h1>
+          <p className="mkt-hero-sub">Gerencie todas as suas redes em um só lugar: planeje o ano inteiro, agende publicações e acompanhe seus resultados.</p>
           <div className="mkt-hero-actions">
             <button type="button" className="mkt-button mkt-button--outline mkt-button--lg" onClick={scrollToHowItWorks}>Veja como funciona <Icon name="arrowDown" size={18} /></button>
           </div>
