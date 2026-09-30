@@ -56,7 +56,7 @@ function monthMatrix(year, month) {
   return Array.from({ length: 42 }, (_, index) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + index))
 }
 
-function CalendarPanel({ value, onChange, onDone, disablePast, required, timeZone }) {
+function CalendarPanel({ id, value, onChange, onDone, disablePast, required, timeZone }) {
   const parsed = parseValue(value)
   const today = new Date()
   const todayKey = toDateKey(today)
@@ -116,7 +116,7 @@ function CalendarPanel({ value, onChange, onDone, disablePast, required, timeZon
 
   // Calendário e horário são dois blocos: empilhados na folha do celular, lado a lado no
   // painel do desktop (assim ele cabe acima ou abaixo de um campo dentro de um diálogo).
-  return <div className="ds-dtp">
+  return <div className="ds-dtp" id={id}>
     <div className="ds-dtp__cal">
     <div className="ds-dtp__head">
       <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-btn--sm" aria-label="Mês anterior" onClick={() => shiftMonth(-1)}><Icon name="chevronLeft" size={18} /></button>
@@ -182,7 +182,8 @@ export function DateTimeField({ id, value, onChange, required = false, invalid =
   const phone = useIsPhone()
   const timeZone = useMemo(localTimeZoneName, [])
   const label = formatDateTimeLabel(value)
-  const panel = <CalendarPanel value={value} onChange={onChange} onDone={() => { setOpen(false); triggerRef.current?.focus() }} disablePast={disablePast} required={required} timeZone={timeZone} />
+  const panelId = useId()
+  const panel = <CalendarPanel id={panelId} value={value} onChange={onChange} onDone={() => { setOpen(false); triggerRef.current?.focus() }} disablePast={disablePast} required={required} timeZone={timeZone} />
 
   return <span className="ds-dtf">
     <button
@@ -193,6 +194,7 @@ export function DateTimeField({ id, value, onChange, required = false, invalid =
       role="combobox"
       aria-haspopup="dialog"
       aria-expanded={open}
+      aria-controls={open ? panelId : undefined}
       aria-required={required || undefined}
       aria-invalid={invalid || undefined}
       aria-describedby={describedBy}

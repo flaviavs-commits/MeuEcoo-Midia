@@ -110,7 +110,7 @@ export function Select({
     ref={listRef}
     id={listId}
     role="listbox"
-    tabIndex={-1}
+    tabIndex={0}
     data-autofocus
     aria-label={sheetTitle || ariaLabel}
     aria-labelledby={sheetTitle || ariaLabel ? undefined : ariaLabelledBy}
