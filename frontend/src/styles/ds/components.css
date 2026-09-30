@@ -41,11 +41,12 @@
   .ds-skip {
     position: fixed; top: 12px; left: 12px; z-index: var(--ds-z-toast);
     padding: 10px 16px; border-radius: var(--ds-radius-sm);
-    background: var(--ds-surface); color: var(--ds-ink); box-shadow: var(--ds-shadow-3);
+    background: var(--ds-surface); color: var(--ds-ink);
     font-weight: var(--ds-weight-semibold); text-decoration: none;
     transform: translateY(-160%); transition: transform var(--ds-dur-fast) var(--ds-ease-out);
   }
-  .ds-skip:focus-visible { transform: none; }
+  /* the shadow only exists while the link is on screen (parked above the viewport it bled into the top bar) */
+  .ds-skip:focus-visible { transform: none; box-shadow: var(--ds-shadow-3); }
 
   /* ================================================== 1. TYPE PRIMITIVES */
   .ds-eyebrow {
@@ -729,8 +730,6 @@
   .ds-popover__title { font: var(--ds-weight-semibold) var(--ds-text-base)/1.3 var(--ds-font-sans); color: var(--ds-ink); }
   .ds-popover__foot { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--ds-line); }
   .ds-menu { display: grid; gap: 1px; }
-  .ds-menuanchor { position: relative; display: inline-flex; }
-  .ds-menuanchor > .ds-popover { top: calc(100% + 6px); right: 0; min-width: 200px; }
   .ds-menu__item {
     display: flex; align-items: center; gap: 10px; width: 100%; min-height: 34px; padding: 0 10px;
     border: 0; border-radius: var(--ds-radius-sm); background: none; color: var(--ds-ink);
@@ -883,12 +882,8 @@
   .ds-top__group { font-weight: var(--ds-weight-regular); color: var(--ds-ink-muted); }
   .ds-top__group::after { content: '/'; margin: 0 8px; color: var(--ds-ink-subtle); }
   .ds-top__actions { margin-left: auto; display: flex; align-items: center; gap: 6px; }
-  .ds-top__sep { width: 1px; height: 24px; margin: 0 8px; background: var(--ds-line-strong); }
-  .ds-top__anchor { position: relative; }
-  .ds-top__anchor > .ds-popover { top: calc(100% + 10px); right: 0; }
   .ds-top__btn { position: relative; }
   .ds-top__btn > .ds-dot { position: absolute; top: 8px; right: 8px; }
-  .ds-top__menu { display: inline-flex; }
   .ds-profile {
     display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 6px 0 3px; margin-left: 2px;
     border: 0; border-radius: var(--ds-radius-pill); background: none; cursor: pointer; color: var(--ds-ink);
@@ -898,6 +893,7 @@
   .ds-profile:hover, .ds-profile[aria-expanded='true'] { background: var(--ds-wash-strong); }
   .ds-profile .ds-icon { width: 16px; height: 16px; color: var(--ds-ink-muted); }
   .ds-profile .ds-avatar { --size: 28px; }
+  .ds-profile__name { max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ds-page {
     flex: 1; width: 100%; max-width: calc(var(--ds-content-max) + 2 * var(--ds-gutter)); margin: 0 auto;
     padding: 0 var(--ds-gutter) 56px;
@@ -912,16 +908,6 @@
   .ds-foot__links a { text-decoration: none; }
   .ds-foot__links a:hover { color: var(--ds-ink); text-decoration: underline; text-underline-offset: 3px; }
 
-  /* --- assistant FAB */
-  .ds-fab {
-    position: fixed; right: 24px; bottom: 24px; z-index: var(--ds-z-fab);
-    display: grid; place-items: center; width: 54px; height: 54px; border-radius: 50%;
-    background: var(--ds-surface); border: 1px solid var(--ds-line); box-shadow: var(--ds-shadow-3);
-    cursor: pointer; transition: transform var(--ds-dur-fast) var(--ds-ease-out), box-shadow var(--ds-dur-fast) var(--ds-ease-out);
-  }
-  .ds-fab:hover { transform: translateY(-1px); }
-  .ds-fab > img { width: 30px; height: 30px; }
-
   /* --- phone bottom navigation */
   .ds-bottomnav { display: none; }
   .ds-bottomnav__item {
@@ -931,7 +917,9 @@
     font: var(--ds-weight-medium) 11px/1.1 var(--ds-font-sans);
     -webkit-tap-highlight-color: transparent;
   }
+  /* every item keeps a 28px icon slot, so the labels share one baseline (the "+" tile included) */
   .ds-bottomnav__item .ds-icon { width: 22px; height: 22px; }
+  .ds-bottomnav__item > .ds-icon { margin-block: 3px; }
   .ds-bottomnav__item > span:last-child { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .ds-bottomnav__item[aria-current='page'] { color: var(--ds-ink); font-weight: var(--ds-weight-semibold); }
   .ds-bottomnav__item[aria-current='page'] .ds-icon { color: var(--ds-accent-graphic); }
@@ -940,7 +928,7 @@
     border-radius: 0 0 2px 2px; background: var(--ds-accent-graphic);
   }
   .ds-bottomnav__plus {
-    display: grid; place-items: center; width: 40px; height: 32px; border-radius: 10px;
+    display: grid; place-items: center; width: 44px; height: 28px; border-radius: 9px;
     background: var(--ds-accent); color: var(--ds-accent-ink);
   }
   .ds-bottomnav__plus .ds-icon { width: 20px; height: 20px; stroke-width: 2; }
@@ -980,6 +968,12 @@
   @media (min-width: 768px) and (max-width: 1023px) {
     .ds-profile__name { display: none; }
   }
+  /* tablets and phones held sideways get the desktop shell, but are still touched with a finger */
+  @media (min-width: 768px) and (pointer: coarse) {
+    .ds-top .ds-btn, .ds-profile { min-height: 44px; }
+    .ds-top .ds-btn--icon { width: 44px; }
+    .ds-nav__item, .ds-shell[data-side='rail'] .ds-nav__item { min-height: 44px; }
+  }
 
   /* --- phone */
   @media (max-width: 767px) {
@@ -991,8 +985,19 @@
     .ds-top:has(.ds-top__back) { padding-left: 4px; }
     .ds-top__page { font-size: var(--ds-text-lg); }
     .ds-top__back { margin-left: 0; }
-    .ds-profile { padding: 0 4px; margin-left: 0; }
+    .ds-profile { justify-content: center; width: 44px; height: 44px; padding: 0; margin-left: 0; }
+    .ds-profile .ds-avatar { --size: 32px; }
     .ds-profile__name, .ds-profile > .ds-icon { display: none; }
+    /* the page title sits right under the bar: the bar shows the brand until that title scrolls away */
+    .ds-top__brand {
+      position: absolute; left: var(--ds-gutter); top: env(safe-area-inset-top); bottom: 0;
+      display: flex; align-items: center; border-radius: var(--ds-radius-sm);
+      transition: opacity var(--ds-dur-base) var(--ds-ease-out), visibility var(--ds-dur-base) var(--ds-ease-out);
+    }
+    .ds-top__brand > img { width: auto; height: 32px; }
+    .ds-top__crumb { transition: opacity var(--ds-dur-base) var(--ds-ease-out); }
+    .ds-shell:not([data-scrolled]) .ds-top:has(.ds-top__brand) .ds-top__crumb { opacity: 0; }
+    .ds-shell[data-scrolled] .ds-top__brand { opacity: 0; visibility: hidden; }
     .ds-page { padding-bottom: 40px; }
     .ds-pagehead { grid-template-columns: minmax(0, 1fr); padding: 16px 0 14px; gap: 12px; }
     .ds-pagehead .ds-eyebrow { display: none; }
@@ -1030,8 +1035,6 @@
       -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
       border-top: 1px solid var(--ds-line);
     }
-    .ds-fab { right: 16px; bottom: calc(var(--ds-bottomnav-h) + 16px + env(safe-area-inset-bottom)); width: 48px; height: 48px; }
-    .ds-fab > img { width: 26px; height: 26px; }
     /* phone: toasts drop from the top so they never cover a sheet's actions or the bottom nav */
     .ds-toasts { left: 12px; right: 12px; width: auto; top: calc(8px + env(safe-area-inset-top)); bottom: auto; }
     .ds-scrim { place-items: end stretch; padding: 0; }
@@ -1121,8 +1124,6 @@
   .ds-legend__key--line { height: 2px; width: 14px; border-radius: 2px; }
 
   /* --- shell parts */
-  html[data-theme='light'] .ds-show-dark,
-  html[data-theme='dark'] .ds-show-light { display: none; }
   .ds-shell__content { flex: 1; min-width: 0; }
   .ds-shell__content:focus { outline: none; }
   .ds-nav, .ds-nav__group { padding: 0; margin: 0; }
@@ -1137,8 +1138,7 @@
   .ds-top .ds-tipanchor { display: inline-flex; }
 
   /* the assistant gets one quiet accent, always on (not only when it is the current page) */
-  .ds-nav__item--special .ds-icon,
-  .ds-more__item--special > .ds-icon:first-child { color: var(--ds-accent-graphic); }
+  .ds-nav__item--special .ds-icon { color: var(--ds-accent-graphic); }
   .ds-nav__item--special { color: var(--ds-ink); }
 
   /* "Tema escuro" item: the DS switch drawn as an indicator */
@@ -1319,8 +1319,11 @@
     font: var(--ds-weight-medium) var(--ds-text-md)/1.2 var(--ds-font-sans);
   }
   .ds-more__item > .ds-icon:first-child { width: 20px; height: 20px; color: var(--ds-ink-muted); }
+  .ds-more__item--special > .ds-icon:first-child { color: var(--ds-accent-graphic); }
   .ds-more__item > span { flex: 1; min-width: 0; }
-  .ds-more__item:hover, .ds-more__item:active { background: var(--ds-wash-strong); }
+  .ds-more__item:active { background: var(--ds-wash-strong); }
+  /* touch screens keep :hover on whatever sits under the finger after the sheet opens */
+  @media (hover: hover) { .ds-more__item:hover { background: var(--ds-wash-strong); } }
   .ds-more__item[aria-current='page'] { background: var(--ds-wash-strong); font-weight: var(--ds-weight-semibold); }
   .ds-more__item[aria-current='page'] > .ds-icon:first-child { color: var(--ds-accent-graphic); }
   .ds-more__chev { width: 16px; height: 16px; color: var(--ds-ink-subtle); }
@@ -1337,6 +1340,59 @@
 
   /* the floating assistant and anything pinned to the bottom sit above this inset (set on phones) */
   .ds-shell { --ds-bottom-inset: 0px; }
+
+  /* ====================================================== 39. TUTORIAL */
+  /* guided tour: a dialog over the dimmed app; with a target, the spotlight's cut-out does the dimming */
+  .tutorial-overlay {
+    position: fixed; inset: 0; z-index: var(--ds-z-tutorial);
+    display: flex; align-items: flex-start; justify-content: center;
+    padding: 14vh 20px 20px; background: var(--ds-scrim);
+  }
+  .tutorial-overlay.has-spotlight { background: transparent; }
+  .tutorial-spotlight {
+    position: fixed; border-radius: var(--ds-radius-lg); pointer-events: none;
+    box-shadow: 0 0 0 2px var(--ds-accent), 0 0 0 6px color-mix(in srgb, var(--ds-accent) 32%, transparent), 0 0 0 9999px var(--ds-scrim);
+    transition: top var(--ds-dur-slow) var(--ds-ease-out), left var(--ds-dur-slow) var(--ds-ease-out),
+      width var(--ds-dur-slow) var(--ds-ease-out), height var(--ds-dur-slow) var(--ds-ease-out);
+  }
+  .tutorial-dialog {
+    position: relative; display: grid; gap: 14px; width: min(520px, 100%); padding: 18px 20px 16px;
+    background: var(--ds-surface-elevated); color: var(--ds-ink);
+    border: 1px solid var(--ds-line); border-radius: var(--ds-radius-2xl); box-shadow: var(--ds-shadow-4);
+    animation: ds-rise var(--ds-dur-slow) var(--ds-ease-out);
+  }
+  .tutorial-dialog:focus { outline: none; }
+  .tutorial-dialog:focus-visible { outline: var(--ds-focus-w) solid var(--ds-focus); outline-offset: 3px; }
+  .tutorial-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: 12px; }
+  .tutorial-heading__text { display: grid; gap: 4px; min-width: 0; }
+  .tutorial-title { font: var(--ds-weight-semibold) var(--ds-text-2xl)/1.2 var(--ds-font-serif); letter-spacing: -0.012em; color: var(--ds-ink); }
+  .tutorial-close { margin: -6px -8px 0 0; }
+  .tutorial-body { font-size: var(--ds-text-base); line-height: 1.55; color: var(--ds-ink-2); }
+  .tutorial-features { display: grid; gap: 8px; }
+  .tutorial-features > li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 10px; font-size: var(--ds-text-sm); line-height: 1.5; color: var(--ds-ink-2); }
+  .tutorial-features > li > .ds-icon { margin-top: 2px; color: var(--ds-accent-graphic); stroke-width: 2; }
+  .tutorial-progress { margin-top: 2px; }
+  .tutorial-footer { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+  .tutorial-footer__skip { margin-right: auto; }
+
+  @media (max-width: 767px) {
+    /* a sheet on the edge opposite the spotlight, so it never covers what it presents */
+    .tutorial-overlay { align-items: flex-end; padding: max(8vh, env(safe-area-inset-top)) 0 0; }
+    .tutorial-overlay.spotlight-near-bottom { align-items: flex-start; padding: 0 0 calc(var(--ds-bottomnav-h) + env(safe-area-inset-bottom)); }
+    .tutorial-dialog {
+      width: 100%; max-height: calc(100dvh - max(8vh, env(safe-area-inset-top))); overflow-y: auto; overscroll-behavior: contain;
+      padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+      border-bottom: 0; border-radius: var(--ds-radius-2xl) var(--ds-radius-2xl) 0 0; animation-name: ds-sheet;
+    }
+    .tutorial-overlay.spotlight-near-bottom .tutorial-dialog {
+      padding-top: calc(16px + env(safe-area-inset-top)); padding-bottom: 16px;
+      border: 1px solid var(--ds-line); border-top: 0; border-radius: 0 0 var(--ds-radius-2xl) var(--ds-radius-2xl);
+    }
+    .tutorial-title { font-size: var(--ds-text-xl); }
+    .tutorial-footer { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .tutorial-footer__skip + .tutorial-footer__next { grid-column: 1 / -1; }
+    .tutorial-footer__skip { order: 1; grid-column: 1 / -1; margin: 0; }
+  }
 
   @media (max-width: 767px) {
     .ds-scrim--sheet { place-items: end stretch; padding: 0; }
@@ -1378,7 +1434,7 @@
     .ds-skel { animation: none; background-image: none; }
     .ds-spinner { animation: none; border-right-color: currentColor; opacity: 0.45; }
     .ds-go:hover .ds-icon { transform: none; }
-    .ds-btn--primary:active, .ds-btn--secondary:active, .ds-btn--quiet:active, .ds-fab:hover { transform: none; }
+    .ds-btn--primary:active, .ds-btn--secondary:active, .ds-btn--quiet:active { transform: none; }
   }
 
   /* ========================================================= FORCED COLORS */

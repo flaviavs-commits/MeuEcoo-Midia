@@ -42,7 +42,9 @@
   [role='dialog'],
   [role='menu'],
   [role='listbox']
-) {
+):where(:not([data-ds-root], [data-ds-root] *)) {
+  /* telas do design system desenham as próprias sombras (menus e listas dentro de
+     popovers e folhas não ganham uma segunda caixa) */
   box-shadow: var(--sombra-suave);
 }
 } /* @layer legacy */

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
+import { trapTab } from './floating.jsx'
+import { Icon } from './icon.jsx'
 
 // Passos do tour guiado. Cada passo com "page" navega o app de verdade para
 // aquela tela enquanto a caixa do tutorial explica o que está sendo mostrado
@@ -260,10 +262,14 @@ function spotlightIsLow(rect) {
 
 // Procura, entre todos os elementos marcados com esse alvo (menu lateral,
 // barra inferior do celular ou ações do topo), o primeiro que está de fato
-// visível. No celular os módulos fora da barra inferior moram em "Mais", e
-// é esse botão que recebe o destaque.
+// visível. O tema mora no menu da conta, fechado durante o tour: o destaque
+// vai para o botão da conta. No celular os módulos fora da barra inferior
+// moram em "Mais", e é esse botão que recebe o destaque.
+const SPOTLIGHT_FALLBACK = { tema: 'perfil' }
+
 function findSpotlight(target) {
-  return findVisibleTarget(target) || (target ? findVisibleTarget('mais') : null)
+  if (!target) return null
+  return findVisibleTarget(target) || findVisibleTarget(SPOTLIGHT_FALLBACK[target] || 'mais')
 }
 
 function findVisibleTarget(target) {
@@ -295,6 +301,18 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = previousOverflow }
+  }, [open])
+
+  // Ao fechar, o foco volta para onde estava quando o tour abriu (o botão do
+  // Perfil, por exemplo) ou, se o tour trocou de tela, para o conteúdo da
+  // página atual, em vez de cair no começo do documento.
+  useEffect(() => {
+    if (!open) return undefined
+    const opener = document.activeElement
+    return () => {
+      if (opener?.isConnected && opener !== document.body && typeof opener.focus === 'function') opener.focus({ preventScroll: true })
+      else document.getElementById('main-content')?.focus({ preventScroll: true })
+    }
   }, [open])
 
   // Move o foco para o diálogo a cada passo, tanto para leitores de tela
@@ -338,6 +356,8 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
     if (!open) return
     function handleKeydown(event) {
       if (event.key === 'Escape') { event.preventDefault(); onClose() }
+      // O tour é modal: o Tab circula só entre os botões da caixa.
+      if (event.key === 'Tab' && dialogRef.current) { trapTab(event, dialogRef.current); return }
       // Enter só avança com o foco na própria caixa; num botão ("Voltar",
       // "Pular tutorial", fechar) ele aciona o botão focado.
       if (event.key === 'Enter' && event.target !== dialogRef.current) return
@@ -371,7 +391,8 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
     spotlightIsLow(spotlightRect) ? 'spotlight-near-bottom' : ''
   ].filter(Boolean).join(' ')
 
-  return <div className={overlayClassName} role="presentation" onMouseDown={onClose}>
+  // A contagem aparece uma vez só (no sobretítulo); a barra de progresso é visual.
+  return <div className={overlayClassName} role="presentation" onMouseDown={onClose} data-ds-root>
     {spotlightRect && (
       <div
         className="tutorial-spotlight"
@@ -390,34 +411,32 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="tutorial-title"
+      aria-describedby="tutorial-body"
       tabIndex="-1"
       onMouseDown={event => event.stopPropagation()}
     >
-      <div className="tutorial-heading" aria-live="polite">
-        <div>
-          <p className="eyebrow">{stepEyebrow(step, index)}</p>
-          <h2 id="tutorial-title">{step.title}</h2>
+      <div className="tutorial-heading">
+        <div className="tutorial-heading__text">
+          <p className="ds-eyebrow">{stepEyebrow(step, index)}</p>
+          <h2 className="tutorial-title" id="tutorial-title">{step.title}</h2>
         </div>
-        <button type="button" className="tutorial-close" onClick={onClose} aria-label="Fechar tutorial">✕</button>
+        <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon tutorial-close" onClick={onClose} aria-label="Fechar tutorial"><Icon name="close" /></button>
       </div>
 
-      <p className="tutorial-body" aria-live="polite">{step.body}</p>
+      <p className="tutorial-body" id="tutorial-body">{step.body}</p>
 
       {step.tips?.length > 0 && <ul className="tutorial-features" aria-label="O que você pode fazer nesta área">
-        {step.tips.map(tip => <li key={tip}><span aria-hidden="true">✓</span><span>{tip}</span></li>)}
+        {step.tips.map(tip => <li key={tip}><Icon name="check" size={16} /><span>{tip}</span></li>)}
       </ul>}
 
-      <div className="tutorial-progress" aria-label={`Passo ${index + 1} de ${STEPS.length}`}>
-        <span style={{ width: `${((index + 1) / STEPS.length) * 100}%` }} />
+      <div className="ds-progress tutorial-progress" aria-hidden="true">
+        <span className="ds-progress__bar" style={{ '--value': `${((index + 1) / STEPS.length) * 100}%` }} />
       </div>
 
       <div className="tutorial-footer">
-        <span className="tutorial-step-counter">{index + 1} de {STEPS.length}</span>
-        <div className="tutorial-nav-buttons">
-          <button type="button" className="link-button" onClick={onClose}>{isLast ? 'Fechar' : 'Pular tutorial'}</button>
-          {!isFirst && <button type="button" className="secondary-button" onClick={goBack}>Voltar</button>}
-          <button type="button" className="action-button" onClick={goNext}>{isLast ? 'Concluir tutorial' : 'Próximo'}</button>
-        </div>
+        <button type="button" className="ds-btn ds-btn--quiet tutorial-footer__skip" onClick={onClose}>{isLast ? 'Fechar' : 'Pular tutorial'}</button>
+        {!isFirst && <button type="button" className="ds-btn ds-btn--secondary tutorial-footer__back" onClick={goBack}>Voltar</button>}
+        <button type="button" className="ds-btn ds-btn--primary tutorial-footer__next" onClick={goNext}>{isLast ? 'Concluir tutorial' : 'Próximo'}</button>
       </div>
     </section>
   </div>

@@ -218,6 +218,7 @@ function SidebarResizer({ width, fallbackWidth, shellRef, onCommit }) {
     aria-valuemin={SIDEBAR_WIDTH.min}
     aria-valuemax={SIDEBAR_WIDTH.max}
     aria-valuenow={current}
+    aria-controls="app-sidebar"
     tabIndex={0}
     data-dragging={dragging ? '' : undefined}
     onPointerDown={onPointerDown}
@@ -541,6 +542,11 @@ function AppTopbar({ context, user, phone, rail, showSidebarToggle, onToggleSide
     {onBack && <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-top__back" aria-label="Voltar" onClick={onBack}>
       <Icon name="chevronLeft" />
     </button>}
+    {/* Celular: com o título da tela logo abaixo, a barra mostra a marca e só troca
+        para o nome da tela quando esse título sobe por trás dela (data-scrolled). */}
+    {phone && !onBack && <a className="ds-top__brand" href="/app/dashboard" aria-label="Meu Ecoo Mídia, ir para o Início" onClick={event => { event.preventDefault(); onNavigate('dashboard') }}>
+      <img src="/logo.png" alt="" width="108" height="45" />
+    </a>}
     <nav className="ds-top__crumb" aria-label="Página atual">
       <p className="ds-top__page">{context.group && !phone && <span className="ds-top__group">{context.group}</span>}<span aria-current="page">{context.label}</span></p>
     </nav>
@@ -673,6 +679,26 @@ function AppShellBody({ page, onPageChange, children, user }) {
     if (active && active !== document.body && active.closest?.('[role="dialog"], .aiw')) return
     document.getElementById('main-content')?.focus({ preventScroll: true })
   }, [page, tutorialOpen])
+
+  // Celular: marca na barra do topo enquanto o título da página está à vista;
+  // depois de rolar, o nome da tela. Só um atributo muda (sem nova renderização).
+  useEffect(() => {
+    const shell = shellRef.current
+    if (!phone || !shell) return undefined
+    let frame = 0
+    const update = () => {
+      frame = 0
+      shell.toggleAttribute('data-scrolled', window.scrollY > 48)
+    }
+    const onScroll = () => { if (!frame) frame = window.requestAnimationFrame(update) }
+    update()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      if (frame) window.cancelAnimationFrame(frame)
+      shell.removeAttribute('data-scrolled')
+    }
+  }, [phone])
 
   useEffect(() => {
     const openTutorial = () => setTutorialOpen(true)
