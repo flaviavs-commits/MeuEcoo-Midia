@@ -1,7 +1,21 @@
 /*
- * Design system tokens (--ds-* only; legacy --surface/--text/--accent stay untouched).
- * Colour roles derive from the --brand-* roles in ../tokens.css; values with no brand
- * equivalent are set per theme below with their contrast budget.
+ * Design system tokens, v2 (--ds-* only; legacy --surface/--text/--accent stay untouched).
+ *
+ * Semantic roles (names from the product brief -> DS token):
+ *   --background        -> --ds-background (= --ds-canvas)
+ *   --surface           -> --ds-surface
+ *   --surface-elevated  -> --ds-surface-elevated (popovers, menus, modals)
+ *   --surface-subtle    -> --ds-surface-subtle (= --ds-tint: wells, table heads, hovers)
+ *   --foreground        -> --ds-foreground (= --ds-ink)
+ *   --foreground-secondary -> --ds-ink-2
+ *   --foreground-muted  -> --ds-ink-muted
+ *   --border / --border-strong -> --ds-line / --ds-line-strong
+ *   --brand / --brand-hover -> --ds-brand / --ds-brand-hover (= --ds-accent / --ds-accent-hover)
+ *   --success / --warning / --danger -> --ds-success / --ds-warning / --ds-danger
+ *   --focus-ring        -> --ds-focus-ring (= --ds-focus)
+ *
+ * The palette is neutral-warm (ivory, soft black, gold as the only accent). Beige washes were
+ * retired: surfaces are separated by white, a near-white canvas and hairlines, not by tints.
  */
 @layer ds {
   :root {
@@ -10,31 +24,30 @@
     --ds-font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
     --ds-font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-    /* size scale; 13px is the product floor (BRIEF §3.10) */
-    --ds-text-xs: 13px;
-    --ds-text-sm: 14px;
-    --ds-text-base: 15px;
-    --ds-text-md: 16px;
-    --ds-text-lg: 18px;
-    --ds-text-xl: 20px;
-    --ds-text-2xl: 22px;
-    --ds-text-3xl: 28px;
-    --ds-text-4xl: 34px;
-    --ds-text-display: clamp(30px, 18px + 1.6vw, 42px);
+    /* SaaS scale: metadata 12-13, controls 13-14, body 14-15, page title 30 */
+    --ds-text-xs: 12px;
+    --ds-text-sm: 13px;
+    --ds-text-base: 14px;
+    --ds-text-md: 15px;
+    --ds-text-lg: 16px;
+    --ds-text-xl: 18px;
+    --ds-text-2xl: 20px;
+    --ds-text-3xl: 24px;
+    --ds-text-4xl: 30px;
+    --ds-text-display: clamp(26px, 20px + 0.8vw, 32px);   /* page titles */
 
-    --ds-leading-tight: 1.08;
+    --ds-leading-tight: 1.12;
     --ds-leading-snug: 1.25;
     --ds-leading-heading: 1.35;
     --ds-leading-normal: 1.5;
-    --ds-leading-relaxed: 1.6;
+    --ds-leading-relaxed: 1.55;
 
-    /* tracking is inversely proportional to size (landing rule) */
-    --ds-track-display: -0.022em;
+    --ds-track-display: -0.02em;
     --ds-track-title: -0.012em;
     --ds-track-heading: -0.006em;
-    --ds-track-figure: -0.025em;
-    --ds-track-eyebrow: 0.14em;
-    --ds-track-caps: 0.06em;
+    --ds-track-figure: -0.02em;
+    --ds-track-eyebrow: 0.08em;
+    --ds-track-caps: 0.05em;
 
     --ds-weight-regular: 400;
     --ds-weight-medium: 500;
@@ -42,7 +55,7 @@
     --ds-weight-bold: 700;
 
     /* ------------------------------------------------------------- spacing */
-    /* 4px base. Names are multiples of 4 (space-3 = 12px). */
+    /* 4 / 6 / 8 / 12 / 16 / 20 / 24 / 32 / 40 / 48 */
     --ds-space-0-5: 2px;
     --ds-space-1: 4px;
     --ds-space-1-5: 6px;
@@ -60,30 +73,37 @@
     --ds-space-20: 80px;
 
     /* rhythm roles */
-    --ds-rhythm-block: 48px;      /* between page blocks (hairline + title) */
-    --ds-rhythm-block-in: 24px;   /* hairline to block title */
-    --ds-rhythm-stack: 16px;      /* between siblings inside a block */
-    --ds-item-h: 56px;   /* list rows */
-    --ds-item-h-compact: 44px;       /* table rows, menus on touch */
+    --ds-rhythm-block: 36px;      /* between page blocks */
+    --ds-rhythm-block-in: 20px;   /* hairline to block title */
+    --ds-rhythm-stack: 12px;      /* between siblings inside a block */
+    --ds-item-h: 48px;            /* list rows */
+    --ds-item-h-compact: 40px;    /* table rows, menus */
+
+    /* ----------------------------------------------------- control heights */
+    --ds-h-sm: 32px;   /* compact: toolbars, table actions */
+    --ds-h-md: 36px;   /* default: buttons, inputs, selects */
+    --ds-h-lg: 44px;   /* prominent: primary page actions, touch */
 
     /* -------------------------------------------------------------- layout */
-    --ds-side-w: 248px;
+    --ds-side-w: 224px;           /* resizable 196-272, persisted */
+    --ds-side-min: 196px;
+    --ds-side-max: 272px;
     --ds-rail-w: 72px;
-    --ds-top-h: 64px;
+    --ds-top-h: 56px;
     --ds-top-h-phone: 56px;
-    --ds-bottomnav-h: 64px;
-    --ds-gutter: 40px;
-    --ds-content-max: 1180px;
+    --ds-bottomnav-h: 60px;       /* phone bottom navigation (plus the bottom safe area) */
+    --ds-gutter: 32px;
+    --ds-content-max: 1200px;
     --ds-measure: 64ch;
     --ds-touch: 44px;
 
     /* --------------------------------------------------------------- radii */
     --ds-radius-xs: 4px;     /* skeleton lines, tags */
-    --ds-radius-sm: 8px;     /* nav items, menu items, small controls */
-    --ds-radius-md: 10px;    /* buttons, inputs, selects */
-    --ds-radius-lg: 14px;    /* popovers, toasts, media thumbs */
-    --ds-radius-xl: 18px;    /* surfaces (the few containers that exist) */
-    --ds-radius-2xl: 24px;   /* modal, drawer, moments */
+    --ds-radius-sm: 6px;     /* nav items, menu items, chips-square */
+    --ds-radius-md: 8px;     /* buttons, inputs, selects */
+    --ds-radius-lg: 10px;    /* popovers, toasts, media thumbs */
+    --ds-radius-xl: 12px;    /* cards and panels */
+    --ds-radius-2xl: 16px;   /* modal, drawer */
     --ds-radius-pill: 999px; /* segmented tracks, chips, badges */
 
     /* ------------------------------------------------------------- borders */
@@ -93,170 +113,208 @@
 
     /* -------------------------------------------------------------- motion */
     --ds-dur-instant: 80ms;   /* press feedback */
-    --ds-dur-fast: 140ms;     /* hover, colour */
-    --ds-dur-base: 180ms;     /* popover, menu, tooltip */
-    --ds-dur-slow: 240ms;     /* drawer, modal, sheet */
-    --ds-dur-slower: 320ms;   /* page-level reveal (rare) */
-    --ds-ease-out: cubic-bezier(0.2, 0.9, 0.25, 1);  /* entrances (landing menu curve) */
-    --ds-ease-in-out: cubic-bezier(0.45, 0, 0.2, 1); /* position changes */
-    --ds-ease-in: cubic-bezier(0.4, 0, 1, 1);        /* exits */
+    --ds-dur-fast: 120ms;     /* hover, colour */
+    --ds-dur-base: 160ms;     /* popover, menu, tooltip */
+    --ds-dur-slow: 200ms;     /* drawer, modal, sheet */
+    --ds-dur-slower: 220ms;   /* page-level reveal (rare) */
+    --ds-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+    --ds-ease-in-out: cubic-bezier(0.45, 0, 0.2, 1);
+    --ds-ease-in: cubic-bezier(0.4, 0, 1, 1);
 
-    /* ------------------------------------------------------------- z-index */
+    /* ------------------------------------------------------------- layers */
+    /* base < sticky < header < sidebar < floating utility < drawer < modal
+       < dropdown/popover (menus open inside modals) < tooltip < tutorial < toast */
     --ds-z-base: 0;
     --ds-z-raised: 1;
-    --ds-z-sticky: 10;      /* sticky filter bars, action bars */
+    --ds-z-sticky: 10;
     --ds-z-topbar: 30;
+    --ds-z-sidebar: 32;
     --ds-z-bottomnav: 35;
     --ds-z-fab: 40;
     --ds-z-drawer: 60;      /* scrim uses the same layer */
     --ds-z-modal: 70;
-    --ds-z-popover: 80;     /* menus may open inside modals */
+    --ds-z-popover: 80;
     --ds-z-tooltip: 85;
     --ds-z-tutorial: 95;
     --ds-z-toast: 100;
-
-    /* --------------------------------------------- colour roles (derived) */
-    --ds-canvas: var(--brand-paper);
-    --ds-surface: var(--brand-surface);
-    --ds-tint: var(--brand-surface-soft);
-    --ds-deep: var(--brand-surface-deep);
-    --ds-ink: var(--brand-ink);
-    --ds-ink-2: var(--brand-ink-secondary);
-    --ds-ink-muted: var(--brand-ink-muted);
-    --ds-ink-subtle: var(--brand-ink-subtle); /* icons, disabled, never body text */
-    --ds-accent: var(--brand-gold);           /* primary fill */
-    --ds-accent-ink: var(--brand-on-gold);    /* text on the primary fill */
-    --ds-accent-graphic: var(--brand-gold-strong); /* gold lines, bars, large figures */
-    --ds-focus: var(--brand-gold-strong);
-    --ds-line-hard: var(--brand-border-hover);
   }
 
   /* ================================================================ LIGHT */
   html[data-theme='light'] {
     color-scheme: light;
-    --ds-surface-raised: #fffdf8;               /* hover on white surfaces */
-    --ds-wash: rgb(117 93 42 / 0.05);           /* hover wash on paper */
-    --ds-wash-strong: rgb(117 93 42 / 0.09);    /* pressed / selected wash */
-    --ds-line: rgb(117 93 42 / 0.16);           /* hairline ≈ #e2dccb on paper */
-    --ds-line-strong: rgb(117 93 42 / 0.28);    /* dividers under headers */
-    --ds-line-control: #958a72;                 /* control edge: 3.4:1 white, 3.1:1 paper */
-    --ds-accent-hover: #cf9526;
-    --ds-accent-press: #c08a1e;
-    --ds-accent-text: #785b17;                  /* small gold text: 6.3:1 white, 5.8:1 paper */
-    --ds-accent-soft: rgb(224 165 46 / 0.16);
-    --ds-accent-line: rgb(150 114 31 / 0.45);   /* link underline */
-    --ds-selected: #785b17;                     /* checkbox, radio, switch "on" */
+    --ds-canvas: #f8f7f4;
+    --ds-surface: #ffffff;
+    --ds-surface-raised: #fbfaf8;               /* hover on white surfaces */
+    --ds-surface-elevated: #ffffff;
+    --ds-tint: #f2f1ee;                         /* wells, table heads */
+    --ds-side-bg: #f3f2ef;                      /* sidebar: one step under the canvas */
+    --ds-deep: #e9e7e2;
+    --ds-ink: #1c1b18;
+    --ds-ink-2: #46433d;
+    --ds-ink-muted: #6d6961;                    /* 5.4:1 white, 5.1:1 canvas */
+    --ds-ink-subtle: #9c978e;                   /* icons, disabled, never body text */
+    --ds-wash: rgb(28 27 24 / 0.035);           /* hover */
+    --ds-wash-strong: rgb(28 27 24 / 0.065);    /* pressed / selected */
+    --ds-line: rgb(28 27 24 / 0.085);           /* hairline ~ #e8e7e3 on white */
+    --ds-line-strong: rgb(28 27 24 / 0.14);
+    --ds-line-hard: rgb(28 27 24 / 0.22);
+    --ds-line-control: #8f8a81;                 /* input edge: 3.4:1 on white */
+
+    --ds-accent: #dda235;                       /* brand gold, primary fill */
+    --ds-accent-hover: #d0952a;
+    --ds-accent-press: #c28a22;
+    --ds-accent-ink: #1f1705;                   /* text on the gold fill: 9:1 */
+    --ds-accent-graphic: #c28a22;               /* active bars, lines, large figures */
+    --ds-accent-text: #80600f;                  /* small gold text: 5.9:1 white */
+    --ds-accent-soft: rgb(221 162 53 / 0.13);
+    --ds-accent-line: rgb(128 96 15 / 0.40);
+    --ds-focus: #c28a22;
+
+    --ds-selected: #1c1b18;                     /* checkbox, radio, switch "on" */
     --ds-on-selected: #ffffff;
     --ds-knob: #ffffff;
     --ds-knob-on: #ffffff;
-    --ds-disabled-bg: #ece3cf;
-    --ds-disabled-ink: #8b806c;
+    --ds-disabled-bg: #efeeeb;
+    --ds-disabled-ink: #9c978e;
     --ds-on-danger: #ffffff;
-    --ds-scrim: rgb(36 29 15 / 0.42);
-    --ds-tooltip-bg: #2f2a1e;
-    --ds-tooltip-ink: #f7f4ea;
-    --ds-invert-bg: #2f2a1e;                    /* selected network chip */
-    --ds-invert-ink: #f7f4ea;
+    --ds-scrim: rgb(20 19 16 / 0.36);
+    --ds-tooltip-bg: #1c1b18;
+    --ds-tooltip-ink: #f8f7f4;
+    --ds-invert-bg: #1c1b18;                    /* selected chip */
+    --ds-invert-ink: #f8f7f4;
     --ds-invert-mark: #f0c66c;
-    --ds-skel-base: rgb(117 93 42 / 0.09);
-    --ds-skel-sheen: rgb(255 255 255 / 0.55);
+    --ds-skel-base: rgb(28 27 24 / 0.06);
+    --ds-skel-sheen: rgb(255 255 255 / 0.6);
 
-    /* status: text colours pass 4.5:1 on white, paper and their soft fill */
-    --ds-success: #2f6b43;
-    --ds-success-soft: rgb(47 107 67 / 0.10);
-    --ds-danger: #a8323c;
-    --ds-danger-soft: rgb(168 50 60 / 0.09);
-    --ds-warning: #9a4f0c;
-    --ds-warning-soft: rgb(154 79 12 / 0.10);
-    --ds-info: #2e5a82;
-    --ds-info-soft: rgb(46 90 130 / 0.09);
+    /* status: text colours pass 4.5:1 on white and on their soft fill */
+    --ds-success: #22704a;
+    --ds-success-soft: rgb(34 112 74 / 0.09);
+    --ds-danger: #b0333d;
+    --ds-danger-soft: rgb(176 51 61 / 0.08);
+    --ds-warning: #9a560f;
+    --ds-warning-soft: rgb(154 86 15 / 0.09);
+    --ds-info: #2d5c8a;
+    --ds-info-soft: rgb(45 92 138 / 0.08);
 
-    /* data-viz (validated: all-pairs CVD ≥ 8.6, normal ≥ 17, ≥ 3:1 on paper) */
-    --ds-viz-1: #a8780c;   /* gold */
+    /* data-viz (validated: all-pairs CVD >= 8.6, >= 3:1 on white) */
+    --ds-viz-1: #b07f14;   /* gold */
     --ds-viz-2: #3b72c4;   /* ink blue */
-    --ds-viz-3: #d06a8c;   /* dusty rose */
-    --ds-viz-quiet: #c9bd9f; /* de-emphasised marks (relief: labels/table) */
-    --ds-viz-rule: rgb(117 93 42 / 0.14);
-    --ds-viz-wash: rgb(168 120 12 / 0.10);
+    --ds-viz-3: #cf6a8c;   /* dusty rose */
+    --ds-viz-quiet: #cdc8bf;
+    --ds-viz-rule: rgb(28 27 24 / 0.08);
+    --ds-viz-wash: rgb(176 127 20 / 0.10);
 
-    /* elevation: warm, negative-spread pools (landing recipe, smaller) */
-    --ds-shadow-1: 0 1px 2px rgb(58 46 18 / 0.07);
-    --ds-shadow-2: 0 1px 2px rgb(58 46 18 / 0.05), 0 18px 38px -28px rgb(58 46 18 / 0.40);
-    --ds-shadow-3: 0 20px 46px -14px rgb(58 46 18 / 0.28), 0 6px 16px rgb(58 46 18 / 0.10), 0 0 0 4px rgb(191 147 48 / 0.07);
-    --ds-shadow-4: 0 34px 70px -30px rgb(58 46 18 / 0.55), 0 12px 26px -14px rgb(58 46 18 / 0.24);
-    --ds-shadow-primary: 0 8px 18px -10px rgb(58 44 16 / 0.55);
+    /* elevation: almost invisible; borders do the separating */
+    --ds-shadow-1: 0 1px 1px rgb(20 19 16 / 0.04);
+    --ds-shadow-2: 0 1px 2px rgb(20 19 16 / 0.04), 0 4px 12px -6px rgb(20 19 16 / 0.08);
+    --ds-shadow-3: 0 10px 28px -10px rgb(20 19 16 / 0.18), 0 2px 6px rgb(20 19 16 / 0.05);
+    --ds-shadow-4: 0 28px 64px -24px rgb(20 19 16 / 0.32), 0 6px 16px rgb(20 19 16 / 0.06);
+    --ds-shadow-primary: 0 2px 6px -2px rgb(122 86 16 / 0.35);
 
-    /* atmosphere (headers and moments only) */
-    --ds-glow: radial-gradient(620px 260px at 88% -60px, rgb(224 165 46 / 0.13), transparent 72%);
-    --ds-graph-line: rgb(117 93 42 / 0.07);
-    --ds-glass: rgb(247 244 234 / 0.84);
+    --ds-glow: none;
+    --ds-graph-line: rgb(28 27 24 / 0.045);
+    --ds-glass: rgb(248 247 244 / 0.86);
   }
 
   /* ================================================================= DARK */
   html[data-theme='dark'] {
     color-scheme: dark;
-    --ds-surface-raised: #262219;
-    --ds-wash: rgb(239 236 224 / 0.04);
-    --ds-wash-strong: rgb(239 236 224 / 0.075);
-    --ds-line: rgb(232 197 118 / 0.13);         /* ≈ #322c1c on paper */
-    --ds-line-strong: rgb(232 197 118 / 0.22);
-    --ds-line-control: #756a55;                 /* 3.1:1 surface, 3.4:1 paper */
-    --ds-accent-hover: #f0c66c;
+    --ds-canvas: #121211;
+    --ds-surface: #1a1a18;
+    --ds-surface-raised: #20201d;
+    --ds-surface-elevated: #222220;
+    --ds-tint: #1e1e1b;
+    --ds-side-bg: #161615;
+    --ds-deep: #0d0d0c;
+    --ds-ink: #f2f0eb;
+    --ds-ink-2: #cbc7bf;
+    --ds-ink-muted: #9d988f;                    /* 6:1 on surface */
+    --ds-ink-subtle: #6f6b64;
+    --ds-wash: rgb(255 255 255 / 0.035);
+    --ds-wash-strong: rgb(255 255 255 / 0.065);
+    --ds-line: rgb(255 255 255 / 0.08);
+    --ds-line-strong: rgb(255 255 255 / 0.13);
+    --ds-line-hard: rgb(255 255 255 / 0.2);
+    --ds-line-control: #6f6b64;                 /* 3.3:1 on surface */
+
+    --ds-accent: #e6b23f;
+    --ds-accent-hover: #efc25e;
     --ds-accent-press: #d9a534;
+    --ds-accent-ink: #1a1405;
+    --ds-accent-graphic: #e3ae42;
     --ds-accent-text: #e8c576;                  /* 10:1 on surface */
-    --ds-accent-soft: rgb(230 178 63 / 0.14);
-    --ds-accent-line: rgb(232 197 118 / 0.45);
-    --ds-selected: #e6b23f;
-    --ds-on-selected: #241d0f;
-    --ds-knob: #efece0;
-    --ds-knob-on: #241d0f;
-    --ds-disabled-bg: #2b271a;
-    --ds-disabled-ink: #918875;
+    --ds-accent-soft: rgb(230 178 63 / 0.12);
+    --ds-accent-line: rgb(232 197 118 / 0.42);
+    --ds-focus: #e3ae42;
+
+    --ds-selected: #f2f0eb;
+    --ds-on-selected: #141412;
+    --ds-knob: #f2f0eb;
+    --ds-knob-on: #141412;
+    --ds-disabled-bg: #242421;
+    --ds-disabled-ink: #76726b;
     --ds-on-danger: #2a1012;
-    --ds-scrim: rgb(0 0 0 / 0.62);
-    --ds-tooltip-bg: #efece0;
-    --ds-tooltip-ink: #17150f;
-    --ds-invert-bg: #efece0;
-    --ds-invert-ink: #17150f;
-    --ds-invert-mark: #785b17;
-    --ds-skel-base: rgb(239 236 224 / 0.07);
-    --ds-skel-sheen: rgb(255 255 255 / 0.06);
+    --ds-scrim: rgb(0 0 0 / 0.58);
+    --ds-tooltip-bg: #f2f0eb;
+    --ds-tooltip-ink: #141412;
+    --ds-invert-bg: #f2f0eb;
+    --ds-invert-ink: #141412;
+    --ds-invert-mark: #80600f;
+    --ds-skel-base: rgb(255 255 255 / 0.06);
+    --ds-skel-sheen: rgb(255 255 255 / 0.05);
 
-    --ds-success: #86c79a;
-    --ds-success-soft: rgb(134 199 154 / 0.12);
-    --ds-danger: #f2939a;
-    --ds-danger-soft: rgb(242 147 154 / 0.12);
-    --ds-warning: #f1a766;
-    --ds-warning-soft: rgb(241 167 102 / 0.12);
+    --ds-success: #7fc496;
+    --ds-success-soft: rgb(127 196 150 / 0.11);
+    --ds-danger: #f0949b;
+    --ds-danger-soft: rgb(240 148 155 / 0.11);
+    --ds-warning: #eeaa6a;
+    --ds-warning-soft: rgb(238 170 106 / 0.11);
     --ds-info: #8fb6e3;
-    --ds-info-soft: rgb(143 182 227 / 0.12);
+    --ds-info-soft: rgb(143 182 227 / 0.11);
 
-    --ds-viz-1: #b98616;
-    --ds-viz-2: #4a82d4;
-    --ds-viz-3: #cf6a90;
-    --ds-viz-quiet: #5a5140;
-    --ds-viz-rule: rgb(232 197 118 / 0.11);
-    --ds-viz-wash: rgb(185 134 22 / 0.16);
+    --ds-viz-1: #c8961f;
+    --ds-viz-2: #5a8fdc;
+    --ds-viz-3: #d67599;
+    --ds-viz-quiet: #4a4843;
+    --ds-viz-rule: rgb(255 255 255 / 0.07);
+    --ds-viz-wash: rgb(200 150 31 / 0.14);
 
-    --ds-shadow-1: 0 1px 2px rgb(0 0 0 / 0.40);
-    --ds-shadow-2: 0 1px 2px rgb(0 0 0 / 0.30), 0 18px 38px -26px rgb(0 0 0 / 0.75);
-    --ds-shadow-3: 0 20px 46px -14px rgb(0 0 0 / 0.65), 0 6px 16px rgb(0 0 0 / 0.35), 0 0 0 4px rgb(230 178 63 / 0.06);
-    --ds-shadow-4: 0 34px 70px -26px rgb(0 0 0 / 0.80), 0 12px 26px -14px rgb(0 0 0 / 0.50);
-    --ds-shadow-primary: 0 8px 20px -10px rgb(0 0 0 / 0.70);
+    --ds-shadow-1: 0 1px 1px rgb(0 0 0 / 0.3);
+    --ds-shadow-2: 0 1px 2px rgb(0 0 0 / 0.3), 0 6px 14px -8px rgb(0 0 0 / 0.5);
+    --ds-shadow-3: 0 12px 32px -10px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.3), 0 0 0 1px rgb(255 255 255 / 0.05);
+    --ds-shadow-4: 0 28px 64px -24px rgb(0 0 0 / 0.75), 0 6px 16px rgb(0 0 0 / 0.35);
+    --ds-shadow-primary: 0 2px 6px -2px rgb(0 0 0 / 0.5);
 
-    --ds-glow: radial-gradient(620px 260px at 88% -60px, rgb(230 178 63 / 0.08), transparent 72%);
-    --ds-graph-line: rgb(232 197 118 / 0.05);
-    --ds-glass: rgb(23 21 15 / 0.84);
+    --ds-glow: none;
+    --ds-graph-line: rgb(255 255 255 / 0.035);
+    --ds-glass: rgb(18 18 17 / 0.86);
+  }
+
+  /* semantic aliases (brief names), resolved per theme */
+  html[data-theme] {
+    --ds-background: var(--ds-canvas);
+    --ds-surface-subtle: var(--ds-tint);
+    --ds-foreground: var(--ds-ink);
+    --ds-foreground-secondary: var(--ds-ink-2);
+    --ds-foreground-muted: var(--ds-ink-muted);
+    --ds-border: var(--ds-line);
+    --ds-border-strong: var(--ds-line-strong);
+    --ds-brand: var(--ds-accent);
+    --ds-brand-hover: var(--ds-accent-hover);
+    --ds-focus-ring: var(--ds-focus);
   }
 
   /* ------------------------------------------------------ responsive tokens */
-  @media (max-width: 1199px) {
-    :root { --ds-gutter: 32px; }
+  @media (max-width: 1279px) {
+    :root { --ds-gutter: 28px; }
   }
   @media (max-width: 1023px) {
-    :root { --ds-gutter: 24px; --ds-rhythm-block: 40px; }
+    :root { --ds-gutter: 24px; --ds-rhythm-block: 32px; }
   }
   @media (max-width: 767px) {
-    :root { --ds-gutter: 16px; --ds-rhythm-block: 32px; --ds-rhythm-block-in: 20px; }
+    :root { --ds-gutter: 16px; --ds-rhythm-block: 28px; --ds-rhythm-block-in: 16px; }
+  }
+  @media (max-width: 374px) {
+    :root { --ds-gutter: 14px; }
   }
 }
