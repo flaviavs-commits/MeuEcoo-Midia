@@ -799,7 +799,7 @@
   .ds-head__text { display: grid; gap: 4px; min-width: 0; }
   .ds-head__title {
     display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px;
-    font: var(--ds-weight-medium) var(--ds-text-2xl)/var(--ds-leading-snug) var(--ds-font-serif);
+    font: var(--ds-weight-semibold) var(--ds-text-xl)/var(--ds-leading-snug) var(--ds-font-display);
     letter-spacing: var(--ds-track-title); color: var(--ds-ink);
   }
   .ds-head__desc { font-size: var(--ds-text-sm); line-height: 1.5; color: var(--ds-ink-muted); max-width: 68ch; }

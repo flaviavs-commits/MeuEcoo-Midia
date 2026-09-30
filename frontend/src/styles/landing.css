@@ -14,7 +14,7 @@
   --mkt-h1-accent: #8a6a1c;    /* destaque "você ama." */
   background: var(--mkt-bg);
   color: var(--mkt-text);
-  font: 400 16px/1.6 'IBM Plex Sans', system-ui, sans-serif;
+  font: 400 16px/1.6 'Geist', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 html[data-theme="dark"] .marketing-page {
@@ -184,7 +184,7 @@ html[data-theme="dark"] .marketing-page .mkt-button--primary { color: #1c160a; }
   width: min(100%, 620px); max-width: 620px; justify-self: start;
   align-self: start; margin-top: clamp(20px, 5vh, 64px);
   margin-left: clamp(28px, 6vw, 96px);
-  font-family: 'Source Serif 4', Georgia, serif;
+  font-family: inherit;
 }
 @media (min-width: 861px) {
   .mkt-hero { padding-inline: clamp(36px, 6vw, 120px); }
@@ -483,11 +483,11 @@ html[data-theme="dark"] .mkt-hero-render {
 .mkt-workflow-art { height: 280px; display: grid; place-items: center; }
 .mkt-workflow-copy { padding: 28px 6px 0; }
 .mkt-about-step-label { color: var(--mkt-green-deep); font-size: 11px; font-weight: 600; letter-spacing: .15em; text-transform: uppercase; }
-.mkt-about-step h3 { max-width: 310px; margin-top: 17px; color: var(--mkt-h1); font-family: 'Source Serif 4', Georgia, serif; font-size: clamp(28px, 2.65vw, 39px); font-weight: 500; line-height: 1.12; letter-spacing: -.045em; }
+.mkt-about-step h3 { max-width: 310px; margin-top: 17px; color: var(--mkt-h1); font-family: inherit; font-size: clamp(28px, 2.65vw, 39px); font-weight: 500; line-height: 1.12; letter-spacing: -.045em; }
 .mkt-about-step .mkt-about-step-text { max-width: 310px; margin-top: 14px; color: var(--mkt-muted); font-size: 15px; line-height: 1.7; }
 .mkt-paper-scene { position: relative; width: min(100%, 310px); color: var(--flow-ink); }
 .mkt-paper-calendar { position: relative; padding: 23px; border: 1px solid #d9ceba; border-radius: 4px; background: var(--flow-paper); transform: rotate(-7deg); box-shadow: 7px 8px 0 -1px #ece4d2, 7px 8px 0 0 #d9ceba, 0 20px 35px -25px #615132; transition: transform .4s ease; }
-.mkt-paper-calendar-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid #e5ddcd; font-family: 'Source Serif 4', Georgia, serif; font-size: 18px; }
+.mkt-paper-calendar-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 16px; border-bottom: 1px solid #e5ddcd; font-family: inherit; font-size: 18px; }
 .mkt-paper-calendar-title svg { color: var(--flow-gold); }
 .mkt-paper-days, .mkt-paper-slots { display: grid; grid-template-columns: repeat(5, 1fr); gap: 7px; }
 .mkt-paper-days { margin-block: 15px 8px; text-align: center; color: #837b6c; font-size: 10px; }
@@ -512,7 +512,7 @@ html[data-theme="dark"] .mkt-hero-render {
 .mkt-publish-network--facebook { right: 7%; top: 56px; transform: rotate(12deg); }
 .mkt-publish-network--tiktok { left: 15%; bottom: 44px; transform: rotate(8deg); }
 .mkt-publish-network--youtube { right: 10%; bottom: 40px; transform: rotate(-8deg); }
-.mkt-publish-note { position: absolute; bottom: -4px; color: #ded6bd; font-family: 'Source Serif 4', Georgia, serif; font-size: 16px; font-style: italic; }
+.mkt-publish-note { position: absolute; bottom: -4px; color: #ded6bd; font-family: inherit; font-size: 16px; font-style: italic; }
 .mkt-growth-scene { position: relative; width: min(100%, 290px); height: 280px; }
 .mkt-growth-disc { position: absolute; inset: 3px 10px 17px; display: grid; align-content: center; justify-items: center; border: 1px solid #d9cba8; border-radius: 50%; background: #eae1ca; box-shadow: inset 0 0 0 12px #f5efdf, inset 0 0 0 13px #d9cba880; }
 .mkt-growth-disc svg { width: 87%; overflow: visible; }
@@ -520,7 +520,7 @@ html[data-theme="dark"] .mkt-hero-render {
 .mkt-growth-area { fill: #7a85631a; }
 .mkt-growth-line { stroke: #727e58; stroke-width: 3; stroke-linecap: round; }
 .mkt-growth-disc circle { fill: #727e58; stroke: #f7f2e5; stroke-width: 3; }
-.mkt-growth-disc > span { margin-top: -4px; color: #6a634f; font-family: 'Source Serif 4', Georgia, serif; font-style: italic; font-size: 16px; }
+.mkt-growth-disc > span { margin-top: -4px; color: #6a634f; font-family: inherit; font-style: italic; font-size: 16px; }
 .mkt-growth-star { position: absolute; right: 2px; top: 4px; color: var(--flow-gold); transform: rotate(12deg); transition: transform .5s ease; }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
   .mkt-about-step:hover .mkt-paper-calendar { transform: rotate(-3deg) translateY(-4px); }
@@ -1125,7 +1125,7 @@ html[data-theme="dark"] .marketing-page {
   line-height: .89;
 }
 .marketing-page .mkt-hero-sub,
-.marketing-page .mkt-hero-network-list { font-family: 'IBM Plex Sans', system-ui, sans-serif; }
+.marketing-page .mkt-hero-network-list { font-family: 'Geist', system-ui, sans-serif; }
 .marketing-page .mkt-hero-sub {
   max-width: 500px; margin-top: 24px; font-size: 20px; line-height: 1.55;
 }

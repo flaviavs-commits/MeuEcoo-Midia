@@ -8,11 +8,11 @@
  * doesn't zoom on focus, and a couple of spots bumped one step above their
  * component's own token for reading comfort in dense screens. */
 html[data-theme] :is(.app-shell-modern, .auth-page, .admin-page) {
-  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-family: 'Geist', system-ui, sans-serif;
   font-size: var(--text-md);
 }
 html[data-theme] :is(.page-view, .auth-page, .admin-page) :is(h1, h2, h3):where(:not([data-ds-root], [data-ds-root] *)) {
-  font-family: 'IBM Plex Sans', system-ui, sans-serif;
+  font-family: 'Geist', system-ui, sans-serif;
   letter-spacing: -.025em;
   line-height: 1.25;
 }

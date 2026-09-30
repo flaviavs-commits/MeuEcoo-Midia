@@ -20,9 +20,11 @@
 @layer ds {
   :root {
     /* ---------------------------------------------------------------- type */
-    --ds-font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
-    --ds-font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
-    --ds-font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    /* one family for the whole product: Geist for text, titles and figures; Geist Mono for code */
+    --ds-font-sans: 'Geist', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --ds-font-display: var(--ds-font-sans);
+    --ds-font-serif: var(--ds-font-display);   /* retired: kept as an alias so old rules resolve to the one family */
+    --ds-font-mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
     /* SaaS scale: metadata 12-13, controls 13-14, body 14-15, page title 30 */
     --ds-text-xs: 12px;
@@ -34,7 +36,7 @@
     --ds-text-2xl: 20px;
     --ds-text-3xl: 24px;
     --ds-text-4xl: 30px;
-    --ds-text-display: clamp(26px, 20px + 0.8vw, 32px);   /* page titles */
+    --ds-text-display: clamp(24px, 19px + 0.55vw, 28px);  /* page titles: firm, not editorial */
 
     --ds-leading-tight: 1.12;
     --ds-leading-snug: 1.25;
@@ -42,9 +44,9 @@
     --ds-leading-normal: 1.5;
     --ds-leading-relaxed: 1.55;
 
-    --ds-track-display: -0.02em;
-    --ds-track-title: -0.012em;
-    --ds-track-heading: -0.006em;
+    --ds-track-display: -0.028em;
+    --ds-track-title: -0.02em;
+    --ds-track-heading: -0.012em;
     --ds-track-figure: -0.02em;
     --ds-track-eyebrow: 0.08em;
     --ds-track-caps: 0.05em;

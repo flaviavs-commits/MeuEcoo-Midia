@@ -7,8 +7,8 @@
  * treatment so social-media mockups remain faithful to the platform.
  */
 :root {
-  font-family: 'IBM Plex Sans', system-ui, sans-serif;
-  --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: 'Geist', system-ui, sans-serif;
+  --mono: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-synthesis: none;
 
   /* Shared MeuEcoo Mídia palette. Semantic states remain independent. */
