@@ -1,9 +1,9 @@
 import { useCallback, useMemo, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
-import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { useApiResource } from '../hooks/use-api-resource.js'
-import { LoadingState } from '../components/ui/loading-state.jsx'
 import { useToast } from '../components/ui/toast.jsx'
+import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
+import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 
 const SCHEDULER_AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
 const AI_GENERATION_TIMEOUT_MS = 60_000
@@ -51,10 +51,14 @@ function formatDraftDate(value) {
 
 function DraftMedia({ draft }) {
   const media = mediaItemsOf(draft)
-  if (!media.length) return <div className="drafts-v2-media drafts-v2-media-empty"><span aria-hidden="true">✎</span><small>Somente texto</small></div>
+  if (!media.length) return <span className="bau-thumb" data-kind="text" aria-hidden="true"><Icon name="compose" size={20} /></span>
   const first = media[0]
   const source = first.path || first.url || first.mediaUrl
-  return <div className="drafts-v2-media">{source && (first.type === 'video' || first.type === 'VIDEO') ? <div className="drafts-v2-video"><span aria-hidden="true">▶</span><small>Vídeo</small></div> : source ? <img src={source} alt="Prévia do rascunho" /> : <span aria-hidden="true">▧</span>}{media.length > 1 && <b>+{media.length - 1}</b>}</div>
+  const isVideo = first.type === 'video' || first.type === 'VIDEO'
+  return <span className="bau-thumb" data-kind={isVideo ? 'video' : 'image'}>
+    {source && !isVideo ? <img src={source} alt="Prévia do rascunho" /> : <Icon name={isVideo ? 'video' : 'image'} size={20} />}
+    {media.length > 1 && <b className="bau-thumb__more">+{media.length - 1}</b>}
+  </span>
 }
 
 export function DraftsPage({ onNavigate }) {
@@ -63,6 +67,7 @@ export function DraftsPage({ onNavigate }) {
   const [expandedDraftId, setExpandedDraftId] = useState(null)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
+  const [formError, setFormError] = useState('')
   const load = useCallback(() => apiFetch('/api/drafts').then(data => data.drafts || []), [])
   const { value: drafts, loading, error, setError, reload } = useApiResource(load, [])
   const notify = useToast()
@@ -79,9 +84,9 @@ export function DraftsPage({ onNavigate }) {
   async function generateIdeas(event) {
     event.preventDefault()
     const content = text.trim()
-    if (!content) return setError('Escreva um tema ou instrução para o sistema inteligente gerar ideias.')
+    if (!content) return setFormError('Escreva um tema ou instrução para o sistema inteligente gerar ideias.')
     setGenerating(true)
-    setError('')
+    setFormError('')
     try {
       // Este é o mesmo contrato usado pelo Meu Post: mesmo endpoint,
       // fallback de modelo e regras de adaptação por plataforma.
@@ -103,7 +108,7 @@ export function DraftsPage({ onNavigate }) {
       await reload()
       notify(`${ideas.length} ${ideas.length === 1 ? 'ideia gerada' : 'ideias geradas'} e salvas no Baú de Ideias.`)
     }
-    catch (caught) { setError(caught.message); notify(caught.message, 'error') }
+    catch (caught) { setFormError(caught.message); notify(caught.message, 'error') }
     finally { setGenerating(false) }
   }
 
@@ -149,32 +154,126 @@ export function DraftsPage({ onNavigate }) {
   const templatesCount = drafts.filter(draft => Boolean(draft.is_template || draft.isTemplate)).length
   const mediaCount = drafts.filter(draft => mediaItemsOf(draft).length > 0).length
 
-  return <section className="page-view drafts-page drafts-page-v2">
-    <header className="drafts-v2-heading"><div className="drafts-v2-heading-copy"><span className="drafts-v2-heading-icon" aria-hidden="true">✦</span><div><p className="eyebrow">BIBLIOTECA DE CONTEÚDO</p><h2>Baú de Ideias</h2><p>Transforme um tema em três ideias. Escolha uma e continue no criador de posts.</p></div></div><div className="drafts-v2-heading-actions"><button type="button" className="secondary-button drafts-v2-refresh" onClick={() => reload().catch(() => {})}><span aria-hidden="true">↻</span> Atualizar</button><button type="button" className="secondary-button danger-button" onClick={clearIdeas} disabled={!drafts.length}>Esvaziar Baú</button></div></header>
-    <div className="drafts-v2-howto" role="note"><span className="drafts-v2-howto-icon" aria-hidden="true">i</span><div><strong>Do tema à publicação</strong><p>Gere ideias, escolha uma e clique em <b>Criar post</b> para revisar e agendar.</p></div></div>
-    <div className="drafts-v2-summary" aria-label="Resumo do Baú de Ideias"><article><span className="drafts-v2-stat-icon" aria-hidden="true">▤</span><div><span>Total de ideias</span><strong>{drafts.length}</strong><small>Conteúdos salvos</small></div></article><article><span className="drafts-v2-stat-icon is-purple" aria-hidden="true">◇</span><div><span>Modelos</span><strong>{templatesCount}</strong><small>Prontos para reutilizar</small></div></article><article><span className="drafts-v2-stat-icon is-green" aria-hidden="true">▧</span><div><span>Com mídia</span><strong>{mediaCount}</strong><small>Fotos ou vídeos anexados</small></div></article></div>
-    <div className="drafts-v2-workspace">
-      <section className="panel drafts-v2-editor-panel">
-        <div className="drafts-v2-editor-heading"><div><p className="eyebrow">CRIAR AGORA</p><h3>Gerar novas ideias</h3><p>Informe um tema e receba sugestões para revisar.</p></div><span className="drafts-v2-editor-icon" aria-hidden="true">✦</span></div>
-        <form className="drafts-v2-form" onSubmit={generateIdeas}>
-          <label className="drafts-v2-text-field"><span>Minhas ideias</span><textarea value={text} onChange={event => setText(event.target.value)} placeholder="Minhas ideias" aria-label="Minhas ideias para gerar conteúdo" maxLength={5000}/><span className="drafts-v2-editor-meta"><span>{text.length}/5000 caracteres</span><span>O sistema inteligente gerará 3 ideias para o Instagram</span></span></label>
-          <div className="drafts-v2-form-tip"><span aria-hidden="true">✦</span><span>Descreva o tema, público, objetivo ou tom. O sistema inteligente transforma seu ponto de partida em ideias prontas.</span></div>
-          <button className="action-button drafts-v2-save-button" type="submit" disabled={generating}>{generating ? 'Gerando ideias...' : 'Gerar ideias'} <span aria-hidden="true">→</span></button>
+  const filtered = Boolean(search || filter !== 'all')
+
+  return <div className="ds-page bau" data-ds-root>
+    <header className="ds-pagehead">
+      <div className="ds-pagehead__text">
+        <p className="ds-eyebrow">Ideias e modelos</p>
+        <h1 className="ds-pagehead__title">Baú de Ideias</h1>
+        <p className="ds-pagehead__lede">Transforme um tema em três ideias, escolha uma e continue no Meu Post para revisar e agendar.</p>
+      </div>
+      <div className="ds-pagehead__actions">
+        <button type="button" className="ds-btn ds-btn--secondary" onClick={() => reload().catch(() => {})} disabled={loading}>
+          <Icon name="refresh" />Atualizar
+        </button>
+        <OverflowMenu label="Mais ações do Baú de Ideias" size="md" items={[{ label: 'Esvaziar Baú', icon: 'trash', danger: true, disabled: !drafts.length, onSelect: clearIdeas }]} />
+      </div>
+    </header>
+
+    <section className="bau-status" aria-label="Resumo do Baú de Ideias" aria-busy={loading}>
+      <div className="ds-stats" style={{ '--cols': 3 }}>
+        <div className="ds-stat"><p className="ds-stat__label">Total de ideias</p><p className="ds-stat__value">{loading ? '—' : drafts.length}</p><p className="ds-stat__caption">Conteúdos salvos</p></div>
+        <div className="ds-stat"><p className="ds-stat__label">Modelos</p><p className="ds-stat__value">{loading ? '—' : templatesCount}</p><p className="ds-stat__caption">Prontos para reutilizar</p></div>
+        <div className="ds-stat"><p className="ds-stat__label">Com mídia</p><p className="ds-stat__value">{loading ? '—' : mediaCount}</p><p className="ds-stat__caption">Fotos ou vídeos anexados</p></div>
+      </div>
+    </section>
+
+    <div className="bau-body">
+      <section className="bau-compose" aria-labelledby="bau-compose-title">
+        <h2 className="ds-head__title" id="bau-compose-title">Gerar novas ideias</h2>
+        <form className="bau-compose__form" onSubmit={generateIdeas} noValidate>
+          <div className="ds-field">
+            <div className="ds-field__top">
+              <label className="ds-label" htmlFor="bau-theme">Tema ou instrução</label>
+              <span className="ds-counter" id="bau-theme-count" data-level={text.length > 4800 ? 'near' : undefined}>{text.length}/5000</span>
+            </div>
+            <textarea
+              id="bau-theme"
+              className="ds-textarea bau-compose__textarea"
+              value={text}
+              onChange={event => { setText(event.target.value); if (formError) setFormError('') }}
+              placeholder="Ex.: bastidores de uma gravação, para quem está começando, tom leve"
+              maxLength={5000}
+              aria-invalid={formError ? 'true' : undefined}
+              aria-describedby="bau-theme-hint bau-theme-count"
+            />
+            <p className="ds-hint" id="bau-theme-hint">Descreva o tema, o público, o objetivo ou o tom. O sistema inteligente gera 3 ideias para o Instagram.</p>
+            {formError && <p className="ds-fieldmsg" data-tone="danger" role="alert"><Icon name="alertCircle" size={16} />{formError}</p>}
+          </div>
+          <button className="ds-btn ds-btn--primary ds-btn--block" type="submit" disabled={generating}>
+            {generating ? <><span className="ds-spinner" aria-hidden="true" />Gerando ideias...</> : <><Icon name="sparkle" />Gerar ideias</>}
+          </button>
         </form>
       </section>
-      <section className="panel drafts-v2-list-panel">
-        <div className="drafts-v2-list-heading"><div><p className="eyebrow">SEUS CONTEÚDOS</p><h3>Ideias salvas</h3></div><span className="drafts-v2-list-count">{visibleDrafts.length} {visibleDrafts.length === 1 ? 'item' : 'itens'}</span></div>
-        {error && <p className="error-message" role="alert">{error}</p>}
-        <div className="drafts-v2-toolbar"><label className="drafts-v2-search"><span aria-hidden="true">⌕</span><input value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar por texto, título ou rede..." aria-label="Buscar ideia" /></label><div className="drafts-v2-filter-tabs" role="tablist" aria-label="Filtrar ideias">{[['all', 'Todas'], ['drafts', 'Em andamento'], ['templates', 'Modelos']].map(([key, label]) => <button type="button" role="tab" aria-selected={filter === key} className={filter === key ? 'is-active' : ''} onClick={() => setFilter(key)} key={key}>{label}</button>)}</div></div>
-        {loading ? <LoadingState>Carregando ideias...</LoadingState> : visibleDrafts.length ? <div className="drafts-v2-card-list">{visibleDrafts.map(draft => {
-          const template = Boolean(draft.is_template || draft.isTemplate)
-          const platforms = inferredPlatformsOf(draft)
-          const fullText = textOf(draft)
-          const expanded = expandedDraftId === draft.id
-          const typeLabel = template ? 'Modelo' : draft.title === 'Autosave' ? 'Rascunho automático' : 'Ideia gerada'
-          return <article className="drafts-v2-card" key={draft.id}><DraftMedia draft={draft}/><div className="drafts-v2-card-body"><div className="drafts-v2-card-topline"><span className={`drafts-v2-type-badge${template ? ' is-template' : ''}`}>{typeLabel}</span><time>{formatDraftDate(draft.criado_em || draft.createdAt)}</time></div><h4>{draft.title || 'Ideia sem título'}</h4><p className={expanded ? 'is-expanded' : ''}>{fullText || 'Sem texto adicionado ainda.'}</p>{fullText.length > 150 && <button type="button" className="drafts-v2-expand-button" aria-expanded={expanded} onClick={() => setExpandedDraftId(expanded ? null : draft.id)}>{expanded ? 'Mostrar menos' : 'Ver texto completo'}</button>}<div className="drafts-v2-card-footer"><div className="drafts-v2-card-platforms" aria-label={platforms.length ? platforms.map(platform => PLATFORM_LABELS[platform] || platform).join(', ') : 'Nenhuma rede selecionada'}>{platforms.length ? platforms.map(platform => <span className={`drafts-v2-platform drafts-v2-platform-${platform}`} key={platform} title={PLATFORM_LABELS[platform] || platform}><PlatformIcon platform={platform} className="h-3.5 w-3.5" /></span>) : <small>Nenhuma rede selecionada</small>}</div><span className="drafts-v2-card-actions"><button type="button" className="action-button drafts-v2-use-button" onClick={() => useDraft(draft)}>Criar post <span aria-hidden="true">→</span></button><button type="button" className="link-button danger-link" onClick={() => remove(draft.id)}>Excluir</button></span></div></div></article>
-        })}</div> : <div className="drafts-v2-empty"><span aria-hidden="true">✦</span><strong>{search || filter !== 'all' ? 'Nenhuma ideia encontrada' : 'Seu baú está vazio'}</strong><p>{search || filter !== 'all' ? 'Tente mudar os filtros ou a busca.' : 'Descreva um tema ao lado para gerar suas primeiras ideias.'}</p>{(search || filter !== 'all') && <button type="button" className="link-button" onClick={() => { setSearch(''); setFilter('all') }}>Limpar filtros</button>}</div>}
+
+      <section className="bau-list" aria-labelledby="bau-list-title">
+        <div className="ds-head">
+          <div className="ds-head__text">
+            <h2 className="ds-head__title" id="bau-list-title">Ideias salvas <span className="ds-badge" data-tone="outline">{visibleDrafts.length} {visibleDrafts.length === 1 ? 'item' : 'itens'}</span></h2>
+          </div>
+        </div>
+        <div className="ds-filterbar bau-list__filters">
+          <label className="ds-inputwrap bau-list__search">
+            <Icon name="search" />
+            <span className="ds-sr-only">Buscar ideia</span>
+            <input className="ds-input" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Buscar por texto, título ou rede..." />
+          </label>
+          <div className="ds-seg" role="group" aria-label="Filtrar ideias">
+            {[['all', 'Todas'], ['drafts', 'Em andamento'], ['templates', 'Modelos']].map(([key, label]) => <button type="button" className="ds-seg__opt" aria-pressed={filter === key} onClick={() => setFilter(key)} key={key}>{label}</button>)}
+          </div>
+        </div>
+
+        {error && <div className="ds-alert bau-list__error" data-tone="danger" role="alert">
+          <Icon name="alertCircle" className="ds-alert__icon" />
+          <p className="ds-alert__text">{error}</p>
+          <div className="ds-alert__actions"><button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => reload().catch(() => {})}><Icon name="refresh" size={16} />Tentar novamente</button></div>
+        </div>}
+
+        {loading
+          ? <div aria-busy="true">
+            <p className="ds-sr-only" aria-live="polite">Carregando ideias...</p>
+            {[1, 2, 3].map(item => <div className="bau-skel" key={item}><span className="ds-skel" style={{ width: 72, height: 72, borderRadius: 12 }} /><div className="ds-stack" style={{ '--gap': '10px', flex: 1 }}><span className="ds-skel" style={{ width: '30%' }} /><span className="ds-skel" style={{ width: '70%', height: 16 }} /><span className="ds-skel" style={{ width: '90%' }} /></div></div>)}
+          </div>
+          : visibleDrafts.length
+            ? <ul className="ds-list bau-ideas">
+              {visibleDrafts.map(draft => {
+                const template = Boolean(draft.is_template || draft.isTemplate)
+                const platforms = inferredPlatformsOf(draft)
+                const fullText = textOf(draft)
+                const expanded = expandedDraftId === draft.id
+                const typeLabel = template ? 'Modelo' : draft.title === 'Autosave' ? 'Rascunho automático' : 'Ideia gerada'
+                const title = draft.title || 'Ideia sem título'
+                return <li className="bau-idea" key={draft.id}>
+                  <DraftMedia draft={draft} />
+                  <div className="bau-idea__body">
+                    <p className="bau-idea__meta">
+                      <span className="ds-badge" data-tone={template ? 'info' : 'gold'}>{typeLabel}</span>
+                      <time className="ds-meta ds-num">{formatDraftDate(draft.criado_em || draft.createdAt)}</time>
+                    </p>
+                    <h3 className="bau-idea__title">{title}</h3>
+                    <p className="bau-idea__text" data-expanded={expanded ? 'true' : undefined}>{fullText || 'Sem texto adicionado ainda.'}</p>
+                    {fullText.length > 150 && <button type="button" className="ds-link bau-idea__more" aria-expanded={expanded} onClick={() => setExpandedDraftId(expanded ? null : draft.id)}>{expanded ? 'Mostrar menos' : 'Ver texto completo'}</button>}
+                    <div className="bau-idea__foot">
+                      <span className="bau-idea__nets" aria-label={platforms.length ? platforms.map(platform => PLATFORM_LABELS[platform] || platform).join(', ') : 'Nenhuma rede selecionada'}>
+                        {platforms.length ? platforms.map(platform => <NetworkGlyph network={platform} size={16} key={platform} />) : <span className="ds-meta">Nenhuma rede selecionada</span>}
+                      </span>
+                      <span className="bau-idea__actions">
+                        <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => useDraft(draft)}>Criar post<Icon name="arrow" size={16} /></button>
+                        <OverflowMenu label={`Mais ações para ${title}`} items={[{ label: 'Excluir', icon: 'trash', danger: true, onSelect: () => remove(draft.id) }]} />
+                      </span>
+                    </div>
+                  </div>
+                </li>
+              })}
+            </ul>
+            : !error && <div className="ds-empty bau-empty">
+              <span className="ds-icontile ds-icontile--lg" aria-hidden="true"><Icon name={filtered ? 'search' : 'chest'} /></span>
+              <p className="ds-empty__title ds-empty__title--sm">{filtered ? 'Nenhuma ideia encontrada' : <>Seu baú está vazio, <em className="ds-em">por enquanto.</em></>}</p>
+              <p className="ds-empty__text">{filtered ? 'Tente mudar os filtros ou a busca.' : 'Descreva um tema ao lado para gerar suas primeiras ideias.'}</p>
+              {filtered && <div className="ds-empty__actions"><button type="button" className="ds-go" onClick={() => { setSearch(''); setFilter('all') }}>Limpar filtros<Icon name="arrow" /></button></div>}
+            </div>}
       </section>
     </div>
-  </section>
+  </div>
 }
