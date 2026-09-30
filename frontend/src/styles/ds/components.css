@@ -79,7 +79,8 @@
   }
   .ds-num { font-variant-numeric: tabular-nums lining-nums; }
   /* the landing signature: the final phrase of a display line, roman, gold */
-  .ds-em { font-style: normal; color: var(--ds-accent-graphic); }
+  /* emphasis inside headings is text: the text gold keeps 4.5:1 at any size */
+  .ds-em { font-style: normal; color: var(--ds-accent-text); }
   .ds-strong { font-weight: var(--ds-weight-semibold); color: var(--ds-ink); }
 
   .ds-link {
@@ -587,7 +588,7 @@
   .ds-stat__value--hero { font-size: 40px; }
   .ds-stat__value--md { font-size: var(--ds-text-3xl); }
   .ds-stat__value--sm { font-size: var(--ds-text-2xl); }
-  .ds-stat__value[data-tone='gold'] { color: var(--ds-accent-graphic); }
+  .ds-stat__value[data-tone='gold'] { color: var(--ds-accent-text); }
   .ds-stat__value[data-tone='danger'] { color: var(--ds-danger); }
   .ds-stat__value[data-state='unavailable'] { color: var(--ds-ink-subtle); }
   .ds-stat__unit { font-size: 0.55em; font-weight: var(--ds-weight-medium); letter-spacing: 0; margin-left: 2px; color: var(--ds-ink-muted); }
@@ -846,7 +847,7 @@
   .ds-nav__group { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1px; }
   .ds-nav__label {
     padding: 0 10px 4px; font: var(--ds-weight-semibold) 11px/1.3 var(--ds-font-sans);
-    letter-spacing: 0.06em; text-transform: uppercase; color: var(--ds-ink-subtle);
+    letter-spacing: 0.06em; text-transform: uppercase; color: var(--ds-ink-muted);
   }
   .ds-nav__item {
     position: relative; display: flex; align-items: center; gap: 10px; width: 100%;
@@ -1324,7 +1325,7 @@
   /* ========================================================== 38. MAIS */
   .ds-more { display: grid; gap: 16px; }
   .ds-more__group { display: grid; gap: 2px; }
-  .ds-more__label { padding: 0 4px 4px; font: var(--ds-weight-semibold) 11px/1.3 var(--ds-font-sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ds-ink-subtle); }
+  .ds-more__label { padding: 0 4px 4px; font: var(--ds-weight-semibold) 11px/1.3 var(--ds-font-sans); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ds-ink-muted); }
   .ds-more__item {
     display: flex; align-items: center; gap: 12px; width: 100%; min-height: 48px; padding: 0 8px 0 10px;
     border: 0; border-radius: var(--ds-radius-lg); background: none; color: var(--ds-ink); cursor: pointer; text-align: left; text-decoration: none;

@@ -164,7 +164,7 @@
     --ds-accent-hover: #d0952a;
     --ds-accent-press: #c28a22;
     --ds-accent-ink: #1f1705;                   /* text on the gold fill: 9:1 */
-    --ds-accent-graphic: #c28a22;               /* active bars, lines, large figures */
+    --ds-accent-graphic: #ac7b1e;               /* active bars, lines, large figures: 3.5:1 canvas (was #c28a22, 2.8:1) */
     --ds-accent-text: #80600f;                  /* small gold text: 5.9:1 white */
     --ds-accent-soft: rgb(221 162 53 / 0.13);
     --ds-accent-line: rgb(128 96 15 / 0.40);
@@ -187,7 +187,7 @@
     --ds-skel-sheen: rgb(255 255 255 / 0.6);
 
     /* status: text colours pass 4.5:1 on white and on their soft fill */
-    --ds-success: #22704a;
+    --ds-success: #1f6a45;                      /* 4.8:1 on its soft fill over a tinted row (was #22704a, 4.4:1) */
     --ds-success-soft: rgb(34 112 74 / 0.09);
     --ds-danger: #b0333d;
     --ds-danger-soft: rgb(176 51 61 / 0.08);
