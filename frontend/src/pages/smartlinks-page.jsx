@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { apiFetch } from '../lib/api.js'
 import { useToast } from '../components/ui/toast.jsx'
+import { Icon } from '../components/ui/icon.jsx'
+import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 
 function parseLinkLine(line) {
   const value = line.trim()
@@ -15,6 +17,17 @@ function parseLinkLine(line) {
 }
 
 const emptyForm = { name: '', slug: '', title: '', description: '', links: '', logoUrl: '' }
+// Mesma regra do servidor: um item precisa de texto e de um endereço https.
+function isPublishableItem(item) {
+  if (!item?.label) return false
+  try {
+    const url = new URL(item.url)
+    return url.protocol === 'https:' && Boolean(url.hostname) && !url.username && !url.password
+  } catch { return false }
+}
+
+const formatCount = value => Number(value || 0).toLocaleString('pt-BR')
+
 const previewSlug = value => String(value || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'seu-link'
 
 export function SmartlinksPage() {
@@ -24,10 +37,21 @@ export function SmartlinksPage() {
   const [editingId, setEditingId] = useState(null)
   const [editingSlug, setEditingSlug] = useState('')
   const [savingSlug, setSavingSlug] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [creating, setCreating] = useState(false)
+  const [formOpen, setFormOpen] = useState(false)
+  const drawerCloseRef = useRef(null)
   const notify = useToast()
   const load = useCallback(() => apiFetch('/api/smartlinks').then(data => setSmartlinks(data.smartlinks || [])), [])
 
-  useEffect(() => { load().catch(error => notify(error.message, 'error')) }, [load, notify])
+  useEffect(() => { load().catch(error => notify(error.message, 'error')).finally(() => setLoading(false)) }, [load, notify])
+  useEffect(() => {
+    if (!formOpen) return undefined
+    drawerCloseRef.current?.focus()
+    const onKey = event => { if (event.key === 'Escape') setFormOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [formOpen])
 
   async function changeLogo(event) {
     const file = event.target.files?.[0]
@@ -53,12 +77,18 @@ export function SmartlinksPage() {
 
   async function save(event) {
     event.preventDefault()
+    if (creating) return
+    setCreating(true)
     try {
       const items = form.links.split('\n').map(parseLinkLine).filter(Boolean)
+      const slug = form.slug.trim()
       await apiFetch('/api/smartlinks', {
         method: 'POST',
         body: JSON.stringify({
           name: form.name,
+          // A URL personalizada só vai quando foi preenchida; sem ela o
+          // servidor continua derivando o endereço a partir do nome.
+          ...(slug ? { slug } : {}),
           title: form.title,
           description: form.description,
           theme: { logoUrl: form.logoUrl || null },
@@ -67,14 +97,17 @@ export function SmartlinksPage() {
       })
       setForm(emptyForm)
       await load()
+      setFormOpen(false)
       notify('Smartlink criado.')
     } catch (error) {
       notify(error.message, 'error')
+    } finally {
+      setCreating(false)
     }
   }
 
-  async function remove(id) {
-    if (!window.confirm('Excluir este Smartlink?')) return
+  async function remove(id, label = '') {
+    if (!window.confirm(label ? `Excluir o Smartlink “${label}”?` : 'Excluir este Smartlink?')) return
     try {
       await apiFetch(`/api/smartlinks/${id}`, { method: 'DELETE' })
       setSmartlinks(current => current.filter(item => item.id !== id))
@@ -103,60 +136,149 @@ export function SmartlinksPage() {
     }
   }
 
-  return (
-    <section className="page-view">
-      <header className="panel-heading">
-        <div>
-          <p className="eyebrow">CONVERSÃO · LINK NA BIO</p>
-          <h2>Smartlinks</h2>
-          <p className="panel-subtitle">Crie uma página personalizada para reunir Instagram, WhatsApp, site, YouTube, cursos e produtos.</p>
+  const linkLines = form.links.split('\n').filter(line => line.trim())
+  const validLinks = linkLines.map(parseLinkLine).filter(isPublishableItem)
+  const ignoredLines = linkLines.length - validLinks.length
+  const showInlineForm = !loading && !smartlinks.length
+  const origin = typeof window !== 'undefined' ? window.location.origin : ''
+
+  const createForm = <form className="sl-compose" onSubmit={save}>
+    <fieldset className="sl-group">
+      <legend className="sl-group__title">Identidade</legend>
+      <div className="sl-logo">
+        <span className="sl-logo__preview">{form.logoUrl ? <img src={form.logoUrl} alt="Prévia da logo da loja" /> : <Icon name="image" />}</span>
+        <div className="sl-logo__text">
+          <p className="ds-label">Logo da loja</p>
+          <p className="ds-hint">PNG, JPG, GIF ou WebP. Aparece no centro da página pública.</p>
+          <div className="sl-logo__actions">
+            <label className="ds-btn ds-btn--secondary ds-btn--sm sl-filebtn">
+              {uploadingLogo ? <><span className="ds-spinner" aria-hidden="true" />Enviando…</> : <><Icon name="upload" size={16} />{form.logoUrl ? 'Trocar logo' : 'Adicionar logo'}</>}
+              <input className="sl-fileinput" type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={changeLogo} disabled={uploadingLogo} />
+            </label>
+            {form.logoUrl && <button type="button" className="ds-btn ds-btn--danger ds-btn--sm" onClick={() => setForm(current => ({ ...current, logoUrl: '' }))}>Remover</button>}
+          </div>
         </div>
+      </div>
+      <div className="ds-field">
+        <label className="ds-label" htmlFor="sl-name">Nome interno</label>
+        <input id="sl-name" className="ds-input" value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} placeholder="Perfil principal" required />
+      </div>
+      <div className="ds-field">
+        <label className="ds-label" htmlFor="sl-title">Título público</label>
+        <input id="sl-title" className="ds-input" value={form.title} onChange={event => setForm(current => ({ ...current, title: event.target.value }))} placeholder="Nome da loja" />
+      </div>
+      <div className="ds-field">
+        <label className="ds-label" htmlFor="sl-description">Descrição</label>
+        <textarea id="sl-description" className="ds-textarea sl-description" value={form.description} onChange={event => setForm(current => ({ ...current, description: event.target.value }))} placeholder="Uma frase sobre a loja ou sua marca" />
+      </div>
+    </fieldset>
+
+    <fieldset className="sl-group">
+      <legend className="sl-group__title">Endereço</legend>
+      <div className="ds-field">
+        <div className="ds-field__top"><label className="ds-label" htmlFor="sl-slug">URL personalizada</label><span className="ds-label__req">opcional</span></div>
+        <span className="sl-slug"><span className="sl-slug__prefix" aria-hidden="true">/go/</span><input id="sl-slug" className="ds-input" value={form.slug} onChange={event => setForm(current => ({ ...current, slug: event.target.value }))} placeholder="meu-ecoo-midia" maxLength="60" /></span>
+        <p className="ds-hint">Letras, números e hífens, com pelo menos 3 caracteres. Em branco, o endereço é gerado a partir do nome. Se já estiver em uso, você recebe um aviso.</p>
+        <p className="sl-preview">Sua URL: <strong>{origin}/go/{previewSlug(form.slug || form.name)}</strong></p>
+      </div>
+    </fieldset>
+
+    <fieldset className="sl-group">
+      <legend className="sl-group__title">Links</legend>
+      <div className="ds-field">
+        <label className="ds-label" htmlFor="sl-links">Um link por linha</label>
+        <textarea id="sl-links" className="ds-textarea sl-links" value={form.links} onChange={event => setForm(current => ({ ...current, links: event.target.value }))} placeholder={'https://exemplo.com\nInstagram | https://instagram.com/'} required aria-describedby="sl-links-help sl-links-check" />
+        <p className="ds-hint" id="sl-links-help">Escreva <code>Texto | https://endereço</code> ou só o endereço. Só endereços com <strong>https://</strong> entram na página.</p>
+        {linkLines.length > 0 && <p className="sl-check" id="sl-links-check" data-tone={ignoredLines ? 'warning' : 'success'} aria-live="polite">
+          <Icon name={ignoredLines ? 'alertTriangle' : 'checkCircle'} size={16} />
+          {validLinks.length} {validLinks.length === 1 ? 'link válido' : 'links válidos'}{ignoredLines ? ` · ${ignoredLines} ${ignoredLines === 1 ? 'linha será ignorada' : 'linhas serão ignoradas'} (precisa de texto e https://)` : ''}
+        </p>}
+      </div>
+    </fieldset>
+
+    <button type="submit" className="ds-btn ds-btn--primary ds-btn--block" disabled={uploadingLogo || creating}>
+      {creating ? <><span className="ds-spinner" aria-hidden="true" />Criando…</> : <><Icon name="plus" />Criar Smartlink</>}
+    </button>
+  </form>
+
+  return (
+    <div className="ds-page sl" data-ds-root>
+      <header className="ds-pagehead sl-head">
+        <div className="ds-pagehead__text">
+          <p className="ds-eyebrow">Link na bio</p>
+          <h1 className="ds-pagehead__title">Smartlinks</h1>
+          <p className="ds-pagehead__lede">Uma página pública para reunir Instagram, WhatsApp, site, YouTube, cursos e produtos, com contagem de cliques em cada link.</p>
+        </div>
+        {!showInlineForm && !loading && <div className="ds-pagehead__actions">
+          <button type="button" className="ds-btn ds-btn--primary" onClick={() => setFormOpen(true)}><Icon name="plus" />Novo Smartlink</button>
+        </div>}
       </header>
 
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-        <form className="panel space-y-4" onSubmit={save}>
-          <div>
-            <p className="eyebrow">NOVO SMARTLINK</p>
-            <h3 className="text-lg font-semibold text-zinc-100">Sua central de links</h3>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">A logo da loja ficará centralizada na página pública, enquanto a marca Meu Ecoo aparece no canto.</p>
-          </div>
+      {loading
+        ? <div aria-busy="true"><p className="ds-sr-only" aria-live="polite">Carregando Smartlinks…</p>{[1, 2].map(item => <span className="ds-skel sl-skel" key={item} />)}</div>
+        : showInlineForm
+          ? <section className="sl-start" aria-labelledby="sl-start-title">
+              <div className="sl-start__intro">
+                <span className="ds-icontile ds-icontile--lg" aria-hidden="true"><Icon name="link" /></span>
+                <h2 className="ds-empty__title" id="sl-start-title">Crie sua primeira página de links</h2>
+                <p className="ds-empty__text">Divulgue todos os seus canais em um só lugar. A logo da loja fica no centro da página pública e a marca Meu Ecoo aparece discreta no canto.</p>
+              </div>
+              <div className="sl-start__body">{createForm}</div>
+            </section>
+          : <section className="sl-list" aria-labelledby="sl-list-title">
+              <h2 className="sl-list__title" id="sl-list-title">Seus Smartlinks <span className="ds-badge" data-tone="outline"><span className="ds-num">{smartlinks.length}</span><span className="ds-sr-only"> páginas</span></span></h2>
+              <ul className="sl-pages">
+                {smartlinks.map(link => {
+                  const label = link.title || link.name
+                  const editing = editingId === link.id
+                  const totalClicks = (link.items || []).reduce((total, item) => total + Number(item.clicks || 0), 0)
+                  return <li className="sl-page" key={link.id}>
+                    <div className="sl-page__head">
+                      <span className="sl-page__logo">{link.theme?.logoUrl ? <img src={link.theme.logoUrl} alt="" /> : <Icon name="link" />}</span>
+                      <div className="sl-page__id">
+                        <h3>{label}</h3>
+                        <p className="sl-page__url">/go/{link.slug}</p>
+                      </div>
+                      <div className="sl-page__actions">
+                        <a className="ds-btn ds-btn--secondary ds-btn--sm" href={`/go/${link.slug}`} target="_blank" rel="noreferrer">Abrir página pública<Icon name="external" size={16} /></a>
+                        <OverflowMenu label={`Mais ações para ${label}`} items={[
+                          { label: editing ? 'Cancelar edição da URL' : 'Editar URL', icon: 'compose', onSelect: () => (editing ? setEditingId(null) : startSlugEdit(link)) },
+                          { label: 'Excluir', icon: 'trash', danger: true, onSelect: () => remove(link.id, label) },
+                        ]} />
+                      </div>
+                    </div>
+                    {editing && <div className="sl-edit">
+                      <label className="ds-label" htmlFor={`sl-edit-${link.id}`}>Nova URL personalizada</label>
+                      <div className="sl-edit__line">
+                        <span className="sl-slug"><span className="sl-slug__prefix" aria-hidden="true">/go/</span><input id={`sl-edit-${link.id}`} className="ds-input" value={editingSlug} onChange={event => setEditingSlug(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); saveSlug(link.id) } if (event.key === 'Escape') setEditingId(null) }} maxLength="60" autoFocus /></span>
+                        <button className="ds-btn ds-btn--primary ds-btn--sm" type="button" onClick={() => saveSlug(link.id)} disabled={savingSlug}>{savingSlug ? 'Salvando…' : 'Salvar'}</button>
+                        <button className="ds-btn ds-btn--quiet ds-btn--sm" type="button" onClick={() => setEditingId(null)}>Cancelar</button>
+                      </div>
+                      <p className="ds-hint">Letras, números e hífens, com pelo menos 3 caracteres. O endereço antigo continua redirecionando.</p>
+                    </div>}
+                    {(link.items || []).length > 0 && <div className="sl-page__body">
+                      <p className="sl-page__totals"><span>{link.items.length} {link.items.length === 1 ? 'link' : 'links'}</span><span aria-hidden="true">·</span><span><span className="ds-num">{formatCount(totalClicks)}</span> {totalClicks === 1 ? 'clique' : 'cliques'} no total</span></p>
+                      <ul className="sl-page__links">
+                        {link.items.map(item => <li key={item.id}><span className="sl-page__label">{item.label}</span><span className="ds-num">{formatCount(item.clicks)}</span><span className="ds-meta">{Number(item.clicks || 0) === 1 ? 'clique' : 'cliques'}</span></li>)}
+                      </ul>
+                    </div>}
+                  </li>
+                })}
+              </ul>
+            </section>}
 
-          <div className="smartlink-logo-field">
-            <div className="smartlink-logo-preview">
-              {form.logoUrl ? <img src={form.logoUrl} alt="Prévia da logo da loja" /> : <span aria-hidden="true">＋</span>}
+      {formOpen && !showInlineForm && <div className="ds-scrim ds-scrim--drawer" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setFormOpen(false) }}>
+        <section className="ds-drawer sl-drawer" role="dialog" aria-modal="true" aria-labelledby="sl-drawer-title">
+          <header className="ds-drawer__head">
+            <div className="ds-modal__heading">
+              <p className="ds-eyebrow">Novo Smartlink</p>
+              <h2 className="ds-modal__title" id="sl-drawer-title">Sua central de links</h2>
             </div>
-            <div>
-              <strong className="block text-sm text-zinc-200">Logo da loja</strong>
-              <p className="mt-1 text-xs leading-5 text-zinc-500">PNG, JPG, GIF ou WebP. Ela será exibida no centro da página.</p>
-              <label className="secondary-button smartlink-upload-button mt-2">
-                {uploadingLogo ? 'Enviando…' : form.logoUrl ? 'Trocar logo' : 'Adicionar logo'}
-                <input type="file" accept="image/jpeg,image/png,image/gif,image/webp" onChange={changeLogo} disabled={uploadingLogo} />
-              </label>
-              {form.logoUrl && <button type="button" className="link-button danger-link ml-3" onClick={() => setForm(current => ({ ...current, logoUrl: '' }))}>Remover</button>}
-            </div>
-          </div>
-
-          <label className="block text-sm text-zinc-300">Nome interno<input className="mt-1 w-full rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100" value={form.name} onChange={event => setForm(current => ({ ...current, name: event.target.value }))} placeholder="Perfil principal" required /></label>
-          <label className="block text-sm text-zinc-300">URL personalizada <small className="text-zinc-500">opcional</small><div className="mt-1 flex items-center rounded-lg border border-subtle bg-app"><span className="pl-3 text-sm text-zinc-500">/go/</span><input className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-zinc-100 outline-none" value={form.slug} onChange={event => setForm(current => ({ ...current, slug: event.target.value }))} placeholder="meu-ecoo-midia" maxLength="60" /></div><small className="mt-1 block text-xs leading-5 text-zinc-500">Use letras, números e hífens.</small><small className="mt-1 block truncate text-xs text-gold">Sua URL: {window.location.origin}/go/{previewSlug(form.slug || form.name)}</small></label>
-          <label className="block text-sm text-zinc-300">Título público<input className="mt-1 w-full rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100" value={form.title} onChange={event => setForm(current => ({ ...current, title: event.target.value }))} placeholder="Nome da loja" /></label>
-          <label className="block text-sm text-zinc-300">Descrição<textarea className="mt-1 w-full rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100" value={form.description} onChange={event => setForm(current => ({ ...current, description: event.target.value }))} placeholder="Uma frase sobre a loja ou sua marca" /></label>
-          <label className="block text-sm text-zinc-300">Links <small className="text-zinc-500">uma URL por linha ou texto | https://endereco.com</small><textarea className="mt-1 min-h-36 w-full rounded-lg border border-subtle bg-app px-3 py-2 text-sm text-zinc-100" value={form.links} onChange={event => setForm(current => ({ ...current, links: event.target.value }))} placeholder={'https://exemplo.com\nInstagram | https://instagram.com/'} required /></label>
-          <p className="-mt-2 text-xs leading-5 text-zinc-500">Exemplo: Instagram, WhatsApp, página de vendas e YouTube podem ficar todos no mesmo Smartlink.</p>
-          <button type="submit" className="action-button" disabled={uploadingLogo}>Criar Smartlink</button>
-        </form>
-
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <p className="eyebrow">PÁGINAS PUBLICADAS</p>
-              <h3>Seus Smartlinks</h3>
-              <p className="mt-2 max-w-md text-sm leading-6 text-zinc-400">Abra a página pública para conferir a logo centralizada e o selo Meu Ecoo no canto.</p>
-            </div>
-            <span className="status-badge">{smartlinks.length}</span>
-          </div>
-          {smartlinks.length ? <div className="space-y-3">{smartlinks.map(link => <article className="rounded-xl border border-subtle bg-app p-4" key={link.id}><div className="flex items-start justify-between gap-3"><div className="min-w-0">{link.theme?.logoUrl && <img className="smartlink-list-logo" src={link.theme.logoUrl} alt="" />}<strong className="text-zinc-100">{link.title || link.name}</strong>{editingId === link.id ? <div className="mt-2 flex max-w-md items-center rounded-lg border border-subtle bg-surface"><span className="pl-3 text-sm text-zinc-500">/go/</span><input aria-label={`URL personalizada de ${link.title || link.name}`} className="min-w-0 flex-1 bg-transparent px-2 py-2 text-sm text-zinc-100 outline-none" value={editingSlug} onChange={event => setEditingSlug(event.target.value)} maxLength="60" autoFocus /><button className="px-3 py-2 text-xs font-semibold text-gold" type="button" onClick={() => saveSlug(link.id)} disabled={savingSlug}>{savingSlug ? 'Salvando…' : 'Salvar'}</button></div> : <p className="mt-1 truncate text-sm text-zinc-400">/go/{link.slug} · {link.items?.length || 0} links</p>}<div className="mt-2 flex flex-wrap gap-2">{(link.items || []).map(item => <span className="rounded-full bg-gold/10 px-2 py-1 text-xs text-gold" key={item.id}>{item.label} · {item.clicks || 0} cliques</span>)}</div></div><div className="flex shrink-0 gap-3"><button className="link-button" type="button" onClick={() => editingId === link.id ? setEditingId(null) : startSlugEdit(link)}>{editingId === link.id ? 'Cancelar' : 'Editar URL'}</button><button className="link-button danger-link" type="button" onClick={() => remove(link.id)}>Excluir</button></div></div><a className="mt-3 inline-block text-sm text-gold hover:underline" href={`/go/${link.slug}`} target="_blank" rel="noreferrer">Abrir página pública →</a></article>)}</div> : <p className="empty-state">Crie sua primeira página de links para divulgar todos os seus canais em um só lugar.</p>}
+            <button ref={drawerCloseRef} type="button" className="ds-btn ds-btn--quiet ds-btn--icon" onClick={() => setFormOpen(false)} aria-label="Fechar"><Icon name="close" /></button>
+          </header>
+          <div className="ds-drawer__body">{createForm}</div>
         </section>
-      </div>
-    </section>
+      </div>}
+    </div>
   )
 }
