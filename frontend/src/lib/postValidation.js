@@ -124,7 +124,7 @@ export function buildValidationIssues({ text = '', textByPlatform = {}, titleByP
     issues.push({ platform: null, message: 'Escreva um texto ou anexe uma imagem/vídeo.' })
 
   if (!platforms.length)
-    issues.push({ platform: null, message: "Escolha ao menos uma rede social em 'Plataformas'." })
+    issues.push({ platform: null, message: 'Escolha ao menos uma rede social em “Redes”.' })
 
   if (!publishNow && scheduledAt && new Date(scheduledAt).getTime() < Date.now())
     issues.push({ platform: null, message: 'A data de publicação não pode estar no passado.' })

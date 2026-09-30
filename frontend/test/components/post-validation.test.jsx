@@ -25,7 +25,7 @@ describe('buildValidationIssues', () => {
 
   it('requires at least one platform', () => {
     const issues = buildValidationIssues(baseArgs({ platforms: [] }))
-    expect(issues.some(i => i.message.includes("Plataformas"))).toBe(true)
+    expect(issues.map(i => i.message)).toContain('Escolha ao menos uma rede social em “Redes”.')
   })
 
   it('rejects a scheduled date in the past', () => {

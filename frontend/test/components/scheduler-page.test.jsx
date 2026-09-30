@@ -69,3 +69,82 @@ describe('SchedulerPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /Conectar conta/ })).toBeInTheDocument())
   })
 })
+
+describe('SchedulerPage — resultado, data e envio', () => {
+  const FACEBOOK = [{ id: 3, platform: 'facebook', handle: 'ecoomidia', name: 'Ecoo Mídia', ownerEmail: 'social@ecoomidia.com.br', tokens: [{ status: 'valid' }] }]
+
+  beforeEach(() => localStorage.clear())
+  afterEach(() => vi.restoreAllMocks())
+
+  // Deixa só o Facebook marcado, com texto: nenhuma pendência de validação.
+  async function facebookOnly() {
+    const networks = await screen.findByRole('group', { name: 'Redes sociais' })
+    fireEvent.click(within(networks).getByRole('checkbox', { name: /Facebook/ }))
+    fireEvent.click(within(networks).getByRole('checkbox', { name: /Instagram/ }))
+    fireEvent.change(await screen.findByLabelText('Texto do Facebook'), { target: { value: 'Bastidores da semana' } })
+  }
+
+  it('keeps the per-network result when a partial publication notice is closed', async () => {
+    let posted = false
+    vi.spyOn(api, 'apiFetch').mockImplementation((path, options = {}) => {
+      if (path === '/api/accounts') return Promise.resolve({ data: FACEBOOK })
+      if (path === '/api/posts' && options.method === 'POST') { posted = true; return Promise.resolve({ id: 77 }) }
+      if (path.startsWith('/api/logs/events/since/')) {
+        return Promise.resolve({ events: posted ? [{ id: 5, event_name: 'post_published', payload: { id: 77, status: 'partial', platforms: ['facebook'], results: [
+          { platform: 'facebook', account: '@ecoomidia', success: true },
+          { platform: 'facebook', account: '@lojaecoo', success: false, error: 'Token expirado' },
+        ] } }] : [] })
+      }
+      return Promise.resolve({ id: 9 })
+    })
+    render(<ToastProvider><SchedulerPage onNavigate={vi.fn()} /></ToastProvider>)
+    await facebookOnly()
+    fireEvent.click(screen.getByRole('radio', { name: /Publicar agora/ }))
+
+    const submit = await screen.findByRole('button', { name: /^Publicar agora/ })
+    await waitFor(() => expect(submit).toBeEnabled())
+    fireEvent.click(submit)
+
+    expect(await screen.findByRole('dialog', { name: 'Publicação parcial' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Fechar aviso' }))
+
+    expect(screen.queryByRole('dialog', { name: 'Publicação parcial' })).not.toBeInTheDocument()
+    expect(screen.getByText('Resultado da última tentativa')).toBeInTheDocument()
+    expect(screen.getByText('Token expirado')).toBeInTheDocument()
+  })
+
+  it('never says it is ready to schedule while the date is empty', async () => {
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => path === '/api/accounts' ? Promise.resolve({ data: FACEBOOK }) : Promise.resolve({ id: 9 }))
+    render(<ToastProvider><SchedulerPage onNavigate={vi.fn()} /></ToastProvider>)
+    await facebookOnly()
+
+    expect(await screen.findByRole('button', { name: /Escolha a data e a hora/ })).toBeInTheDocument()
+    expect(screen.queryByText(/Pronto para agendar/)).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Agendar/ })).toBeDisabled()
+  })
+
+  it('saves a template once even when the button is clicked twice', async () => {
+    const templates = []
+    let finish
+    vi.spyOn(api, 'apiFetch').mockImplementation((path, options = {}) => {
+      if (path === '/api/accounts') return Promise.resolve({ data: ACCOUNTS })
+      if (path === '/api/drafts' && String(options.body).includes('"isTemplate":true')) {
+        templates.push(options.body)
+        return new Promise(resolve => { finish = resolve })
+      }
+      return Promise.resolve({ id: 9 })
+    })
+    render(<ToastProvider><SchedulerPage onNavigate={vi.fn()} /></ToastProvider>)
+    await screen.findByRole('checkbox', { name: 'Usar ecoomidia no Instagram' })
+    fireEvent.change(screen.getByLabelText('Texto do Instagram'), { target: { value: 'Legenda do modelo' } })
+
+    const save = screen.getByRole('button', { name: 'Salvar como modelo' })
+    fireEvent.click(save)
+    fireEvent.click(save)
+
+    expect(templates).toHaveLength(1)
+    expect(screen.getByRole('button', { name: 'Salvando…' })).toBeDisabled()
+    finish({ id: 12 })
+    expect(await screen.findByRole('button', { name: 'Salvar como modelo' })).toBeEnabled()
+  })
+})

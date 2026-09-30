@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { PublicationStatusModal } from '../../src/components/ui/publication-status-modal.jsx'
 
@@ -21,5 +22,32 @@ describe('PublicationStatusModal', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'Fechar confirmação' })[1])
     expect(onClose).toHaveBeenCalledOnce()
+  })
+})
+
+describe('PublicationStatusModal — foco', () => {
+  function Harness() {
+    const [open, setOpen] = useState(false)
+    return <>
+      <button type="button" onClick={() => setOpen(true)}>Agendar</button>
+      {open && <PublicationStatusModal status={{ type: 'scheduled', date: 'amanhã às 10:00', platformList: ['Instagram'] }} platforms={['instagram']} onClose={() => setOpen(false)} />}
+    </>
+  }
+
+  it('returns focus to the control that opened it and keeps Tab inside', () => {
+    render(<Harness />)
+    const trigger = screen.getByRole('button', { name: 'Agendar' })
+    trigger.focus()
+    fireEvent.click(trigger)
+
+    const [closeIcon, closeFooter] = screen.getAllByRole('button', { name: 'Fechar confirmação' })
+    expect(closeIcon).toHaveFocus()
+    closeFooter.focus()
+    fireEvent.keyDown(closeFooter, { key: 'Tab' })
+    expect(closeIcon).toHaveFocus()
+
+    fireEvent.click(closeFooter)
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
   })
 })

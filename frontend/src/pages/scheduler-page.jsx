@@ -4,13 +4,16 @@ import { TEAM_APPROVAL_UI_ENABLED } from '../lib/feature-flags.js'
 import { buildValidationIssues, INSTAGRAM_CAROUSEL_MAX_ITEMS, TIKTOK_PHOTO_MAX_ITEMS, mediaFileKey, readVideoMeta } from '../lib/postValidation.js'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
+import { Sheet } from '../components/ui/floating.jsx'
+import { DateTimeField, localTimeZoneName } from '../components/ui/date-time-field.jsx'
+import { useIsCompact, useIsPhone } from '../lib/breakpoints.js'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { PublicationResultGroups, PublicationStatusModal } from '../components/ui/publication-status-modal.jsx'
 import { createPostValidationWorker } from '../lib/postValidationWorker.js'
 import { findPublicationResult, latestPublicationEventId, processingPublicationMessage, scheduledPublicationDetails } from '../lib/publicationEvents.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { PLATFORM_TEXT_LIMITS, getPlatformTextLimit } from '../lib/platformTextLimits.js'
-import { PREVIEW_ASPECTS, PREVIEW_ASPECT_OPTIONS, SOCIAL_MEDIA_RESOLUTIONS, TIKTOK_VIDEO_DIMENSIONS, mediaKindLabel, ratioLabel, resolvePreviewAspect, shouldUseFullBleedPreview, socialMediaLimitHint, socialMediaResolutionHint } from '../lib/mediaFormat.js'
+import { PREVIEW_ASPECTS, PREVIEW_ASPECT_OPTIONS, TIKTOK_VIDEO_DIMENSIONS, mediaKindLabel, ratioLabel, resolvePreviewAspect, shouldUseFullBleedPreview, socialMediaLimitHint, socialMediaResolutionHint } from '../lib/mediaFormat.js'
 import { accountIdKey, accountsForPlatform, buildAccountSelectionIssues, groupAccountsByPerson, selectedAccountsForPost } from '../lib/account-selection.js'
 import { HeartIcon, CommentIcon, ShareArrowIcon, BookmarkIcon, ThumbsUpIcon, GlobeIcon, MoreIcon, MusicNoteIcon, DislikeIcon, RemixIcon, SendPlaneIcon } from '../components/ui/preview-icons.jsx'
 import '../styles/scheduler-composer.css'
@@ -26,19 +29,6 @@ const accountLabelOf = account => account.handle || account.name || account.toke
 function handleOf(account) {
   const raw = account.handle || account.name
   return raw ? atHandle(raw) : accountLabelOf(account)
-}
-
-function useMediaQuery(query) {
-  const [matches, setMatches] = useState(() => typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia(query).matches)
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return undefined
-    const media = window.matchMedia(query)
-    const update = () => setMatches(media.matches)
-    update()
-    media.addEventListener?.('change', update)
-    return () => media.removeEventListener?.('change', update)
-  }, [query])
-  return matches
 }
 
 // Setas, Home e End movem entre abas (padrão ARIA de tablist).
@@ -803,7 +793,7 @@ function formatDuration(seconds) {
   return `${minutes}:${String(secs).padStart(2, '0')}`
 }
 
-function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesByPlatform = {}, previews, publishNow, approvalRequested, date, youtubeTitle, igFormat, igAspect, onIgAspectChange, tiktokAspect, youtubeFormat, facebookFormat, mediaProfile, accounts, coverUrl = '' }) {
+function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesByPlatform = {}, previews, publishNow, approvalRequested, date, youtubeTitle, igFormat, igAspect, onIgAspectChange, tiktokAspect, youtubeFormat, facebookFormat, mediaProfile, accounts, coverUrl = '', inSheet = false }) {
   const availablePlatforms = selected.length ? selected : platforms
   const [activePlatform, setActivePlatform] = useState(availablePlatforms[0])
   useEffect(() => {
@@ -824,7 +814,6 @@ function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesBy
   const avatarUrl = connectedAccount?.avatarUrl || ''
   const requestedAspect = activePlatform === 'instagram' ? igAspect : activePlatform === 'tiktok' ? tiktokAspect : activePlatform === 'facebook' && facebookFormat === 'reel' ? 'vertical' : activePlatform === 'youtube' && youtubeFormat === 'short' ? 'vertical' : 'auto'
   const resolvedAspect = resolvePreviewAspect({ platform: activePlatform, mediaKind: activeMediaProfile?.kind, sourceRatio: activeMediaProfile?.ratio, requested: requestedAspect, instagramFormat: igFormat, facebookFormat })
-  const mediaLabel = activeMediaProfile ? `${activeMediaProfile.kind === 'video' ? 'Vídeo' : 'Foto'} · ${resolvedAspect.label}` : resolvedAspect.label
   const instagramVideoIsReel = activePlatform === 'instagram' && activeMediaProfile?.kind === 'video' && igFormat !== 'story'
   const isInstagramStory = activePlatform === 'instagram' && igFormat === 'story'
   // Um vídeo no Feed pode ser publicado como Reels automaticamente, mas a
@@ -833,23 +822,25 @@ function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesBy
   const isInstagramFullBleed = activePlatform === 'instagram' && (igFormat === 'reel' || isInstagramStory)
   const isYoutubeShort = activePlatform === 'youtube' && youtubeFormat === 'short'
   const isFullBleedCard = shouldUseFullBleedPreview({ platform: activePlatform, instagramFormat: igFormat, facebookFormat, youtubeFormat })
-  const formatLabel = activePlatform === 'instagram'
-    ? `${instagramVideoIsReel ? 'Reels automático' : ['reel', 'story'].includes(igFormat) ? (igFormat === 'reel' ? 'Reels' : 'Story') : 'Feed'} · ${mediaLabel}`
+  // Cabeçalho curto ("Instagram · Feed" / "1:1 · 1080 × 1080 recomendado"); o resto
+  // fica em "Sobre esta prévia".
+  const formatName = activePlatform === 'instagram'
+    ? (instagramVideoIsReel ? 'Reels automático' : igFormat === 'reel' ? 'Reels' : igFormat === 'story' ? 'Story' : 'Feed')
     : activePlatform === 'facebook'
-      ? `${facebookFormat === 'reel' ? 'Reels' : 'Feed'} · ${mediaLabel}`
+      ? (facebookFormat === 'reel' ? 'Reels' : 'Feed')
       : activePlatform === 'youtube'
-        ? `${youtubeFormat === 'short' ? 'Short' : 'Vídeo'} · ${mediaLabel}`
-        : activePlatform === 'tiktok' && activeMediaProfile?.kind === 'video'
-          ? `Vídeo TikTok · ${TIKTOK_VIDEO_DIMENSIONS.label} · 9:16`
-          : activePlatform === 'tiktok' ? `Foto TikTok · ${TIKTOK_VIDEO_DIMENSIONS.label} sem corte` : `Feed · ${mediaLabel}`
+        ? (youtubeFormat === 'short' ? 'Short' : 'Vídeo')
+        : activeMediaProfile?.kind === 'image' ? 'Foto' : 'Vídeo'
+  const ratioText = resolvedAspect.key === 'instagramWide' ? '1,91:1' : resolvedAspect.label
+  const sizeText = `${ratioText} · ${String(resolvedAspect.dimensions || '').replace(/\s*px$/, '')} recomendado`
   const resolutionHint = socialMediaResolutionHint(activePlatform, { instagramFormat: igFormat, facebookFormat, youtubeFormat, mediaKind: activeMediaProfile?.kind })
   const statusLabel = approvalRequested ? 'Aguardando aprovação' : publishNow ? 'Publicar agora' : date ? scheduleChipLabel(date) : 'Rascunho'
   const detectionText = activeMediaProfile
     ? `${mediaKindLabel(activeMediaProfile.kind)}${activeMediaProfile.ratio ? ` · original ${ratioLabel(activeMediaProfile.width, activeMediaProfile.height)}` : ''}`
-    : 'Aguardando mídia · a proporção será detectada ao adicionar'
-  return <section className="mp-preview" aria-labelledby="mp-preview-title">
+    : 'Ainda sem mídia: a proporção é detectada quando você adicionar uma imagem ou vídeo.'
+  return <section className="mp-preview" aria-labelledby={inSheet ? undefined : 'mp-preview-title'}>
     <div className="mp-preview__head">
-      <h2 className="mp-preview__title" id="mp-preview-title">Prévia</h2>
+      {inSheet ? <span className="ds-meta">Como vai aparecer em cada rede</span> : <h2 className="mp-preview__title" id="mp-preview-title">Prévia</h2>}
       <span className="ds-badge" data-tone={approvalRequested ? 'info' : publishNow ? 'gold' : date ? 'info' : 'outline'}>{statusLabel}</span>
     </div>
     <div className="ds-netswitch mp-preview__tabs" role="tablist" aria-label="Prévia por rede social" onKeyDown={event => handleTabKeys(event, availablePlatforms, activePlatform, setActivePlatform, 'mp-pv-tab-')}>
@@ -857,9 +848,8 @@ function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesBy
     </div>
     <div className="mp-preview__stage" id="mp-preview-stage" role="tabpanel" aria-labelledby={`mp-pv-tab-${activePlatform}`}>
       <div className="mp-preview__format">
-        <p><span className="ds-meta">Formato simulado</span> <strong>{formatLabel}</strong></p>
-        <p className="ds-meta">{detectionText} · Resolução recomendada: {resolutionHint}</p>
-        {instagramVideoIsReel && <p className="ds-meta">Vídeo único será enviado como Reels e compartilhado no feed.</p>}
+        <p className="mp-preview__formatname">{previewLabels[activePlatform]} · {formatName}</p>
+        <p className="ds-meta">{sizeText}</p>
       </div>
       {activePlatform === 'instagram' && igFormat === 'post' && onIgAspectChange && <div className="ds-field mp-preview__aspect">
         <label className="ds-label" htmlFor="mp-pv-aspect">Proporção da prévia</label>
@@ -885,7 +875,17 @@ function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesBy
         <TiktokCard accountHandle={accountHandle} avatarUrl={avatarUrl} previews={activePreviews} mediaProfile={activeMediaProfile} aspectRequest={requestedAspect} caption={activeText} title={activeTitle} coverUrl={coverUrl}/>
       )}
       </div>
-      <p className="ds-hint mp-preview__note">A prévia simula a estrutura visual da rede. O resultado final pode variar conforme o formato e a conta.{activeFiles.length > 1 && !['instagram', 'tiktok', 'facebook'].includes(activePlatform) ? ` ${activeFiles.length} mídias selecionadas — apenas a primeira aparece na prévia desta rede.` : ''}</p>
+      <details className="ds-disclosure mp-preview__about">
+        <summary>Sobre esta prévia<Icon name="chevronDown" className="ds-disclosure__chev" /></summary>
+        <div className="ds-disclosure__body mp-preview__aboutbody">
+          <p className="ds-hint">{detectionText}</p>
+          <p className="ds-hint">Tamanhos recomendados: {resolutionHint}.</p>
+          {instagramVideoIsReel && <p className="ds-hint">Um vídeo único vai como Reels e também aparece no feed.</p>}
+          {activePlatform === 'tiktok' && activeMediaProfile?.kind === 'image' && <p className="ds-hint">Fotos entram sem corte, ajustadas a {TIKTOK_VIDEO_DIMENSIONS.label}.</p>}
+          {activeFiles.length > 1 && !['instagram', 'tiktok', 'facebook'].includes(activePlatform) && <p className="ds-hint">{activeFiles.length} mídias selecionadas: só a primeira aparece na prévia desta rede.</p>}
+          <p className="ds-hint">A prévia simula a estrutura da rede; o resultado final pode variar conforme o formato e a conta.</p>
+        </div>
+      </details>
     </div>
   </section>
 }
@@ -952,8 +952,13 @@ export function SchedulerPage({ onNavigate } = {}) {
   const [textTab, setTextTab] = useState('instagram')
   const [issuesOpen, setIssuesOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
-  const previewCloseRef = useRef(null)
-  const compactLayout = useMediaQuery('(max-width: 1023px)')
+  const [savingTemplate, setSavingTemplate] = useState(false)
+  const savingTemplateRef = useRef(false)
+  const submittingRef = useRef(false)
+  const feedbackRef = useRef(null)
+  const pageRef = useRef(null)
+  const compactLayout = useIsCompact()
+  const phone = useIsPhone()
   const notify = useToast()
   const validationRequest = useRef(0)
   const publicationPollTimer = useRef(null)
@@ -1012,13 +1017,6 @@ export function SchedulerPage({ onNavigate } = {}) {
   }, [accountsAttempt])
 
   useEffect(() => { if (!compactLayout) setPreviewOpen(false) }, [compactLayout])
-  useEffect(() => {
-    if (!previewOpen) return undefined
-    previewCloseRef.current?.focus()
-    const onKey = event => { if (event.key === 'Escape') setPreviewOpen(false) }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [previewOpen])
 
   useEffect(() => {
     if (!TEAM_APPROVAL_UI_ENABLED) return undefined
@@ -1107,10 +1105,12 @@ export function SchedulerPage({ onNavigate } = {}) {
     return () => clearTimeout(timer)
   }, [draftReady, textByPlatform, titleByPlatform, date, publishNow, approvalWorkspaceId, selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, youtubeFormat, igFormat, igAspect, facebookFormat, tiktokAspect, tiktokPrivacyLevel, files.length])
 
+  // Só os textos das redes vão para a conta (o backend não guarda títulos nem mídia):
+  // sem texto, nada é sincronizado e o status volta a ser o do rascunho local.
   useEffect(() => {
     if (!draftReady) return undefined
-    const hasContent = Object.values(textByPlatform).some(value => value?.trim()) || Object.values(titleByPlatform).some(value => value?.trim()) || youtubeTitle.trim() || files.length
-    if (!hasContent) return undefined
+    const hasText = Object.values(textByPlatform).some(value => value?.trim())
+    if (!hasText) { setServerDraftStatus(''); return undefined }
     const timer = setTimeout(async () => {
       try {
         if (serverDraftId.current) {
@@ -1440,8 +1440,15 @@ export function SchedulerPage({ onNavigate } = {}) {
     validationWorker.postMessage({ ...validationInput, requestId })
   }, [validationWorker, textByPlatform, titleByPlatform, selected, files, filesByPlatform, publishNow, date, youtubeTitle, youtubeMadeForKids, youtubeFormat, igFormat, facebookFormat, tiktokPrivacyLevel, videoMetaByKey, mediaMetaByKey])
   const issues = workerIssues
-  const accountSelectionIssues = accountsLoaded ? buildAccountSelectionIssues(connectedAccounts, selected, selectedAccountIds) : []
+  const accountSelectionIssues = !accountsLoaded
+    ? []
+    : accountsError
+      ? [{ platform: null, message: 'Não foi possível carregar suas contas. Tente de novo em “Redes”.' }]
+      : buildAccountSelectionIssues(connectedAccounts, selected, selectedAccountIds)
   const blockingIssues = [...issues, ...accountSelectionIssues]
+  // A data vazia não entra na contagem de pendências (a regra de validação continua a
+  // mesma), mas a barra nunca diz "Pronto" enquanto ela faltar.
+  const dateMissing = (!publishNow || Boolean(approvalWorkspaceId)) && !date
 
   async function uploadFile(file) {
     const data = await apiFetch('/api/posts/upload-url', { method: 'POST', body: JSON.stringify({ filename: file.name, mimetype: file.type }) })
@@ -1456,10 +1463,14 @@ export function SchedulerPage({ onNavigate } = {}) {
   }
 
   async function submit(event) {
-    event.preventDefault(); setError(''); setLastResult(null); setIssuesOpen(false); setSavedMessage(null); setPublicationStatus(null); setPublicationModalOpen(false); setProgress('')
+    event.preventDefault()
+    if (submittingRef.current) return
+    setError(''); setLastResult(null); setIssuesOpen(false); setSavedMessage(null); setPublicationStatus(null); setPublicationModalOpen(false); setProgress('')
     if (blockingIssues.length > 0) { setError(blockingIssues[0].message); return }
+    if (dateMissing) { setError('Escolha a data e a hora da publicação.'); return }
     const requestingApproval = TEAM_APPROVAL_UI_ENABLED && Boolean(approvalWorkspaceId)
     if (requestingApproval && publishNow) { setError('Desative "Publicar agora" para enviar o conteúdo para aprovação.'); return }
+    submittingRef.current = true
     setLoading(true)
     if (publishNow) {
       setPublicationStatus({ type: 'processing', message: processingPublicationMessage(selected) })
@@ -1513,16 +1524,22 @@ export function SchedulerPage({ onNavigate } = {}) {
       setPublicationStatus(null)
       setPublicationModalOpen(false)
       setError(caught.message)
-    } finally { setLoading(false); setProgress('') }
+    } finally { submittingRef.current = false; setLoading(false); setProgress('') }
   }
 
   async function saveAsTemplate() {
+    if (savingTemplateRef.current) return
     if (!Object.values(textByPlatform).some(value => value?.trim())) { notify('Escreva algum conteúdo antes de salvar um modelo.', 'error'); return }
+    savingTemplateRef.current = true
+    setSavingTemplate(true)
     try {
       await apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify({ title: 'Modelo de publicação', textByPlatform, titleByPlatform, platforms: selected, isTemplate: true, igFormat, facebookFormat, youtubeFormat }) })
       notify('Modelo salvo no Baú de Ideias.')
     } catch (caught) {
       notify(caught.message, 'error')
+    } finally {
+      savingTemplateRef.current = false
+      setSavingTemplate(false)
     }
   }
 
@@ -1536,7 +1553,10 @@ export function SchedulerPage({ onNavigate } = {}) {
   const carouselLimit = selected.includes('instagram') || selected.includes('facebook') ? INSTAGRAM_CAROUSEL_MAX_ITEMS : TIKTOK_PHOTO_MAX_ITEMS
   const carouselLabel = selected.includes('instagram') ? 'Feed do Instagram' : selected.includes('facebook') ? 'Feed do Facebook' : 'TikTok'
 
+  // Qualquer forma de fechar o aviso (×, "Fechar aviso", Esc, fundo) mantém o
+  // resultado por rede à vista, para não reenviar a quem já recebeu o post.
   function closePublicationModal() {
+    if (['warning', 'error'].includes(publicationStatus?.type) && publicationStatus?.resultSummary) setLastResult(publicationStatus.resultSummary)
     setPublicationModalOpen(false)
     setPublicationStatus(null)
   }
@@ -1548,13 +1568,16 @@ export function SchedulerPage({ onNavigate } = {}) {
   const hasVideoFile = files.some(file => file.type.startsWith('video/'))
   const activeTextPlatform = selected.includes(textTab) ? textTab : selected[0]
   const issueCountByPlatform = blockingIssues.reduce((counts, issue) => (issue.platform ? { ...counts, [issue.platform]: (counts[issue.platform] || 0) + 1 } : counts), {})
-  const saveStatus = serverDraftStatus || (draftSavedAt ? `Texto salvo às ${draftSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '')
+  const saveStatus = serverDraftStatus || (draftSavedAt ? `Rascunho salvo às ${draftSavedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}` : '')
   const previewAccounts = [...connectedAccounts.filter(isAccountSelected), ...connectedAccounts.filter(account => !isAccountSelected(account))]
   const selectableAccounts = connectedAccounts.filter(account => selected.includes(account.platform))
   const markedAccountCount = selectableAccounts.filter(isAccountSelected).length
   const mediaHeading = isPhotoCarousel ? `${files.length} fotos em sequência` : mediaProfile?.kind === 'video' ? 'Vídeo detectado' : mediaProfile?.kind === 'image' ? 'Foto detectada' : 'Fotos, design ou vídeo'
 
   useEffect(() => { if (!blockingIssues.length) setIssuesOpen(false) }, [blockingIssues.length])
+  useEffect(() => {
+    if (error || savedMessage) feedbackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [error, savedMessage])
 
   function retryAccounts() {
     setAccountsLoaded(false)
@@ -1571,20 +1594,27 @@ export function SchedulerPage({ onNavigate } = {}) {
     return chosen.length > 1 ? `${chosen.length} contas` : handleOf(chosen[0])
   }
 
-  // Leva a pessoa até o campo que resolve a pendência clicada.
+  // Leva a pessoa até o campo que resolve a pendência clicada. A primeira opção que
+  // existir na tela recebe o foco (conta antes da rede; campo exato antes do painel).
   function focusIssue(issue) {
+    setIssuesOpen(false)
     const text = String(issue.message || '').toLowerCase()
     const pane = issue.platform && selected.includes(issue.platform) ? issue.platform : activeTextPlatform
-    let selector = '.mp-drop .mp-fileinput'
-    if (/antecedência|no passado|data e hora/.test(text)) selector = '#mp-date'
-    else if (/conta/.test(text)) selector = '.mp-accts input, .mp-accts button, .mp-nets input'
-    else if (/rede social|plataformas/.test(text)) selector = '.mp-nets input'
-    else if (/título|feito para crianças|quem pode ver|caracteres|texto|descrição/.test(text) && pane) {
-      setTextTab(pane)
-      selector = `#mp-pane-${pane} input, #mp-pane-${pane} textarea, #mp-pane-${pane} select`
-    }
+    const network = issue.platform ? platformLabels[issue.platform] : ''
+    let candidates = ['.mp-drop .mp-fileinput']
+    if (/antecedência|no passado|data e hora|data e a hora/.test(text)) candidates = ['#mp-date']
+    else if (/carregar suas contas/.test(text)) candidates = ['.mp-accts .ds-alert button']
+    else if (/conta/.test(text)) candidates = [network ? `.mp-accts input[aria-label$=" no ${network}"]:not(:disabled)` : '', '.mp-accts input:not(:disabled)', '.mp-accts .ds-go', '.mp-nets input'].filter(Boolean)
+    else if (/rede social|plataformas|redes/.test(text)) candidates = ['.mp-nets input']
+    else if (pane && /título do vídeo/.test(text)) candidates = ['#mp-yt-title']
+    else if (pane && /feito para crianças/.test(text)) candidates = ['#mp-yt-kids']
+    else if (pane && /quem pode ver/.test(text)) candidates = ['#mp-tt-privacy']
+    else if (pane === 'tiktok' && /descrição/.test(text)) candidates = ['#mp-tiktok-desc']
+    else if (pane === 'tiktok' && /título/.test(text)) candidates = ['#mp-tiktok-title']
+    else if (pane && /caracteres|texto|descrição|título/.test(text)) candidates = [`#mp-pane-${pane} textarea`, `#mp-pane-${pane} input`]
+    if (candidates.some(selector => selector.startsWith('#mp-pane-') || /^#mp-(yt|tt|tiktok)-/.test(selector))) setTextTab(pane)
     window.requestAnimationFrame(() => {
-      const target = document.querySelector(selector)
+      const target = candidates.map(selector => document.querySelector(selector)).find(Boolean)
       target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
       target?.focus({ preventScroll: true })
     })
@@ -1605,7 +1635,7 @@ export function SchedulerPage({ onNavigate } = {}) {
     const vertical = platform === 'tiktok' || (platform === 'facebook' && facebookFormat === 'reel')
     return <div className="mp-pane" role="tabpanel" id={`mp-pane-${platform}`} aria-labelledby={`mp-tab-${platform}`} hidden={platform !== activeTextPlatform} key={platform}>
       <p className="ds-meta mp-pane__to">
-        {targets.length ? <>Vai para <strong>{targets.map(handleOf).join(', ')}</strong></> : accountsLoaded ? `Nenhuma conta do ${label} marcada em “Redes e contas”.` : 'Carregando contas…'}
+        {targets.length ? <>Vai para <strong>{targets.map(handleOf).join(', ')}</strong></> : !accountsLoaded ? 'Carregando contas…' : accountsError ? 'Contas indisponíveis no momento.' : `Nenhuma conta do ${label} marcada em “Redes”.`}
         {vertical && <span className="ds-badge" data-tone="outline">9:16 · 1080 × 1920</span>}
       </p>
       {platform === 'tiktok'
@@ -1668,30 +1698,41 @@ export function SchedulerPage({ onNavigate } = {}) {
           </div>
         </details>
       </>}
-      <p className="ds-hint mp-pane__limits">
-        {platform === 'instagram' && socialMediaLimitHint('instagram', { instagramFormat: igFormat })}
-        {platform === 'facebook' && `${facebookFormat === 'reel' ? 'Reels: um único vídeo vertical 9:16 · 1080 × 1920 px.' : `Feed: ${SOCIAL_MEDIA_RESOLUTIONS.facebook.feed.map(item => item.dimensions).join(' · ')}.`} ${socialMediaLimitHint('facebook', { facebookFormat })}`}
-        {platform === 'youtube' && socialMediaLimitHint('youtube', { youtubeFormat })}
-        {platform === 'tiktok' && socialMediaLimitHint('tiktok')}
-      </p>
     </div>
   }
 
-  const postPreview = <PostPreview textByPlatform={textByPlatform} titleByPlatform={titleByPlatform} selected={selected} files={files} filesByPlatform={filesByPlatform} previews={mediaPreviews} publishNow={publishNow} approvalRequested={TEAM_APPROVAL_UI_ENABLED && Boolean(approvalWorkspaceId)} date={date} youtubeTitle={youtubeTitle} igFormat={igFormat} igAspect={igAspect} onIgAspectChange={setIgAspect} tiktokAspect={tiktokAspect} youtubeFormat={youtubeFormat} facebookFormat={facebookFormat} mediaProfile={mediaProfile} coverUrl={coverPreviewUrl} accounts={previewAccounts} />
+  const previewProps = { textByPlatform, titleByPlatform, selected, files, filesByPlatform, previews: mediaPreviews, publishNow, approvalRequested: TEAM_APPROVAL_UI_ENABLED && Boolean(approvalWorkspaceId), date, youtubeTitle, igFormat, igAspect, onIgAspectChange: setIgAspect, tiktokAspect, youtubeFormat, facebookFormat, mediaProfile, coverUrl: coverPreviewUrl, accounts: previewAccounts }
+  const timeZone = localTimeZoneName()
+  const templateDisabled = loading || savingTemplate || !hasAnyText
+  const submitDisabled = loading || blockingIssues.length > 0 || dateMissing
 
-  return <div className="ds-page mp" data-ds-root>
+  function openDatePicker() {
+    const trigger = document.getElementById('mp-date')
+    trigger?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    trigger?.focus({ preventScroll: true })
+    if (trigger?.getAttribute('aria-expanded') !== 'true') trigger?.click()
+  }
+
+  const issueList = <ul className="mp-issuelist">{blockingIssues.map((issue, index) => <li key={index}><button type="button" className="mp-issue" onClick={() => focusIssue(issue)}>
+    {issue.platform ? <NetworkGlyph network={issue.platform} size={16} /> : <Icon name="alertTriangle" size={16} />}
+    <span>{issue.message}</span>
+    <Icon name="arrow" size={16} className="mp-issue__go" />
+  </button></li>)}</ul>
+
+  return <div className="ds-page mp" data-ds-root ref={pageRef}>
+    {/* No celular a barra do topo já mostra "Meu Post" com o botão Voltar: o cabeçalho fica só para leitores de tela. */}
     <header className="ds-pagehead mp-head">
       <div className="ds-pagehead__text">
         <p className="ds-eyebrow">{approvalWorkspaceId ? 'Enviar para aprovação' : publishNow ? 'Publicar agora' : 'Agendar publicação'}</p>
         <h1 className="ds-pagehead__title">Meu Post</h1>
-        <p className="ds-pagehead__lede">Escolha as redes, adicione a mídia e adapte o texto de cada uma. No fim, publique na hora ou agende.</p>
+        <p className="ds-pagehead__lede">Escolha as redes, escreva o texto de cada uma e adicione a mídia. No fim, publique na hora ou agende.</p>
       </div>
     </header>
 
     <div className="mp-body">
       <form className="mp-compose" onSubmit={submit}>
         <fieldset className="mp-step">
-          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">1</span>Redes e contas</legend>
+          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">1</span>Redes</legend>
           {lastResult && <div className="ds-alert mp-alert" data-tone="warning" role="status">
             <Icon name="alertTriangle" className="ds-alert__icon" />
             <p className="ds-alert__title">Resultado da última tentativa</p>
@@ -1756,7 +1797,22 @@ export function SchedulerPage({ onNavigate } = {}) {
         </fieldset>
 
         <fieldset className="mp-step">
-          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">2</span>Mídia</legend>
+          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">2</span>Conteúdo</legend>
+          {selected.length
+            ? <>
+              <div className="ds-tabs mp-tabs" role="tablist" aria-label="Texto por rede" onKeyDown={event => handleTabKeys(event, selected, activeTextPlatform, setTextTab, 'mp-tab-')}>
+                {selected.map(platform => <button type="button" role="tab" id={`mp-tab-${platform}`} aria-controls={`mp-pane-${platform}`} aria-selected={platform === activeTextPlatform} tabIndex={platform === activeTextPlatform ? 0 : -1} className="ds-tab mp-tab" key={platform} onClick={() => setTextTab(platform)}>
+                  <NetworkGlyph network={platform} size={16} />{platformLabels[platform]}
+                  {issueCountByPlatform[platform] > 0 && <span className="ds-badge mp-tab__count" data-tone="danger"><span aria-hidden="true">{issueCountByPlatform[platform]}</span><span className="ds-sr-only">, {issueCountByPlatform[platform]} {issueCountByPlatform[platform] === 1 ? 'pendência' : 'pendências'}</span></span>}
+                </button>)}
+              </div>
+              {selected.map(platform => renderNetworkPane(platform))}
+            </>
+            : <p className="ds-hint mp-empty">Escolha ao menos uma rede em “Redes” para escrever o texto.</p>}
+        </fieldset>
+
+        <fieldset className="mp-step">
+          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">3</span>Mídia</legend>
           <div className="mp-drop" data-filled={files.length > 0 || undefined} onDragOver={event => event.preventDefault()} onDrop={dropFiles}>
             <span className="ds-icontile" aria-hidden="true"><Icon name={mediaProfile?.kind === 'video' ? 'video' : 'image'} /></span>
             <div className="mp-drop__text">
@@ -1800,26 +1856,20 @@ export function SchedulerPage({ onNavigate } = {}) {
           {videoCoverFile && <VideoCoverPicker file={videoCoverFile} value={coverTime} onChange={setCoverTime} coverUrl={coverFilePreviewUrl} onCapture={file => { if (file.size > 2 * 1024 * 1024) { setError('O frame escolhido ficou maior que 2 MB. Escolha outro frame.'); return } setCoverFile(file); setCoverSourceKey('custom') }} onImageSelect={selectCoverImage} onClear={() => { setCoverFile(null); setCoverSourceKey(''); setCoverTime(null) }} />}
           {videoCoverFile && selected.includes('youtube') && youtubeFormat === 'short' && <p className="ds-hint">O YouTube não aplica capas personalizadas em Shorts; nos demais formatos e redes compatíveis, a capa escolhida será enviada.</p>}
           {files.length > 0 && <p className="ds-hint mp-keepnote"><Icon name="info" size={14} />As mídias ficam só nesta tela. Se sair antes de publicar, será preciso adicioná-las de novo.</p>}
+          {selected.length > 0 && <details className="ds-disclosure mp-limits">
+            <summary>Tamanhos e limites<Icon name="chevronDown" className="ds-disclosure__chev" /></summary>
+            <ul className="ds-disclosure__body mp-limits__list">
+              {selected.map(platform => <li key={platform}>
+                <NetworkGlyph network={platform} size={16} />
+                <span><strong>{platformLabels[platform]}</strong> {socialMediaResolutionHint(platform, { instagramFormat: igFormat, facebookFormat, youtubeFormat, mediaKind: mediaProfile?.kind })}. {socialMediaLimitHint(platform, { instagramFormat: igFormat, facebookFormat })}</span>
+              </li>)}
+            </ul>
+          </details>}
           <MediaAiSuggestions files={files} selected={selected} contexto={aiContext} previews={mediaPreviews} onApply={applyMediaSuggestion} />
         </fieldset>
 
         <fieldset className="mp-step">
-          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">3</span>Texto de cada rede</legend>
-          {selected.length
-            ? <>
-              <div className="ds-tabs mp-tabs" role="tablist" aria-label="Texto por rede" onKeyDown={event => handleTabKeys(event, selected, activeTextPlatform, setTextTab, 'mp-tab-')}>
-                {selected.map(platform => <button type="button" role="tab" id={`mp-tab-${platform}`} aria-controls={`mp-pane-${platform}`} aria-selected={platform === activeTextPlatform} tabIndex={platform === activeTextPlatform ? 0 : -1} className="ds-tab mp-tab" key={platform} onClick={() => setTextTab(platform)}>
-                  <NetworkGlyph network={platform} size={16} />{platformLabels[platform]}
-                  {issueCountByPlatform[platform] > 0 && <span className="ds-badge mp-tab__count" data-tone="danger"><span aria-hidden="true">{issueCountByPlatform[platform]}</span><span className="ds-sr-only">, {issueCountByPlatform[platform]} {issueCountByPlatform[platform] === 1 ? 'pendência' : 'pendências'}</span></span>}
-                </button>)}
-              </div>
-              {selected.map(platform => renderNetworkPane(platform))}
-            </>
-            : <p className="ds-hint mp-empty">Escolha ao menos uma rede em “Redes e contas” para escrever o texto.</p>}
-        </fieldset>
-
-        <fieldset className="mp-step">
-          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">4</span>Quando publicar</legend>
+          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">4</span>Publicação</legend>
           {TEAM_APPROVAL_UI_ENABLED && workspaces.length > 0 && <div className="mp-approval">
             <label className="ds-check"><input type="checkbox" className="ds-switch" checked={Boolean(approvalWorkspaceId)} onChange={event => { setApprovalWorkspaceId(event.target.checked ? String(workspaces[0].id) : ''); if (event.target.checked) setPublishNow(false) }} /><span className="ds-check__text"><span>Revisar antes de publicar</span><span className="ds-check__hint">O post ficará bloqueado até um aprovador aceitar.</span></span></label>
             {approvalWorkspaceId && <SelectField id="mp-approval-space" label="Espaço de aprovação" value={approvalWorkspaceId} onChange={value => { setApprovalWorkspaceId(value); setPublishNow(false) }} options={workspaces.map(workspace => [String(workspace.id), workspace.name])} />}
@@ -1827,23 +1877,23 @@ export function SchedulerPage({ onNavigate } = {}) {
           {!approvalWorkspaceId && <div className="mp-when" role="radiogroup" aria-label="Quando publicar">
             <label className="mp-when__opt" data-selected={!publishNow || undefined}>
               <input type="radio" className="ds-radio" name="mp-when" checked={!publishNow} onChange={() => setPublishNow(false)} />
-              <span className="mp-when__text"><span className="mp-when__title">Agendar</span><span className="ds-hint">Escolha o dia e o horário</span></span>
+              <span className="mp-when__text"><span className="mp-when__title">Agendar</span><span className="ds-hint">Em uma data e hora</span></span>
               <Icon name="calendar" className="mp-when__icon" />
             </label>
             <label className="mp-when__opt" data-selected={publishNow || undefined}>
               <input type="radio" className="ds-radio" name="mp-when" checked={publishNow} onChange={() => setPublishNow(true)} />
-              <span className="mp-when__text"><span className="mp-when__title">Publicar agora</span><span className="ds-hint">Envia para as redes assim que você confirmar</span></span>
+              <span className="mp-when__text"><span className="mp-when__title">Publicar agora</span><span className="ds-hint">Assim que você confirmar</span></span>
               <Icon name="send" className="mp-when__icon" />
             </label>
           </div>}
           {(!publishNow || approvalWorkspaceId) && <div className="ds-field mp-date">
             <label className="ds-label" htmlFor="mp-date">Data e hora</label>
-            <input id="mp-date" className="ds-input" required type="datetime-local" value={date} onChange={event => setDate(event.target.value)} />
-            {selected.includes('instagram') && <p className="ds-hint">No Instagram, o horário precisa ter pelo menos 20 minutos de antecedência.</p>}
+            <DateTimeField id="mp-date" value={date} onChange={setDate} required disablePast describedBy="mp-date-hint" sheetTitle="Data e hora" />
+            <p className="ds-hint" id="mp-date-hint">{selected.includes('instagram') ? 'No Instagram, pelo menos 20 minutos de antecedência. ' : ''}{timeZone ? `Fuso: ${timeZone}.` : ''}</p>
           </div>}
         </fieldset>
 
-        <div className="mp-bar">
+        <div className="mp-feedback" ref={feedbackRef}>
           {error && <SchedulerErrorCard title="Precisa de atenção" message={error} onReview={reviewError} onClose={() => setError('')} />}
           {savedMessage && !publicationStatus && <div className="ds-alert mp-alert" data-tone="success" role="status">
             <Icon name="checkCircle" className="ds-alert__icon" />
@@ -1852,44 +1902,53 @@ export function SchedulerPage({ onNavigate } = {}) {
             <p className="ds-alert__text">{savedMessage.approval ? 'O aprovador pode analisar o conteúdo na área Equipe.' : 'Você pode acompanhar ou editar esse agendamento no calendário.'}</p>
             <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-btn--sm ds-alert__close" onClick={() => setSavedMessage(null)} aria-label="Fechar confirmação"><Icon name="close" size={16} /></button>
           </div>}
-          {issuesOpen && blockingIssues.length > 0 && <div className="mp-issues" id="mp-issues">
+          {!phone && issuesOpen && blockingIssues.length > 0 && <div className="mp-issues" id="mp-issues">
             <p className="mp-sublabel">Antes de {submitVerb}</p>
-            <ul>{blockingIssues.map((issue, index) => <li key={index}><button type="button" className="mp-issue" onClick={() => focusIssue(issue)}>
-              {issue.platform ? <NetworkGlyph network={issue.platform} size={16} /> : <Icon name="alertTriangle" size={16} />}
-              <span>{issue.message}</span>
-              <Icon name="arrow" size={16} className="mp-issue__go" />
-            </button></li>)}</ul>
+            {issueList}
           </div>}
-          <div className="mp-bar__main">
-            {blockingIssues.length > 0
-              ? <button type="button" className="mp-bar__issues" aria-expanded={issuesOpen} aria-controls={issuesOpen ? 'mp-issues' : undefined} onClick={() => setIssuesOpen(open => !open)}>
-                <Icon name="alertTriangle" size={18} />
-                <span><strong>{blockingIssues.length} {blockingIssues.length === 1 ? 'pendência' : 'pendências'}</strong> antes de {submitVerb}</span>
-                <Icon name={issuesOpen ? 'chevronDown' : 'chevronUp'} size={16} />
+        </div>
+
+        {/* Desktop: rodapé no fim do formulário. Celular: a barra de ação ocupa a borda de baixo (o shell tira a navegação inferior nesta tela). */}
+        <div className="mp-bar">
+          <div className="mp-bar__state">
+          {blockingIssues.length > 0
+            ? <button type="button" className="mp-bar__status mp-bar__issues" aria-expanded={issuesOpen} aria-controls={issuesOpen && !phone ? 'mp-issues' : undefined} aria-haspopup={phone ? 'dialog' : undefined} onClick={() => setIssuesOpen(open => !open)}>
+              <Icon name="alertTriangle" size={18} />
+              <span><strong>{blockingIssues.length} {blockingIssues.length === 1 ? 'pendência' : 'pendências'}</strong> antes de {submitVerb}</span>
+              <Icon name={issuesOpen && !phone ? 'chevronDown' : 'chevronUp'} size={16} />
+            </button>
+            : dateMissing
+              ? <button type="button" className="mp-bar__status mp-bar__issues" onClick={openDatePicker}>
+                <Icon name="calendar" size={18} />
+                <span><strong>Escolha a data e a hora</strong> para {submitVerb}</span>
+                <Icon name="arrow" size={16} />
               </button>
-              : <span className="mp-bar__ready"><Icon name="checkCircle" size={18} />Pronto para {submitVerb}</span>}
-            {saveStatus && <span className="mp-bar__save" role="status">{saveStatus}</span>}
-            <span className="mp-bar__actions">
-              {compactLayout && <button type="button" className="ds-btn ds-btn--quiet mp-bar__preview" onClick={() => setPreviewOpen(true)}><Icon name="eye" />Prévia</button>}
-              <button type="button" className="ds-btn ds-btn--secondary mp-bar__template" onClick={saveAsTemplate} disabled={loading || !hasAnyText}>Salvar como modelo</button>
-              <span className="mp-bar__more"><OverflowMenu label="Mais ações do post" items={[{ label: 'Salvar como modelo', icon: 'bookmark', disabled: loading || !hasAnyText, onSelect: saveAsTemplate }]} /></span>
-              <button type="submit" className="ds-btn ds-btn--primary mp-bar__submit" disabled={loading || blockingIssues.length > 0}>
-                {loading ? <><span className="ds-spinner" aria-hidden="true" />{progress || 'Processando...'}</> : <>{submitLabel}<Icon name={publishNow ? 'send' : 'arrow'} /></>}
-              </button>
-            </span>
+              : <span className="mp-bar__status mp-bar__ready"><Icon name="checkCircle" size={18} />Pronto para {submitVerb}</span>}
+          {saveStatus && <span className="mp-bar__save" role="status">{saveStatus}</span>}
           </div>
+          <span className="mp-bar__actions">
+            {compactLayout && <button type="button" className="ds-btn ds-btn--secondary mp-bar__preview" onClick={() => setPreviewOpen(true)} aria-haspopup="dialog"><Icon name="eye" />Prévia</button>}
+            {phone
+              ? <OverflowMenu label="Mais ações do post" sheetTitle="Mais ações" items={[{ label: savingTemplate ? 'Salvando modelo…' : 'Salvar como modelo', icon: 'bookmark', disabled: templateDisabled, onSelect: saveAsTemplate }]} />
+              : <button type="button" className="ds-btn ds-btn--secondary mp-bar__template" onClick={saveAsTemplate} disabled={templateDisabled}>{savingTemplate ? 'Salvando…' : 'Salvar como modelo'}</button>}
+            <button type="submit" className="ds-btn ds-btn--primary mp-bar__submit" disabled={submitDisabled}>
+              {loading ? <><span className="ds-spinner" aria-hidden="true" />{progress || 'Processando...'}</> : <>{submitLabel}<Icon name={publishNow ? 'send' : 'arrow'} /></>}
+            </button>
+          </span>
         </div>
       </form>
 
-      {!compactLayout && <aside className="mp-aside">{postPreview}</aside>}
+      {!compactLayout && <aside className="mp-aside" aria-label="Prévia da publicação"><PostPreview {...previewProps} /></aside>}
     </div>
 
-    {compactLayout && previewOpen && <div className="ds-scrim ds-scrim--drawer" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setPreviewOpen(false) }}>
-      <section className="ds-drawer mp-sheet" role="dialog" aria-modal="true" aria-label="Prévia da publicação">
-        <div className="mp-sheet__close"><button ref={previewCloseRef} type="button" className="ds-btn ds-btn--quiet ds-btn--icon" onClick={() => setPreviewOpen(false)} aria-label="Fechar prévia"><Icon name="close" /></button></div>
-        <div className="ds-drawer__body">{postPreview}</div>
-      </section>
-    </div>}
+    {/* dentro da página: o simulador de cada rede herda os mesmos estilos da prévia lateral */}
+    {compactLayout && <Sheet open={previewOpen} onClose={() => setPreviewOpen(false)} title="Prévia" size="lg" className="mp-previewsheet" closeLabel="Fechar prévia" container={pageRef.current}>
+      <PostPreview {...previewProps} inSheet />
+    </Sheet>}
+
+    {phone && <Sheet open={issuesOpen && blockingIssues.length > 0} onClose={() => setIssuesOpen(false)} title={`Antes de ${submitVerb}`} description="Toque numa pendência para ir até o campo." className="mp-issuesheet">
+      {issueList}
+    </Sheet>}
 
     {publicationModalOpen && publicationStatus && <PublicationStatusModal status={publicationStatus} platforms={selected} progress={progress} onReview={reviewError} onClose={closePublicationModal} />}
   </div>

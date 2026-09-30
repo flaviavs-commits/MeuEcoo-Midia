@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Icon } from './icon.jsx'
+import { trapTab } from './floating.jsx'
 
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 
@@ -25,6 +26,22 @@ export function PublicationStatusModal({ status, platforms, progress, onReview, 
   const isProcessing = statusType === 'processing'
 
   useEffect(() => { onCloseRef.current = onClose }, [onClose])
+
+  // Ao fechar (qualquer caminho), o foco volta para onde estava — em geral o botão
+  // que enviou o post — em vez de cair no começo da página.
+  useEffect(() => {
+    const opener = document.activeElement
+    return () => {
+      if (opener?.isConnected && opener !== document.body && typeof opener.focus === 'function') opener.focus({ preventScroll: true })
+    }
+  }, [])
+
+  // O diálogo é modal: o Tab circula só entre os controles dele.
+  useEffect(() => {
+    const onKey = event => { if (event.key === 'Tab' && dialogRef.current) trapTab(event, dialogRef.current) }
+    document.addEventListener('keydown', onKey, true)
+    return () => document.removeEventListener('keydown', onKey, true)
+  }, [])
 
   // Foco inicial no diálogo a cada mudança de estado da publicação.
   useEffect(() => {
