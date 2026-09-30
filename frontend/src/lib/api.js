@@ -1,7 +1,26 @@
+import { isReturnPage, returnPageFor } from './app-pages.js'
+
 // Em desenvolvimento o Vite usa o proxy local; em produção o front pode ser
 // hospedado separadamente do backend (Vercel/Railway, por exemplo).
 export const API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 let csrfToken = null
+
+// Marca sem valor de credencial ("este navegador já abriu o app"). A tela de
+// login só consulta /api/me quando ela existe, para quem nunca entrou ou já
+// saiu não gerar uma chamada 401 à toa. A sessão real continua no cookie HttpOnly.
+const SESSION_HINT_KEY = 'meu-ecoo:session-hint'
+
+export function rememberSession() {
+  try { localStorage.setItem(SESSION_HINT_KEY, '1') } catch { /* armazenamento indisponível */ }
+}
+
+export function forgetSession() {
+  try { localStorage.removeItem(SESSION_HINT_KEY) } catch { /* armazenamento indisponível */ }
+}
+
+export function mayHaveSession() {
+  try { return localStorage.getItem(SESSION_HINT_KEY) === '1' } catch { return false }
+}
 
 export class ApiError extends Error {
   constructor(message, status, body = null) {
@@ -12,13 +31,23 @@ export class ApiError extends Error {
   }
 }
 
-export async function logout() {
+// Tela de login; quando a sessão cai no meio do uso, leva junto a chave da
+// página atual (ver app-pages.js) para voltar a ela depois de entrar.
+export function loginPath({ returnPage } = {}) {
+  return isReturnPage(returnPage) ? `/login.html?next=${encodeURIComponent(returnPage)}` : '/login.html'
+}
+
+// Também é usado direto como onClick ("Sair"): nesse caso recebe o evento e
+// nenhuma página de retorno.
+export async function logout(options) {
+  const returnPage = typeof options?.returnPage === 'string' ? options.returnPage : null
+  forgetSession()
   try {
     await publicApiFetch('/auth/login/logout', { method: 'POST' })
   } catch {
     // A navegação para o login continua sendo segura mesmo quando a rede caiu.
   } finally {
-    window.location.assign('/login.html')
+    window.location.assign(loginPath({ returnPage }))
   }
 }
 
@@ -98,7 +127,7 @@ export async function apiFetch(path, options = {}) {
   const { response, body } = await request(path, options)
 
   if (response.status === 401) {
-    logout()
+    logout({ returnPage: returnPageFor(window.location.pathname) })
     throw new ApiError('Sessão expirada', response.status)
   }
 

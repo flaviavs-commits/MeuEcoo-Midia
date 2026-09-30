@@ -90,29 +90,57 @@ Não consulta dados privados nem cria registros.
 
 Arquivo: `frontend/src/pages/auth-page.jsx` — componente `LoginPage`.
 
-**Para que serve:** controlar a entrada e a criação de contas.
+**Para que serve:** entrar e criar conta na mesma tela. Entrar, criar conta,
+esqueci a senha, link enviado, código 2FA e aviso de senha curta são etapas de
+uma única superfície; a troca não recarrega a página.
+
+**Endereços:**
+
+- `/login.html` — entrar.
+- `/login.html?mode=signup[&plan=basico|pro|premium]` — criar conta. O link
+  antigo `?register=1` continua funcionando e vira `?mode=signup`.
+- `/login.html?mode=forgot` — pedir o link de redefinição.
+- `?next=<página>` — página do app para voltar depois de entrar (ex.:
+  `?next=calendario`). Só aceita a chave de uma página conhecida
+  (`frontend/src/lib/app-pages.js`), nunca uma URL. `apiFetch` usa isso quando
+  a sessão expira no meio do uso.
+- `?error=` — só mensagens conhecidas do callback do Google são exibidas; o
+  parâmetro sai da barra de endereço em seguida.
 
 **Funções:**
 
-- Alternar entre entrar e criar conta.
-- Validar formato de e-mail.
-- Aplicar regras básicas de senha no cadastro.
-- Fazer login.
-- Criar conta com nome opcional.
-- Continuar com Google.
-- Solicitar recuperação de senha.
-- Confirmar código 2FA durante o login.
-- Iniciar o fluxo de recuperação de 2FA.
-- Redirecionar para o painel após autenticação.
+- Alternar entre entrar e criar conta mantendo o e-mail digitado (a senha é limpa).
+- Validar e-mail e senha por campo, com mensagem ligada ao campo (`aria-describedby`).
+- Mostrar os requisitos da senha no cadastro (mesmas regras do servidor).
+- Mostrar/ocultar a senha com o componente `PasswordInput` (`components/ui/password-input.jsx`).
+- Fazer login; criar conta com nome opcional e seguir para o checkout do plano.
+- Continuar com Google (secundário ao e-mail e senha).
+- Pedir o link de redefinição sem revelar se o e-mail tem conta.
+- Confirmar o código 2FA quando a conta exige.
+- Avisar sobre senha antiga curta, sem redirecionamento automático.
+- Levar ao perfil quando o plano não está ativo; senão, à página de origem ou ao painel.
+- Tirar da tela de login quem já tem sessão (consulta `GET /api/me` só quando
+  este navegador já abriu o app — marca `meu-ecoo:session-hint`, sem valor de credencial).
 
 **APIs principais:**
 
 - `POST /auth/login/login`
 - `POST /auth/login/register`
+- `POST /api/billing/plan-change` (checkout logo após o cadastro)
 - `POST /auth/login/verify-2fa`
-- `POST /auth/login/reset-2fa`
 - `POST /auth/login/forgot-password`
 - `GET /auth/login/google` via link de OAuth.
+- `GET /api/me` (somente para redirecionar quem já está conectado).
+
+**Depende do backend / fora da interface:**
+
+- O login com Google não carrega o `?next=`: o destino final é decidido no
+  callback (`src/routes/auth.js`), que manda para `/app.html` ou `/app/perfil`.
+- `POST /auth/login/reset-2fa` (redefinir a senha com o código do app
+  autenticador) existe no backend, mas nunca teve entrada na interface. Segue
+  sem botão até haver decisão de produto.
+- Quais domínios de e-mail podem entrar é configuração do servidor
+  (`ALLOWED_EMAIL_DOMAINS`); a tela mostra a mensagem que o servidor devolver.
 
 ### 4.3 Redefinição de senha
 
@@ -122,30 +150,32 @@ Arquivo: `frontend/src/pages/auth-page.jsx` — componente `ResetPasswordPage`.
 
 **Funções:**
 
-- Ler o token da URL.
-- Validar se o token ainda é utilizável.
-- Exibir as regras de senha em tempo real.
-- Confirmar a senha duas vezes.
-- Salvar a nova senha.
-- Voltar para o login.
+- Ler o token da URL (hash ou query) e tirá-lo da barra de endereço.
+- Validar se o token ainda é utilizável; falha de rede mostra "Tentar de novo"
+  em vez de declarar o link vencido.
+- Exibir os requisitos da senha em tempo real.
+- Confirmar a nova senha (cada campo com o próprio mostrar/ocultar).
+- Salvar a nova senha e oferecer "Entrar".
+- Link vencido: oferece pedir um novo (`/login.html?mode=forgot`).
 
 **APIs:**
 
-- `GET /auth/login/reset-password/validar?token=...`
+- `POST /auth/login/reset-password/validar`
 - `POST /auth/login/reset-password`
 
 ### 4.4 Verificação em dois fatores
 
 Arquivo: `frontend/src/pages/auth-page.jsx` — componente `VerifyTwoFactorPage`.
 
-**Para que serve:** concluir o login quando o usuário possui 2FA ativo.
+**Para que serve:** concluir o login com Google quando a conta possui 2FA ativo
+(o backend redireciona para cá com um cookie de confirmação pendente).
 
 **Funções:**
 
 - Aceitar somente código numérico de seis dígitos.
 - Confirmar o código.
-- Redirecionar para `/app.html` quando válido.
-- Exibir erro sem revelar informações sensíveis.
+- Redirecionar para `/app/perfil` se o plano não está ativo; senão, `/app.html`.
+- Código incorreto aparece no campo; etapa vencida oferece entrar de novo.
 
 **API:** `POST /auth/login/verify-2fa`.
 

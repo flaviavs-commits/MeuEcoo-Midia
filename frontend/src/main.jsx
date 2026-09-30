@@ -10,9 +10,10 @@ import { PlanGate } from './components/ui/plan-gate.jsx'
 import { hasActivePlanModule } from './lib/plans.js'
 import { LoginPage, ResetPasswordPage, VerifyTwoFactorPage } from './pages/auth-page.jsx'
 import { AdminPage } from './pages/admin-page.jsx'
-import { apiFetch } from './lib/api.js'
+import { apiFetch, rememberSession } from './lib/api.js'
 import { applyTheme, getStoredTheme } from './components/ui/theme-selector.jsx'
 import { TEAM_APPROVAL_UI_ENABLED } from './lib/feature-flags.js'
+import { APP_PAGES } from './lib/app-pages.js'
 import './styles/tokens.css'
 import './styles/app.css'
 import './styles/modules.css'
@@ -55,8 +56,6 @@ import './styles/ds/pages/compartilhado.css'
 
 applyTheme(getStoredTheme())
 
-const APP_PAGES = new Set(['dashboard', 'agendador', 'calendario', 'rascunhos', 'analytics', 'inbox', 'integracoes', 'seguranca', 'atividade', 'ai', 'perfil', 'biblioteca', 'filas', 'smartlinks', 'equipe'])
-
 function pageFromLocation(pathname = window.location.pathname) {
   const segment = pathname.startsWith('/app/') ? pathname.slice('/app/'.length).split('/')[0] : ''
   if (segment === 'equipe' && !TEAM_APPROVAL_UI_ENABLED) return 'dashboard'
@@ -73,7 +72,10 @@ function App() {
   }, [])
   useEffect(() => {
     let active = true
-    apiFetch('/api/me').then(currentUser => { if (active) setUser(currentUser) }).catch(() => {})
+    apiFetch('/api/me').then(currentUser => {
+      rememberSession()
+      if (active) setUser(currentUser)
+    }).catch(() => {})
     return () => { active = false }
   }, [])
   useEffect(() => {
