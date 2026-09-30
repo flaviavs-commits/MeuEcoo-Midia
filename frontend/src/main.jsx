@@ -1,5 +1,5 @@
 import './styles/layers.css'
-import { StrictMode } from 'react'
+import { lazy, StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { LandingPage } from './pages/landing-page.jsx'
 import { useEffect, useState } from 'react'
@@ -9,7 +9,6 @@ import { ModulePage } from './pages/module-page.jsx'
 import { PlanGate } from './components/ui/plan-gate.jsx'
 import { hasActivePlanModule } from './lib/plans.js'
 import { LoginPage, ResetPasswordPage, VerifyTwoFactorPage } from './pages/auth-page.jsx'
-import { AdminPage } from './pages/admin-page.jsx'
 import { apiFetch, rememberSession } from './lib/api.js'
 import { applyTheme, getStoredTheme } from './components/ui/theme-selector.jsx'
 import { TEAM_APPROVAL_UI_ENABLED } from './lib/feature-flags.js'
@@ -52,6 +51,9 @@ import './styles/ds/pages/equipe.css'
 import './styles/ds/pages/admin.css'
 import './styles/ds/pages/auth.css'
 import './styles/ds/pages/compartilhado.css'
+
+// Só administradores abrem /admin.html: a tela sai da entrada e vem sob demanda.
+const AdminPage = lazy(() => import('./pages/admin-page.jsx').then(module => ({ default: module.AdminPage })))
 
 applyTheme(getStoredTheme())
 
@@ -101,7 +103,7 @@ const pathname = window.location.pathname
 const page = pathname === '/login.html' ? <LoginPage />
   : pathname === '/reset-password.html' ? <ResetPasswordPage />
     : pathname === '/verify-2fa.html' ? <VerifyTwoFactorPage />
-    : pathname === '/admin.html' ? <AdminPage />
+    : pathname === '/admin.html' ? <Suspense fallback={null}><AdminPage /></Suspense>
     : pathname === '/app.html' || pathname.startsWith('/app/') ? <App /> : <LandingPage />
 
 createRoot(document.getElementById('root')).render(<StrictMode>{page}</StrictMode>)
