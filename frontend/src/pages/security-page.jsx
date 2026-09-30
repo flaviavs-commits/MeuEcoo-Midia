@@ -1,9 +1,15 @@
-import { useEffect, useState } from 'react'
-import { apiFetch } from '../lib/api.js'
+import { useEffect, useRef, useState } from 'react'
+import { apiFetch, ApiError } from '../lib/api.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { Icon } from '../components/ui/icon.jsx'
+import { PasswordInput } from '../components/ui/password-input.jsx'
 
 const STEPS = ['Confirme sua senha', 'Escaneie o QR Code', 'Digite o código']
+
+// Mensagem do backend quando existe; qualquer outra falha vira o texto da ação.
+function messageOf(error, fallback) {
+  return error instanceof ApiError ? error.message : fallback
+}
 
 export function SecurityPage({ user, onUserChange }) {
   const [enabled, setEnabled] = useState(Boolean(user?.totpEnabled))
@@ -12,6 +18,10 @@ export function SecurityPage({ user, onUserChange }) {
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+  // Depois de ativar, desativar ou cancelar, o bloco em que a pessoa estava some;
+  // o foco vai para o título (ou campo) do bloco novo em vez de cair no <body>.
+  const focusAfter = useRef(null)
   const notify = useToast()
 
   // O usuário global pode chegar depois da tela (link direto) ou mudar em outra
@@ -22,13 +32,20 @@ export function SecurityPage({ user, onUserChange }) {
     if (typeof userTotp === 'boolean') setEnabled(userTotp)
   }, [userTotp])
 
+  useEffect(() => {
+    if (!focusAfter.current) return
+    document.getElementById(focusAfter.current)?.focus()
+    focusAfter.current = null
+  }, [enabled, setup])
+
+  // O erro aparece no próprio campo (role=alert); um toast igual repetiria o anúncio.
   async function startSetup(event) {
     event?.preventDefault()
     if (!password) { setError('Informe sua senha atual para iniciar a configuração do 2FA.'); return }
     setBusy(true)
     setError('')
-    try { setSetup(await apiFetch('/api/me/2fa/setup', { method: 'POST', body: JSON.stringify({ password }) })); setCode(''); setPassword(''); notify('QR Code gerado. Confirme para ativar o 2FA.') }
-    catch (caught) { setError(caught.message); notify(caught.message, 'error') }
+    try { setSetup(await apiFetch('/api/me/2fa/setup', { method: 'POST', body: JSON.stringify({ password }) })); setCode(''); setPassword(''); setCopied(false); notify('QR Code gerado. Confirme para ativar o 2FA.') }
+    catch (caught) { setError(messageOf(caught, 'Não foi possível iniciar a configuração agora. Tente de novo.')) }
     finally { setBusy(false) }
   }
 
@@ -37,8 +54,8 @@ export function SecurityPage({ user, onUserChange }) {
     if (!/^\d{6}$/.test(code)) { setError('Digite o código de 6 dígitos do seu autenticador.'); return }
     setBusy(true)
     setError('')
-    try { await apiFetch('/api/me/2fa/enable', { method: 'POST', body: JSON.stringify({ code }) }); setEnabled(true); setSetup(null); setCode(''); onUserChange?.({ totpEnabled: true }); notify('Autenticação em 2 fatores ativada.') }
-    catch (caught) { setError(caught.message); notify(caught.message, 'error') }
+    try { await apiFetch('/api/me/2fa/enable', { method: 'POST', body: JSON.stringify({ code }) }); focusAfter.current = 'sec-on-title'; setEnabled(true); setSetup(null); setCode(''); onUserChange?.({ totpEnabled: true }); notify('Autenticação em 2 fatores ativada.') }
+    catch (caught) { setError(messageOf(caught, 'Não foi possível ativar agora. Tente de novo.')) }
     finally { setBusy(false) }
   }
 
@@ -47,15 +64,21 @@ export function SecurityPage({ user, onUserChange }) {
     if (!/^\d{6}$/.test(code)) { setError('Digite o código atual do autenticador para desativar.'); return }
     setBusy(true)
     setError('')
-    try { await apiFetch('/api/me/2fa/disable', { method: 'POST', body: JSON.stringify({ code }) }); setEnabled(false); setSetup(null); setCode(''); onUserChange?.({ totpEnabled: false }); notify('Autenticação em 2 fatores desativada.') }
-    catch (caught) { setError(caught.message); notify(caught.message, 'error') }
+    try { await apiFetch('/api/me/2fa/disable', { method: 'POST', body: JSON.stringify({ code }) }); focusAfter.current = 'sec-intro-title'; setEnabled(false); setSetup(null); setCode(''); onUserChange?.({ totpEnabled: false }); notify('Autenticação em 2 fatores desativada.') }
+    catch (caught) { setError(messageOf(caught, 'Não foi possível desativar agora. Tente de novo.')) }
     finally { setBusy(false) }
   }
 
   function cancelSetup() {
+    focusAfter.current = 'sec-password'
     setSetup(null)
     setCode('')
     setError('')
+  }
+
+  async function copySecret() {
+    try { await navigator.clipboard.writeText(setup.secret); setCopied(true) }
+    catch { notify('Não foi possível copiar. Selecione a chave e copie manualmente.', 'error') }
   }
 
   const step = enabled ? 3 : setup ? 2 : 1
@@ -99,12 +122,12 @@ export function SecurityPage({ user, onUserChange }) {
 
     {!enabled && !setup && <form className="sec-well sec-intro" onSubmit={startSetup} noValidate>
       <div className="sec-well__head">
-        <h2 className="sec-well__title">Ative a autenticação em 2 fatores</h2>
+        <h2 className="sec-well__title" id="sec-intro-title" tabIndex={-1}>Ative a autenticação em 2 fatores</h2>
         <p className="ds-head__desc">Para começar, confirme que é você com a senha da conta.</p>
       </div>
       <div className="ds-field sec-field">
         <label className="ds-label" htmlFor="sec-password">Senha atual</label>
-        <input id="sec-password" className="ds-input" type="password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" aria-invalid={error ? 'true' : undefined} disabled={busy} />
+        <PasswordInput id="sec-password" value={password} onChange={event => setPassword(event.target.value)} autoComplete="current-password" aria-invalid={error ? 'true' : undefined} disabled={busy} />
         {fieldError}
       </div>
       <div><button type="submit" className="ds-btn ds-btn--primary" disabled={busy}>{busy ? <><span className="ds-spinner" aria-hidden="true" />Gerando…</> : <><Icon name="shield" />Configurar 2FA</>}</button></div>
@@ -116,12 +139,18 @@ export function SecurityPage({ user, onUserChange }) {
           <h2 className="sec-well__title" id="sec-scan-title">Escaneie o QR Code</h2>
           <p className="ds-head__desc">Abra seu aplicativo autenticador e escaneie esta imagem. Se preferir, use a chave manual abaixo.</p>
         </div>
+        {/* No celular o autenticador costuma estar no mesmo aparelho, que não consegue escanear a própria tela. */}
+        {setup.otpauthUri && <div className="sec-openapp">
+          <a className="ds-btn ds-btn--secondary ds-btn--block" href={setup.otpauthUri}><Icon name="external" size={16} />Abrir no app autenticador</a>
+          <p className="ds-hint">Neste aparelho? Toque acima para adicionar a conta direto no app.</p>
+        </div>}
         <div className="sec-qr"><img src={setup.qrCodeDataUrl} alt="QR Code para configurar autenticação em 2 fatores" /></div>
         <details className="ds-disclosure sec-manual">
           <summary>Não consegue escanear? Use a chave manual<Icon name="chevronDown" size={16} className="ds-disclosure__chev" /></summary>
           <div className="ds-disclosure__body">
             <p className="ds-label" id="sec-secret-label">Chave manual</p>
             <code className="sec-secret" aria-labelledby="sec-secret-label">{setup.secret}</code>
+            <div><button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={copySecret}><Icon name={copied ? 'check' : 'copy'} size={16} />{copied ? 'Chave copiada' : 'Copiar chave'}</button></div>
           </div>
         </details>
       </section>
@@ -144,13 +173,14 @@ export function SecurityPage({ user, onUserChange }) {
 
     {enabled && <section className="sec-well sec-on" aria-labelledby="sec-on-title">
       <div className="sec-well__head">
-        <h2 className="sec-well__title" id="sec-on-title">Sua conta está protegida</h2>
+        <h2 className="sec-well__title" id="sec-on-title" tabIndex={-1}>Sua conta está protegida</h2>
         <p className="ds-head__desc">Mantenha o aplicativo autenticador à mão: ele gera o código pedido a cada login.</p>
       </div>
-      <details className="ds-disclosure sec-danger" open={Boolean(error) || undefined}>
-        <summary><span className="sec-danger__sum"><Icon name="alertTriangle" size={18} />Desativar 2FA</span><Icon name="chevronDown" size={16} className="ds-disclosure__chev" /></summary>
-        <form className="ds-disclosure__body sec-danger__body" onSubmit={disable} noValidate>
-          <p className="ds-meta">Sem o 2FA, o login volta a pedir só a senha.</p>
+      {/* Área de gerenciamento: desativar fica aqui dentro, sem vermelho até ser a ação em si. */}
+      <details className="ds-disclosure sec-manage" open={Boolean(error) || undefined}>
+        <summary><span className="sec-manage__sum"><Icon name="settings" size={18} />Gerenciar 2FA</span><Icon name="chevronDown" size={16} className="ds-disclosure__chev" /></summary>
+        <form className="ds-disclosure__body sec-manage__body" onSubmit={disable} noValidate>
+          <p className="ds-meta">Desativar faz o login voltar a pedir só a senha. Para confirmar que é você, use um código atual do aplicativo.</p>
           <div className="ds-field sec-field">
             <label className="ds-label" htmlFor="sec-disable-code">Para desativar, informe um código atual</label>
             {codeInput('sec-disable-code')}

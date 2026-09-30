@@ -42,17 +42,23 @@
   .sec-qr { justify-self: start; padding: 12px; border-radius: var(--ds-radius-lg); background: #fff; box-shadow: inset 0 0 0 1px var(--ds-line); }
   .sec-qr > img { display: block; width: 200px; height: 200px; image-rendering: pixelated; }
   .sec-manual > summary { font-size: var(--ds-text-sm); }
-  .sec-manual .ds-disclosure__body { display: grid; gap: 6px; padding-top: 10px; }
+  .sec-manual .ds-disclosure__body { display: grid; gap: 8px; padding-top: 10px; }
   .sec-secret {
     display: block; padding: 10px 12px; border-radius: var(--ds-radius-md); background: var(--ds-tint);
     font: var(--ds-weight-medium) var(--ds-text-sm)/1.5 var(--ds-font-mono); letter-spacing: 0.06em; color: var(--ds-ink);
     overflow-wrap: anywhere; user-select: all;
   }
   .sec-on { max-width: 720px; }
-  .sec-danger { padding-top: 16px; border-top: 1px solid var(--ds-line); }
-  .sec-danger > summary { font: var(--ds-weight-semibold) var(--ds-text-sm)/1.35 var(--ds-font-sans); color: var(--ds-danger); }
-  .sec-danger__sum { display: inline-flex; align-items: center; gap: 8px; }
-  .sec-danger__body { display: grid; gap: 14px; padding-top: 14px; }
+  /* Manage area: neutral until the destructive button itself. */
+  .sec-manage { padding-top: 16px; border-top: 1px solid var(--ds-line); }
+  .sec-manage > summary { font: var(--ds-weight-semibold) var(--ds-text-sm)/1.35 var(--ds-font-sans); color: var(--ds-ink); }
+  .sec-manage__sum { display: inline-flex; align-items: center; gap: 8px; }
+  .sec-manage__sum > .ds-icon { color: var(--ds-ink-muted); }
+  .sec-manage__body { display: grid; gap: 14px; padding-top: 14px; }
+  .sec-well__title:focus { outline: none; }
+  .sec-well__title:focus-visible { outline: var(--ds-focus-w) solid var(--ds-focus); outline-offset: 4px; border-radius: 4px; }
+  /* "Abrir no app autenticador" only where the app is likely on the same device. */
+  .sec-openapp { display: none; gap: 6px; }
 
   /* ========== Atividades */
   .atv-head { padding-bottom: 24px; }
@@ -80,11 +86,21 @@
   .atv-item__icon[data-status='failed'] { background: var(--ds-danger-soft); color: var(--ds-danger); }
   .atv-item__main { display: grid; gap: 6px; min-width: 0; }
   .atv-item__msg { font: var(--ds-weight-medium) var(--ds-text-sm)/1.5 var(--ds-font-sans); color: var(--ds-ink); overflow-wrap: anywhere; }
+  /* Long messages start at three lines; the whole message becomes the "ver mais" target. */
+  .atv-item__msg[data-clamped] { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .atv-msgbtn {
+    display: grid; gap: 4px; justify-items: start; width: 100%; padding: 0; border: 0; border-radius: var(--ds-radius-sm);
+    background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+  }
+  .atv-msgbtn:focus-visible { outline: var(--ds-focus-w) solid var(--ds-focus); outline-offset: 3px; }
+  .atv-msgbtn__hint { font: var(--ds-weight-semibold) var(--ds-text-xs)/1.3 var(--ds-font-sans); color: var(--ds-accent-text); }
+  .atv-msgbtn:hover .atv-msgbtn__hint { text-decoration: underline; text-underline-offset: 3px; }
   .atv-item__main > .ds-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
   .atv-empty { margin-top: 8px; }
 
   @media (max-width: 1023px) {
     .sec-setup { grid-template-columns: minmax(0, 1fr); }
+    .sec-openapp { display: grid; }
   }
   @media (max-width: 767px) {
     .sec-status { padding: 16px; align-items: flex-start; }
@@ -95,9 +111,10 @@
     .sec-field, .sec-code { max-width: none; }
     .sec-well .ds-btn--primary { width: 100%; }
     .atv-head .ds-pagehead__actions { width: 100%; }
-    .atv-head .ds-pagehead__actions > .ds-btn { flex: 1; }
-    .atv-tools__search { flex-basis: 100%; max-width: none; }
-    .atv-types { flex-wrap: nowrap; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+    .atv-head .ds-pagehead__actions > .ds-btn:not(.ds-btn--icon) { flex: 1; }
+    /* Phone: search grows, "Filtros" sits beside it (the type toolbar moves into a sheet). */
+    .atv-tools { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+    .atv-tools__search { max-width: none; }
     .atv-item { padding: 12px 14px; gap: 12px; }
   }
 }
