@@ -29,13 +29,14 @@ export function moveMenuFocus(event, container) {
   items[next].focus()
 }
 
-function trapTab(event, root) {
+export function trapTab(event, root) {
   const items = focusablesIn(root)
   if (!items.length) { event.preventDefault(); return }
   const first = items[0]
   const last = items[items.length - 1]
-  if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus() }
-  else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus() }
+  const inside = root.contains(document.activeElement)
+  if (event.shiftKey && (document.activeElement === first || !inside)) { event.preventDefault(); last.focus() }
+  else if (!event.shiftKey && (document.activeElement === last || !inside)) { event.preventDefault(); first.focus() }
 }
 
 // Keeps the latest callback without re-running effects that depend on it.
@@ -43,6 +44,26 @@ function useLatest(value) {
   const ref = useRef(value)
   useEffect(() => { ref.current = value })
   return ref
+}
+
+// Open sheets and popovers, innermost last. A date picker inside a dialog, for
+// example: Escape and Tab belong to the top layer only, so one Escape closes one
+// layer instead of the whole stack.
+const openLayers = []
+
+function useLayer(active) {
+  const entry = useRef(null)
+  useEffect(() => {
+    if (!active) return undefined
+    const layer = {}
+    entry.current = layer
+    openLayers.push(layer)
+    return () => {
+      const index = openLayers.indexOf(layer)
+      if (index >= 0) openLayers.splice(index, 1)
+    }
+  }, [active])
+  return useCallback(() => openLayers[openLayers.length - 1] === entry.current, [])
 }
 
 let scrollLocks = 0
@@ -71,6 +92,7 @@ export function Popover({
 }) {
   const panelRef = useRef(null)
   const onCloseRef = useLatest(onClose)
+  const isTopLayer = useLayer(open)
   const { refs, floatingStyles, isPositioned } = useFloating({
     open,
     placement,
@@ -105,10 +127,23 @@ export function Popover({
       onCloseRef.current?.('outside')
     }
     const onKey = event => {
-      if (event.key !== 'Escape') return
-      event.stopPropagation()
-      onCloseRef.current?.('escape')
-      if (returnFocus) anchorRef?.current?.focus?.()
+      if (!isTopLayer()) return
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        onCloseRef.current?.('escape')
+        if (returnFocus) anchorRef?.current?.focus?.()
+        return
+      }
+      // Tab past either end leaves the panel: close it and land back on the trigger,
+      // so focus never wanders behind a dialog while the panel stays open.
+      const panel = panelRef.current
+      if (event.key !== 'Tab' || !panel?.contains(document.activeElement)) return
+      const items = focusablesIn(panel)
+      const edge = event.shiftKey ? items[0] : items[items.length - 1]
+      if (items.length && document.activeElement !== edge) return
+      event.preventDefault()
+      onCloseRef.current?.('tab')
+      anchorRef?.current?.focus?.()
     }
     document.addEventListener('pointerdown', onPointer, true)
     document.addEventListener('keydown', onKey, true)
@@ -116,7 +151,7 @@ export function Popover({
       document.removeEventListener('pointerdown', onPointer, true)
       document.removeEventListener('keydown', onKey, true)
     }
-  }, [open, anchorRef, returnFocus, onCloseRef])
+  }, [open, anchorRef, returnFocus, onCloseRef, isTopLayer])
 
   useEffect(() => {
     if (!open || initialFocus === 'none') return
@@ -206,6 +241,7 @@ export function Sheet({
   const titleId = useId()
   const descId = useId()
   const onCloseRef = useLatest(onClose)
+  const isTopLayer = useLayer(open)
   useScrollLock(open)
 
   useEffect(() => {
@@ -215,6 +251,7 @@ export function Sheet({
     const target = panel?.querySelector('[data-autofocus]') || focusablesIn(panel?.querySelector('.ds-sheet__body'))[0] || focusablesIn(panel)[0]
     target?.focus({ preventScroll: true })
     const onKey = event => {
+      if (!isTopLayer()) return
       if (event.key === 'Escape') {
         event.stopPropagation()
         onCloseRef.current?.()
@@ -227,7 +264,7 @@ export function Sheet({
       document.removeEventListener('keydown', onKey, true)
       if (previous?.isConnected && typeof previous.focus === 'function') previous.focus({ preventScroll: true })
     }
-  }, [open, onCloseRef])
+  }, [open, onCloseRef, isTopLayer])
 
   if (!open || typeof document === 'undefined') return null
   return createPortal(
