@@ -29,9 +29,18 @@
   .rel-skeleton { display: grid; gap: 24px; margin-top: var(--ds-rhythm-block); }
   .rel-skeleton .ds-stat { gap: 12px; }
   .rel-nodata { margin-top: var(--ds-rhythm-block); }
+  .rel-nodata__issues {
+    display: grid; gap: 6px; max-width: 560px; margin: 0 auto; padding: 12px 14px; border-radius: var(--ds-radius-lg);
+    background: var(--ds-warning-soft); font-size: var(--ds-text-sm); line-height: 1.5; color: var(--ds-ink-2); text-align: left;
+  }
+  .rel-nodata__issues strong { font-weight: var(--ds-weight-semibold); color: var(--ds-ink); }
   .rel-content { min-width: 0; transition: opacity var(--ds-dur-base) var(--ds-ease-out); }
   .rel-content[aria-busy='true'] { opacity: 0.72; }
   .rel-pick__inner { padding: 28px 28px 32px; }
+  /* Titles that receive focus after choosing a network or a profile report. */
+  .rel-net, .rel-pick { scroll-margin-top: calc(var(--ds-top-h) + 16px); }
+  .rel-focustitle:focus { outline: none; }
+  .rel-focustitle:focus-visible { outline: var(--ds-focus-w) solid var(--ds-focus); outline-offset: 4px; border-radius: 4px; }
 
   /* --- shared parts */
   .rel-subhead { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px 16px; margin-bottom: 14px; }
@@ -124,8 +133,7 @@
   .rel-verify__net { display: grid; align-content: start; gap: 6px; padding: 14px 16px; border-radius: var(--ds-radius-lg); background: var(--ds-surface); box-shadow: inset 0 0 0 1px var(--ds-line); }
   .rel-verify__netname { display: inline-flex; align-items: center; gap: 8px; font: var(--ds-weight-semibold) var(--ds-text-sm)/1.3 var(--ds-font-sans); color: var(--ds-ink); }
 
-  /* --- e-mail reports (drawer) */
-  .rel-drawer { width: min(480px, 100%); }
+  /* --- e-mail reports (sheet) */
   .rel-mail { display: grid; gap: 20px; }
   .rel-mail__lede { font-size: var(--ds-text-base); line-height: 1.55; color: var(--ds-ink-2); }
   .rel-mail__scope { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 10px; background: var(--ds-tint); }
@@ -196,7 +204,6 @@
   .rel-report__more > :not(summary) { padding-bottom: 16px; font-size: var(--ds-text-sm); color: var(--ds-ink-2); }
   .rel-report__more[data-tone='warning'] > summary { color: var(--ds-warning); }
   .rel-report__tablewrap { display: grid; gap: 10px; min-width: 0; }
-  .rel-report__tablewrap .ds-scrollx { max-height: 420px; overflow-y: auto; }
   .rel-report__group { display: grid; gap: 10px; }
   .rel-report__growthline { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: var(--ds-text-sm); color: var(--ds-ink-2); }
   .rel-report__buckets { display: grid; gap: 6px; }
@@ -208,7 +215,7 @@
   .rel-report__democathead strong { display: block; font: var(--ds-weight-semibold) var(--ds-text-sm)/1.3 var(--ds-font-sans); color: var(--ds-ink); }
   .rel-report__democathead small { font-size: var(--ds-text-xs); color: var(--ds-ink-muted); }
   .rel-report__democaticon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--ds-tint); color: var(--ds-ink-2); }
-  .rel-report__demolist { display: grid; max-height: 240px; overflow-y: auto; }
+  .rel-report__demolist { display: grid; }
   .rel-report__demolist > span { display: flex; justify-content: space-between; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--ds-line); font-size: var(--ds-text-sm); }
   .rel-report__demolist b { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--ds-weight-medium); color: var(--ds-ink-2); }
   .rel-report__demolist em { flex: none; font-style: normal; font-variant-numeric: tabular-nums; color: var(--ds-ink); white-space: nowrap; }
@@ -229,7 +236,12 @@
   }
   @media (max-width: 767px) {
     .rel-filters { padding: 14px; }
-    .rel-nets__list { flex-wrap: nowrap; }
+    /* Networks as 44px logos (name stays for screen readers) plus a short "Todas": fits 320px. */
+    .rel-nets__list { gap: 4px; }
+    .rel-nets__more, .rel-nets__all .ds-glyph { display: none; }
+    .rel-nets__all { padding: 0 12px; }
+    .rel-nets__net { width: 44px; padding: 0; justify-content: center; }
+    .rel-nets__name { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
     .rel-filters__status { margin-left: 0; }
     .rel-snapshot__note { margin-left: 0; flex-basis: 100%; }
     .rel-period { gap: 10px; }
@@ -244,6 +256,12 @@
     .rel-report { padding: 16px; }
     .rel-profile__metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .rel-profile__metrics dd { font-size: var(--ds-text-md); }
-    .rel-head .ds-pagehead__actions .ds-btn { flex: 1 1 auto; }
+    .rel-head .ds-pagehead__actions { flex-wrap: nowrap; width: 100%; }
+    .rel-head .ds-pagehead__actions .ds-btn:not(.ds-btn--icon) { flex: 1 1 auto; }
+    /* Executive comparison as one block per network: name, then the figures in three columns. */
+    .rel-exec__compare .ds-scrollx { overflow: visible; }
+    .rel-exec__table.ds-datatable--stack tr { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; }
+    .rel-exec__table.ds-datatable--stack th[scope='row'] { grid-column: 1 / -1; height: auto; padding: 0; border: 0; }
+    .rel-exec__table.ds-datatable--stack .rel-exec__go { grid-column: 1 / -1; justify-items: start; text-align: left; }
   }
 }

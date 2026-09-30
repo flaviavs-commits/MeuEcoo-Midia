@@ -43,6 +43,6 @@ describe('AnalyticsAccountProfiles', () => {
 
     expect(metricOf('Interações')).toBe('100')
     expect(metricOf('Alcance / views')).toBe('80')
-    expect(screen.getByRole('button', { name: 'Ver relatório de Ecoo Mídia' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Ver relatório de Ecoo Mídia' })).toHaveAccessibleDescription('Instagram: @ecoomidia')
   })
 })

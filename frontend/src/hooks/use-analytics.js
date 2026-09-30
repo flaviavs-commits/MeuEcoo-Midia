@@ -145,6 +145,14 @@ export function useAnalytics({ comparePeriod = false } = {}) {
 
   const networks = detectNetworks({ ...data, tiktokVideos, accounts })
 
+  // "Atualizar" e "Tentar novamente" refazem as duas consultas: sem a lista de
+  // contas a página não sabe quais redes existem, e a falha dela não se
+  // resolveria recarregando só as métricas.
+  function reload() {
+    loadAccounts()
+    return loadAnalytics()
+  }
+
   function selectNetwork(net) {
     setActiveNet(net)
     setActiveTab('community')
@@ -153,6 +161,6 @@ export function useAnalytics({ comparePeriod = false } = {}) {
   return {
     data, accounts, tiktokVideos, networks, activeNet, activeTab, periodDays,
     loading, error, sourceErrors, lastUpdated,
-    setActiveTab, setPeriodDays, selectNetwork, reload: loadAnalytics,
+    setActiveTab, setPeriodDays, selectNetwork, reload,
   }
 }

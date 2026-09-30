@@ -1,6 +1,6 @@
 import { Bar, Line } from 'react-chartjs-2'
 import { Icon } from '../ui/icon.jsx'
-import { baseChartOptions, fmtNum, formatDataBR, formatDataDelay, formatDiaBR, labelForMetric, vizColors } from '../../lib/analytics-format.js'
+import { baseChartOptions, fmtNum, formatDataBR, formatDataDelay, formatDiaBR, labelForMetric, vizColors, chartLabel } from '../../lib/analytics-format.js'
 import { useTheme } from '../ui/theme-selector.jsx'
 
 function numberValue(value) {
@@ -190,20 +190,22 @@ function InsightSeries({ accounts }) {
   const names = [...new Set(chartEntries.flatMap(([, values]) => Object.keys(values)))].slice(0, 4)
   const viz = vizColors()
   const seriesColors = [viz.primary, viz.tertiary, viz.secondary, viz.quiet]
+  const seriesData = {
+    labels: chartEntries.map(([date]) => formatDiaBR(date)),
+    datasets: names.map((name, index) => ({
+      label: labelForMetric(name),
+      data: chartEntries.map(([, values]) => values[name] ?? null),
+      borderColor: seriesColors[index % seriesColors.length],
+      backgroundColor: 'transparent',
+      tension: 0.3,
+      pointRadius: 2
+    }))
+  }
   return <div className="rel-report__chart">
     <div className="rel-report__charthead"><h4 className="rel-report__title">Evolução das principais métricas</h4><span>{entries.length > chartEntries.length ? `Visão compacta · ${pointCountLabel(chartEntries.length)}` : pointCountLabel(entries.length)}</span></div>
     <Line
-      data={{
-        labels: chartEntries.map(([date]) => formatDiaBR(date)),
-        datasets: names.map((name, index) => ({
-          label: labelForMetric(name),
-          data: chartEntries.map(([, values]) => values[name] ?? null),
-          borderColor: seriesColors[index % seriesColors.length],
-          backgroundColor: 'transparent',
-          tension: 0.3,
-          pointRadius: 2
-        }))
-      }}
+      data={seriesData}
+      aria-label={chartLabel('Evolução das principais métricas', seriesData)}
       options={{ ...baseChartOptions(), scales: { ...baseChartOptions().scales, x: { ...baseChartOptions().scales.x, ticks: { ...baseChartOptions().scales.x.ticks, maxTicksLimit: 8, maxRotation: 0 } } } }}
     />
   </div>
@@ -352,15 +354,17 @@ function ReportCoverage({ accounts }) {
 function InsightBreakdowns({ accounts }) {
   const entries = collectBreakdowns(accounts)
   if (!entries.length) return null
+  const breakdownData = {
+    labels: entries.slice(0, 20).map(([label]) => label),
+    datasets: [{ label: 'Valor', data: entries.slice(0, 20).map(([, value]) => value), backgroundColor: vizColors().secondary, borderRadius: 4 }]
+  }
   return <details className="ds-disclosure rel-report__more">
     <summary>Ver detalhes por dimensão <span>{entries.length} dimensões</span><Icon name="chevronDown" className="ds-disclosure__chev" /></summary>
     <div className="rel-report__chart">
       <div className="rel-report__charthead"><h4 className="rel-report__title">Detalhes por dimensão</h4><span>Top 20</span></div>
       <Bar
-        data={{
-            labels: entries.slice(0, 20).map(([label]) => label),
-            datasets: [{ label: 'Valor', data: entries.slice(0, 20).map(([, value]) => value), backgroundColor: vizColors().secondary, borderRadius: 4 }]
-        }}
+        data={breakdownData}
+        aria-label={chartLabel('Detalhes por dimensão', breakdownData)}
  options={{ ...baseChartOptions(), indexAxis: 'y', plugins: { ...baseChartOptions().plugins, legend: { display: false } }, scales: { ...baseChartOptions().scales, x: { ...baseChartOptions().scales.x, ticks: { ...baseChartOptions().scales.x.ticks, maxTicksLimit: 6 } }, y: { ...baseChartOptions().scales.y, ticks: { ...baseChartOptions().scales.y.ticks, autoSkip: false, font: { size: 10 } } } } }}
       />
     </div>
@@ -384,10 +388,10 @@ export function AnalyticsAccountInsights({ net, data, accountId = null }) {
 
   const reportName = accounts.length === 1 ? accounts[0].accountName || accounts[0].username || accounts[0].accountId : `${accounts.length} contas`
 
-  return <section id="analytics-account-report" className="rel-report">
-        <div className="rel-subhead rel-report__head">
+  return <section id="analytics-account-report" className="rel-report" aria-labelledby="analytics-account-report-title">
+    <div className="rel-subhead rel-report__head">
       <div>
-        <h3 className="rel-subhead__title">Relatório completo do perfil</h3>
+        <h3 className="rel-subhead__title rel-focustitle" id="analytics-account-report-title" tabIndex={-1}>Relatório completo do perfil</h3>
         <div className="ds-hint">{reportName || `${accounts.length} conta(s)`} · métricas específicas retornadas pela integração conectada.</div>
       </div>
       <span className="ds-badge" data-tone="outline">{accountId ? 'Perfil selecionado' : 'Todas as contas'}</span>

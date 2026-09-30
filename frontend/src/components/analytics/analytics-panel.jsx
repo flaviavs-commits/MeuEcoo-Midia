@@ -42,7 +42,7 @@ export function AnalyticsPanel({ net, tab, onSelectTab, data, tiktokVideos, peri
           <span className="ds-icontile" aria-hidden="true"><NetworkGlyph network={net} size={22} /></span>
           <div>
             <p className="ds-eyebrow">Relatório da rede</p>
-            <h2 className="ds-head__title" id="rel-net-title">{PLAT_LABELS[net]}</h2>
+            <h2 className="ds-head__title rel-focustitle" id="rel-net-title" tabIndex={-1}>{PLAT_LABELS[net]}</h2>
           </div>
         </div>
         {lastUpdated && <span className="ds-meta">Atualizado às {lastUpdated.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}</span>}
@@ -74,7 +74,7 @@ export function AnalyticsPanel({ net, tab, onSelectTab, data, tiktokVideos, peri
             <h3 className="rel-chart__title" id="analytics-network-chart-title">{chartTitle}</h3>
             <p className="ds-hint">{chartDescription}</p>
           </div>
-          <AnalyticsChart net={net} tab={selectedTab} data={data} tiktokVideos={tiktokVideos} periodDays={periodDays} />
+          <AnalyticsChart net={net} tab={selectedTab} data={data} tiktokVideos={tiktokVideos} periodDays={periodDays} title={`${chartTitle} — ${PLAT_LABELS[net]}`} />
         </section>
 
         <AnalyticsDemographics net={net} tab={selectedTab} data={data} />

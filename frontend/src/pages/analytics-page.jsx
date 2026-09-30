@@ -1,5 +1,5 @@
 import '../lib/chart-setup.js'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAnalytics } from '../hooks/use-analytics.js'
 import { AnalyticsPeriodControl, AnalyticsSummary } from '../components/analytics/analytics-summary.jsx'
 import { AnalyticsSidebar } from '../components/analytics/analytics-sidebar.jsx'
@@ -12,6 +12,9 @@ import { buildPerformanceReport, performanceReportActions, performanceReportConc
 import { ReportSchedulePanel } from '../components/analytics/report-schedule-panel.jsx'
 import { AnalyticsDataVerification } from '../components/analytics/analytics-data-verification.jsx'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
+import { Sheet } from '../components/ui/floating.jsx'
+import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
+import { useIsPhone } from '../lib/breakpoints.js'
 
 function csvValue(value) {
   return `"${String(value ?? '').replaceAll('"', '""')}"`
@@ -72,7 +75,8 @@ export function AnalyticsPage({ onNavigate } = {}) {
   const [reportAccountId, setReportAccountId] = useState(null)
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [hasLoaded, setHasLoaded] = useState(false)
-  const scheduleCloseRef = useRef(null)
+  const [revealId, setRevealId] = useState(null)
+  const phone = useIsPhone()
   const {
     data, accounts, tiktokVideos, networks, activeNet, activeTab, periodDays,
     loading, error, sourceErrors, lastUpdated, setActiveTab, setPeriodDays, selectNetwork, reload,
@@ -84,17 +88,27 @@ export function AnalyticsPage({ onNavigate } = {}) {
   const firstLoad = loading && !hasLoaded
 
   useEffect(() => { if (!loading) setHasLoaded(true) }, [loading])
+  // O botão usado para escolher a rede some com a troca (a lista vira o painel
+  // da rede, que fica mais acima): rola até o que apareceu e leva o foco ao
+  // título, para o teclado e o leitor de tela não ficarem no vazio.
   useEffect(() => {
-    if (!scheduleOpen) return undefined
-    scheduleCloseRef.current?.focus()
-    const onKey = event => { if (event.key === 'Escape') setScheduleOpen(false) }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  }, [scheduleOpen])
+    if (!revealId) return
+    setRevealId(null)
+    const title = document.getElementById(revealId) || document.getElementById('rel-net-title')
+    if (!title) return
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+    title.closest('section')?.scrollIntoView?.({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'start' })
+    title.focus({ preventScroll: true })
+  }, [revealId])
 
   function chooseNetwork(net) {
     setReportAccountId(null)
     selectNetwork(net)
+  }
+
+  function revealNetwork(net) {
+    chooseNetwork(net)
+    setRevealId(net === 'all' ? 'analytics-all-network-title' : 'rel-net-title')
   }
 
   function selectPeriod(days) {
@@ -128,7 +142,7 @@ export function AnalyticsPage({ onNavigate } = {}) {
   function openAccountReport(platform, accountId) {
     setReportAccountId(accountId)
     selectNetwork(platform)
-    window.setTimeout(() => document.getElementById('analytics-account-report')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80)
+    setRevealId('analytics-account-report-title')
   }
 
   function exportReport() {
@@ -185,9 +199,9 @@ export function AnalyticsPage({ onNavigate } = {}) {
   const networkSection = activeNet === 'all'
     ? <section className="ds-block rel-pick" aria-labelledby="analytics-all-network-title">
         <div className="ds-empty rel-pick__inner">
-          <h2 className="ds-empty__title ds-empty__title--sm" id="analytics-all-network-title">Escolha uma rede para ver o relatório detalhado</h2>
+          <h2 className="ds-empty__title ds-empty__title--sm rel-focustitle" id="analytics-all-network-title" tabIndex={-1}>Escolha uma rede para ver o relatório detalhado</h2>
           <p className="ds-empty__text">Gráficos, publicações e crescimento aparecem para uma rede por vez.</p>
-          <div className="ds-empty__actions">{networks.map(net => <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" key={net} onClick={() => chooseNetwork(net)}><NetworkGlyph network={net} size={16} />{PLAT_LABELS[net] || net}</button>)}</div>
+          <div className="ds-empty__actions">{networks.map(net => <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" key={net} onClick={() => revealNetwork(net)}><NetworkGlyph network={net} size={16} />{PLAT_LABELS[net] || net}</button>)}</div>
         </div>
       </section>
     : networks.includes(activeNet)
@@ -206,7 +220,7 @@ export function AnalyticsPage({ onNavigate } = {}) {
             <h2 className="ds-empty__title ds-empty__title--sm" id="analytics-no-network-title">Nenhuma rede conectada</h2>
             <p className="ds-empty__text">{PLAT_LABELS[activeNet] || 'Esta rede'} ainda não tem conta conectada. Conecte uma conta para liberar o relatório desta rede.</p>
             <div className="ds-empty__actions">
-              <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => chooseNetwork('all')}>Ver todas as redes</button>
+              <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm" onClick={() => revealNetwork('all')}>Ver todas as redes</button>
               {onNavigate && <button type="button" className="ds-go" onClick={() => onNavigate('integracoes')}>Conectar conta<Icon name="arrow" /></button>}
             </div>
           </div>
@@ -221,8 +235,15 @@ export function AnalyticsPage({ onNavigate } = {}) {
       </div>
       <div className="ds-pagehead__actions">
         <button type="button" className="ds-btn ds-btn--secondary" onClick={() => setScheduleOpen(true)}><Icon name="mail" />Relatórios por e-mail</button>
-        <button type="button" className="ds-btn ds-btn--secondary" onClick={exportReport} disabled={exportDisabled}><Icon name="download" />Exportar CSV</button>
-        <button type="button" className="ds-btn ds-btn--secondary" onClick={printReport} disabled={exportDisabled}><Icon name="printer" />Imprimir / PDF</button>
+        {phone
+          ? <OverflowMenu label="Exportar relatório" sheetTitle="Exportar relatório" icon="download" size="md" items={[
+              { label: 'Exportar CSV', icon: 'download', onSelect: exportReport, disabled: exportDisabled },
+              { label: 'Imprimir / PDF', icon: 'printer', onSelect: printReport, disabled: exportDisabled },
+            ]} />
+          : <>
+              <button type="button" className="ds-btn ds-btn--secondary" onClick={exportReport} disabled={exportDisabled}><Icon name="download" />Exportar CSV</button>
+              <button type="button" className="ds-btn ds-btn--secondary" onClick={printReport} disabled={exportDisabled}><Icon name="printer" />Imprimir / PDF</button>
+            </>}
       </div>
     </header>
 
@@ -244,7 +265,7 @@ export function AnalyticsPage({ onNavigate } = {}) {
         <span><strong>{firstLoad ? '—' : selectedContentRows.length}</strong> {selectedContentRows.length === 1 ? 'conteúdo' : 'conteúdos'}</span>
         <span><strong>{firstLoad ? '—' : fmtNum(selectedViews)}</strong> visualizações</span>
         <span><strong>{firstLoad ? '—' : fmtNum(selectedEngagement)}</strong> interações</span>
-        <span className="ds-meta rel-snapshot__note">Base do CSV e do PDF · suas escolhas ficam salvas neste dispositivo</span>
+        <span className="ds-meta rel-snapshot__note">Base do CSV e do PDF · rede e período ficam salvos neste dispositivo</span>
       </div>
     </section>
 
@@ -260,6 +281,14 @@ export function AnalyticsPage({ onNavigate } = {}) {
           <span className="ds-skel ds-skel--block" />
           <span className="ds-skel ds-skel--block" />
         </div>
+      : !networks.length && (error || sourceErrors.length > 0)
+        ? <div className="ds-empty ds-empty--center rel-nodata">
+            <span className="ds-icontile ds-icontile--lg" aria-hidden="true"><Icon name="alertTriangle" /></span>
+            <h2 className="ds-empty__title" id="analytics-empty-title">Não foi possível conferir suas redes agora</h2>
+            <p className="ds-empty__text">Sem essa conferência o relatório não mostra números, para não exibir dados incompletos.</p>
+            {sourceErrors.length > 0 && <ul className="rel-nodata__issues">{sourceErrors.map(issue => <li key={issue.source}><strong>{issue.source}:</strong> {issue.message}</li>)}</ul>}
+            {!error && <div className="ds-empty__actions"><button type="button" className="ds-btn ds-btn--secondary" onClick={() => reload()} disabled={loading}><Icon name="refresh" />Tentar novamente</button></div>}
+          </div>
       : !networks.length
         ? <div className="ds-empty ds-empty--center rel-nodata">
             <span className="ds-icontile ds-icontile--lg" aria-hidden="true"><Icon name="chart" /></span>
@@ -279,23 +308,14 @@ export function AnalyticsPage({ onNavigate } = {}) {
               showPeriodControl={false}
             />
             {selectedPlatform && networkSection}
-            <AnalyticsExecutiveOverview data={data} tiktokVideos={tiktokVideos} periodDays={periodDays} activeNet={selectedPlatform} recommendedActions={performanceReportActions(performanceReport)} onSelectNetwork={chooseNetwork} />
+            <AnalyticsExecutiveOverview data={data} tiktokVideos={tiktokVideos} periodDays={periodDays} activeNet={selectedPlatform} recommendedActions={performanceReportActions(performanceReport)} onSelectNetwork={revealNetwork} />
             {accounts.length > 0 && <AnalyticsAccountProfiles accounts={accounts} data={data} tiktokVideos={tiktokVideos} periodDays={periodDays} activeNet={selectedPlatform} onSelectNetwork={openAccountReport} />}
             <AnalyticsDataVerification verification={data.verification} activeNet={selectedPlatform} sourceErrors={sourceErrors} tiktokVideos={tiktokVideos} periodDays={periodDays} />
             {!selectedPlatform && networkSection}
           </div>}
 
-    {scheduleOpen && <div className="ds-scrim ds-scrim--drawer" role="presentation" onMouseDown={event => { if (event.target === event.currentTarget) setScheduleOpen(false) }}>
-      <section className="ds-drawer rel-drawer" role="dialog" aria-modal="true" aria-labelledby="rel-mail-title">
-        <header className="ds-drawer__head">
-          <div className="ds-modal__heading">
-            <p className="ds-eyebrow">Automação</p>
-            <h2 className="ds-modal__title" id="rel-mail-title">Relatórios por e-mail</h2>
-          </div>
-          <button ref={scheduleCloseRef} type="button" className="ds-btn ds-btn--quiet ds-btn--icon" onClick={() => setScheduleOpen(false)} aria-label="Fechar"><Icon name="close" /></button>
-        </header>
-        <div className="ds-drawer__body"><ReportSchedulePanel /></div>
-      </section>
-    </div>}
+    <Sheet open={scheduleOpen} onClose={() => setScheduleOpen(false)} eyebrow="Automação" title="Relatórios por e-mail" closeLabel="Fechar relatórios por e-mail" className="rel-mailsheet">
+      <ReportSchedulePanel />
+    </Sheet>
   </div>
 }

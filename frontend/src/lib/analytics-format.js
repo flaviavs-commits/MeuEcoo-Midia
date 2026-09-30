@@ -321,3 +321,27 @@ export function baseChartOptions() {
     },
   }
 }
+
+// Texto do gráfico para leitores de tela: o canvas do Chart.js é role="img" e,
+// sem nome, não diz nada. Até 8 pontos lista cada valor; acima disso resume
+// início, fim e o pico de cada série.
+export function chartLabel(title, { labels = [], datasets = [] } = {}) {
+  const series = datasets.map((dataset, index) => {
+    const points = labels
+      .map((label, position) => [label, dataset.data?.[position]])
+      .filter(([, value]) => value != null && value !== '' && Number.isFinite(Number(value)))
+    const name = dataset.label || (datasets.length > 1 ? `Série ${index + 1}` : '')
+    if (!points.length) return name ? `${name}: sem dados` : 'Sem dados'
+    let text
+    if (points.length <= 8) {
+      text = points.map(([label, value]) => `${label} ${fmtNum(value)}`).join(', ')
+    } else {
+      const [firstLabel, firstValue] = points[0]
+      const [lastLabel, lastValue] = points.at(-1)
+      const [peakLabel, peakValue] = points.reduce((best, point) => Number(point[1]) > Number(best[1]) ? point : best)
+      text = `${points.length} pontos, de ${fmtNum(firstValue)} em ${firstLabel} a ${fmtNum(lastValue)} em ${lastLabel}; máximo de ${fmtNum(peakValue)} em ${peakLabel}`
+    }
+    return name ? `${name}: ${text}` : text
+  })
+  return [title, ...series].join('. ')
+}

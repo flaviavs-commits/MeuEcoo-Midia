@@ -8,6 +8,7 @@ export function ReportSchedulePanel() {
   const [loadError, setLoadError] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [removingId, setRemovingId] = useState(null)
   const [form, setForm] = useState({ name: 'Relatório mensal', email: '', frequency: 'monthly' })
   const notify = useToast()
   const load = useCallback(() => apiFetch('/api/report-schedules')
@@ -43,13 +44,17 @@ export function ReportSchedulePanel() {
   }
 
   async function remove(schedule) {
+    if (removingId) return
     if (!window.confirm(`Remover o agendamento “${schedule.name}”?\n\nOs próximos envios deste relatório serão cancelados.`)) return
+    setRemovingId(schedule.id)
     try {
       await apiFetch(`/api/report-schedules/${schedule.id}`, { method: 'DELETE' })
       setSchedules(current => current.filter(item => item.id !== schedule.id))
       notify('Agendamento removido.')
     } catch (error) {
       notify(error.message, 'error')
+    } finally {
+      setRemovingId(null)
     }
   }
 
@@ -96,7 +101,7 @@ export function ReportSchedulePanel() {
                 {schedule.lastSentAt && <span>último envio {new Date(schedule.lastSentAt).toLocaleDateString('pt-BR')}</span>}
               </p>
             </div>
-            <div className="ds-list-item__trail"><button type="button" className="ds-btn ds-btn--danger ds-btn--sm" onClick={() => remove(schedule)} aria-label={`Remover ${schedule.name}`}><Icon name="trash" size={16} />Remover</button></div>
+            <div className="ds-list-item__trail"><button type="button" className="ds-btn ds-btn--danger ds-btn--sm" onClick={() => remove(schedule)} disabled={removingId === schedule.id} aria-label={`Remover ${schedule.name}`}><Icon name="trash" size={16} />Remover</button></div>
           </li>)}</ul>
           : loaded && <p className="ds-hint">Nenhum agendamento ainda.</p>}
     </div>

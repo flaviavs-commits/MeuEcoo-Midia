@@ -9,12 +9,12 @@ export function AnalyticsSidebar({ networks, activeNet, onSelect }) {
       <div className="ds-netswitch rel-nets__list">
         <button
           type="button"
-          className="ds-netswitch__opt"
+          className="ds-netswitch__opt rel-nets__all"
           aria-pressed={activeNet === 'all'}
           aria-label="Todas as redes"
           onClick={() => onSelect('all')}
         >
-          <NetworkGlyph network="all" size={16} />Todas as redes
+          <NetworkGlyph network="all" size={16} /><span>Todas<span className="rel-nets__more"> as redes</span></span>
         </button>
         {NETWORK_ORDER.map(net => {
           const available = availableNetworks.has(net)
@@ -23,13 +23,13 @@ export function AnalyticsSidebar({ networks, activeNet, onSelect }) {
               key={net}
               type="button"
               disabled={!available}
-              className="ds-netswitch__opt"
+              className="ds-netswitch__opt rel-nets__net"
               aria-pressed={net === activeNet}
               aria-label={`${PLAT_LABELS[net]}${available ? '' : ' — sem conexão'}`}
               onClick={() => available && onSelect(net)}
             >
-              <NetworkGlyph network={net} size={16} />{PLAT_LABELS[net]}
-              {!available && <span className="ds-netswitch__status">Sem conexão</span>}
+              <NetworkGlyph network={net} size={16} /><span className="rel-nets__name">{PLAT_LABELS[net]}</span>
+              {!available && <span className="ds-netswitch__status rel-nets__name">Sem conexão</span>}
             </button>
           )
         })}

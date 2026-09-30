@@ -1,5 +1,5 @@
 import { Bar, Doughnut } from 'react-chartjs-2'
-import { topN, baseChartOptions, chartThemeColors, DEMO_COLORS, GENDER_COLORS, fmtNum, vizColors, PLAT_LABELS } from '../../lib/analytics-format.js'
+import { topN, baseChartOptions, chartThemeColors, DEMO_COLORS, GENDER_COLORS, fmtNum, vizColors, PLAT_LABELS, chartLabel } from '../../lib/analytics-format.js'
 import { useTheme } from '../ui/theme-selector.jsx'
 
 const AGE_ORDER = ['13-17', '18-24', '25-34', '35-44', '45-54', '55-64', '65+']
@@ -141,6 +141,14 @@ export function AnalyticsDemographics({ net, tab, data }) {
   const ageSummary = summarize(ageRows, 'age', ageLabel)
   const geoTop = topN(rows.country.map(item => ({ label: item.country, value: item.value })), 8)
   const primary = vizColors().primary
+  const ageData = {
+    labels: faixas.map(ageLabel),
+    datasets: ageGenderRows.length
+      ? generos.map(gender => ({ label: gender, data: faixas.map(age => ageGenderRows.filter(item => ageKey(item.age) === age && genderLabel(item.gender) === gender).reduce((total, item) => total + Number(item.value), 0)), backgroundColor: GENDER_COLORS[gender] || primary, borderRadius: 4 }))
+      : [{ label: 'Audiência', data: faixas.map(age => ageRows.filter(item => ageKey(item.age) === age).reduce((total, item) => total + Number(item.value), 0)), backgroundColor: primary, borderRadius: 4 }],
+  }
+  const geoTitle = net === 'instagram' ? 'Seguidores por país' : 'Espectadores por país'
+  const geoData = { labels: geoTop.map(item => item.label), datasets: [{ data: geoTop.map(item => item.value), backgroundColor: DEMO_COLORS }] }
 
   return <section className="rel-demo" aria-label="Perfil da audiência">
     <div className="rel-subhead">
@@ -162,18 +170,18 @@ export function AnalyticsDemographics({ net, tab, data }) {
         </figcaption>
         <div className="rel-canvas">
           {ageRows.length
-            ? <Bar data={{ labels: faixas.map(ageLabel), datasets: ageGenderRows.length ? generos.map(gender => ({ label: gender, data: faixas.map(age => ageGenderRows.filter(item => ageKey(item.age) === age && genderLabel(item.gender) === gender).reduce((total, item) => total + Number(item.value), 0)), backgroundColor: GENDER_COLORS[gender] || primary, borderRadius: 4 })) : [{ label: 'Audiência', data: faixas.map(age => ageRows.filter(item => ageKey(item.age) === age).reduce((total, item) => total + Number(item.value), 0)), backgroundColor: primary, borderRadius: 4 }] }} options={baseChartOptions()}/>
+            ? <Bar data={ageData} options={baseChartOptions()} aria-label={chartLabel(ageGenderTitle, ageData)}/>
             : <p className="rel-empty">Sem dados disponíveis.</p>}
         </div>
       </figure>
       <figure className="rel-chart">
         <figcaption className="rel-chart__head">
-          <h4 className="rel-chart__title">{net === 'instagram' ? 'Seguidores por país' : 'Espectadores por país'}</h4>
+          <h4 className="rel-chart__title">{geoTitle}</h4>
           <p className="ds-hint">Veja de onde vêm as pessoas da audiência informada pela rede.</p>
         </figcaption>
         <div className="rel-canvas">
           {geoTop.length
-            ? <Doughnut data={{ labels: geoTop.map(item => item.label), datasets: [{ data: geoTop.map(item => item.value), backgroundColor: DEMO_COLORS }] }} options={{ responsive: true, maintainAspectRatio: false, color: chartColors.tick, plugins: { legend: { position: 'right', labels: { color: chartColors.tick, boxWidth: 12, font: { size: 11 } } }, tooltip: { backgroundColor: chartColors.tooltipBackground, titleColor: chartColors.tooltipText, bodyColor: chartColors.tooltipText, borderColor: chartColors.tooltipBorder, borderWidth: 1 } } }}/>
+            ? <Doughnut data={geoData} aria-label={chartLabel(geoTitle, geoData)} options={{ responsive: true, maintainAspectRatio: false, color: chartColors.tick, plugins: { legend: { position: 'right', labels: { color: chartColors.tick, boxWidth: 12, font: { size: 11 } } }, tooltip: { backgroundColor: chartColors.tooltipBackground, titleColor: chartColors.tooltipText, bodyColor: chartColors.tooltipText, borderColor: chartColors.tooltipBorder, borderWidth: 1 } } }}/>
             : <p className="rel-empty">Sem dados disponíveis.</p>}
         </div>
       </figure>

@@ -1,4 +1,4 @@
-import { detectNetworks, filterTikTokVideosByPeriod, fmtNum, formatDataBR, formatDataDelay, labelForMetric } from '../../src/lib/analytics-format.js'
+import { chartLabel, detectNetworks, filterTikTokVideosByPeriod, fmtNum, formatDataBR, formatDataDelay, labelForMetric } from '../../src/lib/analytics-format.js'
 
 describe('analytics formatting helpers', () => {
   it('uses labels that explain common provider metrics', () => {
@@ -23,6 +23,14 @@ describe('analytics formatting helpers', () => {
     expect(fmtNum(2.666666666666665)).toBe('2.6')
     expect(fmtNum(28)).toBe('28')
     expect(fmtNum(2666.6666666666665)).toBe('2.6k')
+  })
+
+  it('names a chart with its values, or a summary when there are many points', () => {
+    expect(chartLabel('Seguidores', { labels: ['01/09', '02/09', '03/09'], datasets: [{ label: 'Seguidores', data: [1200, null, 1500] }] }))
+      .toBe('Seguidores. Seguidores: 01/09 1.2k, 03/09 1.5k')
+    const labels = Array.from({ length: 10 }, (_, index) => `${index + 1}/09`)
+    expect(chartLabel('Views', { labels, datasets: [{ label: 'Views', data: [5, 9, 30, 7, 6, 5, 4, 3, 2, 8] }, { label: 'Curtidas', data: [] }] }))
+      .toBe('Views. Views: 10 pontos, de 5 em 1/09 a 8 em 10/09; máximo de 30 em 3/09. Curtidas: sem dados')
   })
 
   it('translates profile metrics and formats report dates in Brazilian Portuguese', () => {

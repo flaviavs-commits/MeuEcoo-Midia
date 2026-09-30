@@ -2,7 +2,7 @@ import { Line, Bar } from 'react-chartjs-2'
 import { EngagementTypeBar } from './engagement-type-bar.jsx'
 import {
   filterByPeriod, filterByPeriodOffset, filterTikTokVideosByPeriod, filterTikTokVideosByPeriodOffset, tiktokVideoToMetric, latestOf, fmtNum, formatDiaBR, baseChartOptions, PLAT_LABELS, PLAT_COLORS, NETWORK_ORDER, ANALYTICS_PERIODS,
-  accountAnalyticsPlatformTotals, vizColors,
+  accountAnalyticsPlatformTotals, vizColors, chartLabel,
 } from '../../lib/analytics-format.js'
 import { Icon, NetworkGlyph } from '../ui/icon.jsx'
 import { useTheme } from '../ui/theme-selector.jsx'
@@ -190,6 +190,17 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays, activeNet = n
     { label: 'Taxa de interação', value: engagementRate == null ? '—' : `${engagementRate.toFixed(1)}%`, current: engagementRate, previous: previousEngagementRate },
   ]
   const colors = vizColors()
+  const trendData = {
+    labels: trend.map(t => formatDiaBR(t.dia)),
+    datasets: [
+      { label: 'Visualizações', data: trend.map(t => t.reach), borderColor: colors.primary, backgroundColor: withAlpha(colors.primary, 0.12), fill: true, tension: 0.35, pointRadius: 3 },
+      { label: 'Interações', data: trend.map(t => t.engagement), borderColor: colors.tertiary, backgroundColor: withAlpha(colors.tertiary, 0.08), fill: true, tension: 0.35, pointRadius: 3 },
+    ],
+  }
+  const countsData = {
+    labels: platformCounts.map(([p]) => PLAT_LABELS[p] || p),
+    datasets: [{ data: platformCounts.map(([, count]) => count), backgroundColor: colors.primary, borderRadius: 6, maxBarThickness: 48 }],
+  }
 
   return <>
     <section className="ds-block rel-glance" aria-labelledby="analytics-overview-title">
@@ -245,14 +256,9 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays, activeNet = n
           <div className="rel-canvas">
             {trend.length
               ? <Line
-                  data={{
-                    labels: trend.map(t => formatDiaBR(t.dia)),
-                    datasets: [
-                      { label: 'Visualizações', data: trend.map(t => t.reach), borderColor: colors.primary, backgroundColor: withAlpha(colors.primary, 0.12), fill: true, tension: 0.35, pointRadius: 3 },
-                      { label: 'Interações', data: trend.map(t => t.engagement), borderColor: colors.tertiary, backgroundColor: withAlpha(colors.tertiary, 0.08), fill: true, tension: 0.35, pointRadius: 3 },
-                    ],
-                  }}
+                  data={trendData}
                   options={baseChartOptions()}
+                  aria-label={chartLabel('Resultados por dia de publicação', trendData)}
                 />
               : <p className="rel-empty">Sem dados suficientes.</p>}
           </div>
@@ -262,11 +268,9 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays, activeNet = n
           <div className="rel-canvas rel-canvas--sm">
             {platformCounts.length
               ? <Bar
-                  data={{
-                    labels: platformCounts.map(([p]) => PLAT_LABELS[p] || p),
-                    datasets: [{ data: platformCounts.map(([, count]) => count), backgroundColor: colors.primary, borderRadius: 6, maxBarThickness: 48 }],
-                  }}
+                  data={countsData}
                   options={{ ...baseChartOptions(), plugins: { ...baseChartOptions().plugins, legend: { display: false } } }}
+                  aria-label={chartLabel('Posts por plataforma', countsData)}
                 />
               : <p className="rel-empty">Nenhum post publicado no período.</p>}
           </div>

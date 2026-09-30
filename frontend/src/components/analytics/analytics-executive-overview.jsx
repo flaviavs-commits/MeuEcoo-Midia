@@ -177,19 +177,19 @@ export function AnalyticsExecutiveOverview({ data, tiktokVideos, periodDays, act
           </div>
           <span className="ds-badge" data-tone="outline">{totalContent} conteúdos</span>
         </div>
-        <div className="ds-scrollx"><table className="ds-datatable rel-exec__table">
+        <div className="ds-scrollx"><table className="ds-datatable ds-datatable--stack rel-exec__table">
           <thead><tr>
             <th scope="col">Rede</th><th scope="col" className="ds-cellnum">Conteúdos</th><th scope="col" className="ds-cellnum">Alcance</th><th scope="col" className="ds-cellnum">Audiência</th><th scope="col" className="ds-cellnum">Interações</th><th scope="col" className="ds-cellnum">Taxa</th>
             {onSelectNetwork && !activeNet && <th scope="col"><span className="ds-sr-only">Abrir rede</span></th>}
           </tr></thead>
           <tbody>{stats.map(item => <tr key={item.platform}>
             <th scope="row"><span className="ds-cellname"><NetworkGlyph network={item.platform} size={16} />{PLAT_LABELS[item.platform]}</span></th>
-            <td className="ds-cellnum">{item.content || '—'}</td>
-            <td className="ds-cellnum">{item.reach == null ? '—' : fmtNum(item.reach)}</td>
-            <td className="ds-cellnum">{item.audience == null ? '—' : fmtNum(item.audience)}</td>
-            <td className="ds-cellnum">{item.interactions == null ? '—' : fmtNum(item.interactions)}</td>
-            <td className="ds-cellnum">{formatRate(item.rate)}</td>
-            {onSelectNetwork && !activeNet && <td className="rel-exec__go"><button type="button" className="ds-go" onClick={() => onSelectNetwork(item.platform)}>Ver rede<Icon name="arrow" size={16} /></button></td>}
+            <td className="ds-cellnum" data-label="Conteúdos">{item.content || '—'}</td>
+            <td className="ds-cellnum" data-label="Alcance">{item.reach == null ? '—' : fmtNum(item.reach)}</td>
+            <td className="ds-cellnum" data-label="Audiência">{item.audience == null ? '—' : fmtNum(item.audience)}</td>
+            <td className="ds-cellnum" data-label="Interações">{item.interactions == null ? '—' : fmtNum(item.interactions)}</td>
+            <td className="ds-cellnum" data-label="Taxa">{formatRate(item.rate)}</td>
+            {onSelectNetwork && !activeNet && <td className="rel-exec__go"><button type="button" className="ds-go" onClick={() => onSelectNetwork(item.platform)} aria-label={`Ver rede ${PLAT_LABELS[item.platform]}`}>Ver rede<Icon name="arrow" size={16} /></button></td>}
           </tr>)}</tbody>
         </table></div>
       </div>

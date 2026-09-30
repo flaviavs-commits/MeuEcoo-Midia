@@ -109,7 +109,12 @@ export function AnalyticsAccountProfiles({ accounts, data, tiktokVideos, periodD
             <span className="rel-profile__avatar">{account.avatarUrl ? <img src={account.avatarUrl} alt="" /> : <NetworkGlyph network={account.platform} size={20} />}</span>
             <div className="rel-profile__name">
               <p className="rel-profile__title">{name}</p>
-              <p className="ds-meta rel-profile__handle"><NetworkGlyph network={account.platform} size={14} />{account.handle ? (account.handle.startsWith('@') ? account.handle : `@${account.handle}`) : PLAT_LABELS[account.platform]}</p>
+              <p className="ds-meta rel-profile__handle" id={`rel-profile-${account.id}`}>
+                <NetworkGlyph network={account.platform} size={14} />
+                {account.handle
+                  ? <><span className="ds-sr-only">{PLAT_LABELS[account.platform] || account.platform}:</span> {account.handle.startsWith('@') ? account.handle : `@${account.handle}`}</>
+                  : PLAT_LABELS[account.platform]}
+              </p>
             </div>
           </div>
           <span className="ds-status" data-status={ready ? 'ok' : 'warning'}><Icon name={ready ? 'checkCircle' : 'alertTriangle'} />{status.label}</span>
@@ -118,7 +123,7 @@ export function AnalyticsAccountProfiles({ accounts, data, tiktokVideos, periodD
             <div><dt>Alcance / views</dt><dd>{fmtNum(reachFor(account, profile, tiktokVideos))}</dd></div>
             <div><dt>Interações</dt><dd>{fmtNum(interactionsFor(account, profile, tiktokVideos))}</dd></div>
           </dl>
-          <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm rel-profile__go" onClick={() => onSelectNetwork(account.platform, account.id)} aria-label={`Ver relatório de ${name}`}>Ver relatório<Icon name="arrow" size={16} /></button>
+          <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm rel-profile__go" onClick={() => onSelectNetwork(account.platform, account.id)} aria-label={`Ver relatório de ${name}`} aria-describedby={`rel-profile-${account.id}`}>Ver relatório<Icon name="arrow" size={16} /></button>
         </li>
       })}
     </ul>
