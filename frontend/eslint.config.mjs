@@ -30,7 +30,7 @@ export default [
     languageOptions: { globals: { ...globals.browser, ...globals.node, ...globals.vitest } },
   },
   {
-    files: ['*.config.{js,mjs}', 'mock-api/**'],
+    files: ['**/*.config.{js,mjs}', 'mock-api/**'],
     languageOptions: { globals: { ...globals.node } },
   },
 ]
