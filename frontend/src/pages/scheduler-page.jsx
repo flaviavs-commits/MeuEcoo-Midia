@@ -13,6 +13,7 @@ import { PublicationResultGroups, PublicationStatusModal } from '../components/u
 import { createPostValidationWorker } from '../lib/postValidationWorker.js'
 import { findPublicationResult, latestPublicationEventId, processingPublicationMessage, scheduledPublicationDetails } from '../lib/publicationEvents.js'
 import { useToast } from '../components/ui/toast.jsx'
+import { useConfirm } from '../components/ui/confirm-dialog.jsx'
 import { PLATFORM_TEXT_LIMITS, getPlatformTextLimit } from '../lib/platformTextLimits.js'
 import { PREVIEW_ASPECTS, PREVIEW_ASPECT_OPTIONS, TIKTOK_VIDEO_DIMENSIONS, mediaKindLabel, ratioLabel, resolvePreviewAspect, shouldUseFullBleedPreview, socialMediaLimitHint, socialMediaResolutionHint } from '../lib/mediaFormat.js'
 import { accountIdKey, accountsForPlatform, buildAccountSelectionIssues, groupAccountsByPerson, selectedAccountsForPost } from '../lib/account-selection.js'
@@ -27,6 +28,13 @@ const IMAGE_MIME_BY_EXTENSION = { heic: 'image/heic', heif: 'image/heif', avif: 
 const TOKEN_STATUS = { valid: ['ok', 'Token válido'], expiring: ['warning', 'Expirando'], expired: ['failed', 'Requer atenção'], error: ['failed', 'Requer atenção'] }
 const atHandle = value => (value.startsWith('@') ? value : `@${value}`)
 const accountLabelOf = account => account.handle || account.name || account.tokens?.find(token => token.accountName)?.accountName || `Conta ${account.id}`
+// Contas que não publicam mais: o acesso venceu ou deu erro (as que só estão "expirando" ainda funcionam).
+const BROKEN_TOKEN_STATUSES = new Set(['expired', 'error'])
+const ACCOUNTS_WARNING_KEY = 'meu-ecoo:accounts-warning-seen'
+function tokenStatusOf(account) {
+  return account.tokens?.find(token => token.status)?.status || ''
+}
+
 function handleOf(account) {
   const raw = account.handle || account.name
   return raw ? atHandle(raw) : accountLabelOf(account)
@@ -407,31 +415,39 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
     hasVideo && !hasVideoContext && 'Escreva uma frase sobre o vídeo',
   ].filter(Boolean)
 
+  // Something to say below the bar: what is missing, the result or the error.
+  const status = analysisError
+    ? <p className="ds-fieldmsg" role="alert"><Icon name="alertCircle" size={16} />{analysisError}</p>
+    : successMessage
+      ? <p className="ds-fieldmsg" data-tone="success" role="status"><Icon name="checkCircle" size={16} />{successMessage}</p>
+      : null
+
   return <section className="mp-ai" aria-labelledby="mp-ai-title" aria-busy={busy}>
-    <div className="mp-ai__head">
-      <span className="ds-icontile mp-ai__mark" aria-hidden="true"><Icon name="sparkle" /></span>
+    <div className="mp-ai__bar">
+      <span className="mp-ai__mark" aria-hidden="true"><Icon name="sparkle" size={18} /></span>
       <div className="mp-ai__intro">
         <h3 className="mp-ai__title" id="mp-ai-title">Descrição a partir da mídia</h3>
-        <p className="ds-hint">{hasVideo ? 'Descreva o vídeo em uma frase para receber uma legenda para cada rede.' : contexto.trim() ? 'Melhora os textos que você já escreveu com base na mídia.' : 'Cria uma legenda para cada rede a partir da sua imagem ou vídeo.'} Substitui os textos das redes selecionadas.</p>
+        <p className="ds-hint">{!files.length
+          ? 'Adicione uma imagem ou vídeo em “Mídia” para gerar a legenda de cada rede.'
+          : hasVideo
+            ? 'Descreva o vídeo em uma frase e gere a legenda de cada rede.'
+            : contexto.trim()
+              ? 'Melhora os textos abaixo com base na mídia. Substitui o que está escrito.'
+              : 'Cria a legenda de cada rede selecionada a partir da mídia. Substitui o que está escrito.'}</p>
       </div>
+      <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm mp-ai__btn" onClick={analyzeMedia} disabled={busy || !ready} title={!ready && needs.length ? needs.join(' · ') : undefined}>
+        {busy ? <span className="ds-spinner" aria-hidden="true" /> : <Icon name="sparkle" size={16} />}{busy ? 'Analisando mídia…' : analysisContext ? 'Melhorar descrição' : 'Gerar descrição'}
+      </button>
     </div>
-    {hasVideo && <div className="ds-field">
+    {hasVideo && <div className="ds-field mp-ai__video">
       <div className="ds-field__top"><label className="ds-label" htmlFor="mp-ai-video">Sobre o que é este vídeo?</label><span className="ds-counter">{videoDescription.length}/500</span></div>
       <textarea id="mp-ai-video" className="ds-textarea mp-ai__context" value={videoDescription} onChange={event => { setVideoDescription(event.target.value); setAnalysisError(''); setSuccessMessage('') }} maxLength={500} placeholder="Ex.: Mostro como organizar uma rotina de estudos em poucos passos." aria-describedby="mp-ai-video-hint" />
       <p className="ds-hint" id="mp-ai-video-hint">Uma frase curta já basta. Ela orienta o sistema inteligente e não substitui os textos finais.</p>
     </div>}
-    <div className="mp-ai__foot">
-      <div className="mp-ai__status" aria-live="polite">
-        {needs.length > 0 && <ol className="mp-ai__needs">{needs.map(need => <li key={need}>{need}</li>)}</ol>}
-        {files.length > analysisLimit && <p className="ds-hint">As primeiras {analysisLimit} mídias serão analisadas.</p>}
-        {ready && !analysisError && !successMessage && <p className="ds-hint">Pronto para analisar sua mídia.</p>}
-        {analysisError && <p className="ds-fieldmsg" role="alert"><Icon name="alertCircle" size={16} />{analysisError}</p>}
-        {successMessage && <p className="ds-fieldmsg" data-tone="success" role="status"><Icon name="checkCircle" size={16} />{successMessage}</p>}
-        {analysisNotes.length > 0 && <p className="ds-hint">{analysisNotes.slice(0, 2).join(' · ')}</p>}
-      </div>
-      <button type="button" className="ds-btn ds-btn--secondary mp-ai__btn" onClick={analyzeMedia} disabled={busy || !ready}>
-        {busy ? <span className="ds-spinner" aria-hidden="true" /> : <Icon name="sparkle" />}{busy ? 'Analisando mídia…' : analysisContext ? 'Melhorar descrição' : 'Gerar descrição'}
-      </button>
+    <div className="mp-ai__status" aria-live="polite">
+      {status}
+      {!status && files.length > analysisLimit && <p className="ds-hint">As primeiras {analysisLimit} mídias serão analisadas.</p>}
+      {successMessage && analysisNotes.length > 0 && <p className="ds-hint">{analysisNotes.slice(0, 2).join(' · ')}</p>}
     </div>
   </section>
 }
@@ -958,6 +974,7 @@ export function SchedulerPage({ onNavigate } = {}) {
   const compactLayout = useIsCompact()
   const phone = useIsPhone()
   const notify = useToast()
+  const { confirm, confirmDialog } = useConfirm()
   const validationRequest = useRef(0)
   const publicationPollTimer = useRef(null)
   const sourceFailureId = useRef(null)
@@ -1015,6 +1032,36 @@ export function SchedulerPage({ onNavigate } = {}) {
   }, [accountsAttempt])
 
   useEffect(() => { if (!compactLayout) setPreviewOpen(false) }, [compactLayout])
+
+  // Sem conta conectada, ou com conta que parou de funcionar, não dá para publicar: um aviso
+  // leva a pessoa a Contas. Aparece uma vez por sessão para o mesmo problema.
+  useEffect(() => {
+    if (!accountsLoaded || accountsError || !onNavigate) return undefined
+    const broken = connectedAccounts.filter(account => BROKEN_TOKEN_STATUSES.has(tokenStatusOf(account)))
+    if (connectedAccounts.length && !broken.length) return undefined
+    const signature = connectedAccounts.length ? broken.map(account => account.id).sort().join(',') : 'none'
+    try { if (sessionStorage.getItem(ACCOUNTS_WARNING_KEY) === signature) return undefined } catch { /* sem armazenamento: avisa */ }
+    const names = broken.map(account => `${handleOf(account)} (${platformLabels[account.platform] || account.platform})`)
+    const listed = names.length > 1 ? `${names.slice(0, -1).join(', ')} e ${names.at(-1)}` : names[0]
+    let active = true
+    confirm(connectedAccounts.length
+      ? {
+          title: broken.length === 1 ? 'Uma conta precisa ser reconectada' : `${broken.length} contas precisam ser reconectadas`,
+          description: `O acesso de ${listed} venceu ou parou de funcionar, e as publicações para ${broken.length === 1 ? 'ela' : 'elas'} vão falhar. Reconecte em Contas.`,
+          confirmLabel: 'Ir para Contas', cancelLabel: 'Agora não', tone: 'warning', icon: 'plug',
+        }
+      : {
+          title: 'Conecte uma conta para publicar',
+          description: 'Nenhuma rede social está conectada ainda. Conecte Instagram, Facebook, YouTube ou TikTok em Contas e volte para publicar.',
+          confirmLabel: 'Ir para Contas', cancelLabel: 'Agora não', tone: 'warning', icon: 'plug',
+        }).then(go => {
+      if (!active) return
+      try { sessionStorage.setItem(ACCOUNTS_WARNING_KEY, signature) } catch { /* sem armazenamento */ }
+      if (go) onNavigate('integracoes')
+    })
+    return () => { active = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountsLoaded, accountsError, connectedAccounts])
 
   useEffect(() => {
     if (!TEAM_APPROVAL_UI_ENABLED) return undefined
@@ -1723,7 +1770,7 @@ export function SchedulerPage({ onNavigate } = {}) {
       <div className="ds-pagehead__text">
         <p className="ds-eyebrow">{approvalWorkspaceId ? 'Enviar para aprovação' : publishNow ? 'Publicar agora' : 'Agendar publicação'}</p>
         <h1 className="ds-pagehead__title">Meu Post</h1>
-        <p className="ds-pagehead__lede">Escolha as redes, escreva o texto de cada uma e adicione a mídia. No fim, publique na hora ou agende.</p>
+        <p className="ds-pagehead__lede">Escolha as redes, adicione a mídia e escreva o texto de cada uma. No fim, publique na hora ou agende.</p>
       </div>
     </header>
 
@@ -1795,22 +1842,7 @@ export function SchedulerPage({ onNavigate } = {}) {
         </fieldset>
 
         <fieldset className="mp-step">
-          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">2</span>Conteúdo</legend>
-          {selected.length
-            ? <>
-              <div className="ds-tabs mp-tabs" role="tablist" aria-label="Texto por rede" onKeyDown={event => handleTabKeys(event, selected, activeTextPlatform, setTextTab, 'mp-tab-')}>
-                {selected.map(platform => <button type="button" role="tab" id={`mp-tab-${platform}`} aria-controls={`mp-pane-${platform}`} aria-selected={platform === activeTextPlatform} tabIndex={platform === activeTextPlatform ? 0 : -1} className="ds-tab mp-tab" key={platform} onClick={() => setTextTab(platform)}>
-                  <NetworkGlyph network={platform} size={16} />{platformLabels[platform]}
-                  {issueCountByPlatform[platform] > 0 && <span className="ds-badge mp-tab__count" data-tone="danger"><span aria-hidden="true">{issueCountByPlatform[platform]}</span><span className="ds-sr-only">, {issueCountByPlatform[platform]} {issueCountByPlatform[platform] === 1 ? 'pendência' : 'pendências'}</span></span>}
-                </button>)}
-              </div>
-              {selected.map(platform => renderNetworkPane(platform))}
-            </>
-            : <p className="ds-hint mp-empty">Escolha ao menos uma rede em “Redes” para escrever o texto.</p>}
-        </fieldset>
-
-        <fieldset className="mp-step">
-          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">3</span>Mídia</legend>
+          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">2</span>Mídia</legend>
           <div className="mp-drop" data-filled={files.length > 0 || undefined} onDragOver={event => event.preventDefault()} onDrop={dropFiles}>
             <span className="ds-icontile" aria-hidden="true"><Icon name={mediaProfile?.kind === 'video' ? 'video' : 'image'} /></span>
             <div className="mp-drop__text">
@@ -1863,7 +1895,22 @@ export function SchedulerPage({ onNavigate } = {}) {
               </li>)}
             </ul>
           </details>}
-          <MediaAiSuggestions files={files} selected={selected} contexto={aiContext} previews={mediaPreviews} onApply={applyMediaSuggestion} />
+        </fieldset>
+
+        <fieldset className="mp-step">
+          <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">3</span>Conteúdo</legend>
+          {selected.length > 0 && <MediaAiSuggestions files={files} selected={selected} contexto={aiContext} previews={mediaPreviews} onApply={applyMediaSuggestion} />}
+          {selected.length
+            ? <>
+              <div className="ds-tabs mp-tabs" role="tablist" aria-label="Texto por rede" onKeyDown={event => handleTabKeys(event, selected, activeTextPlatform, setTextTab, 'mp-tab-')}>
+                {selected.map(platform => <button type="button" role="tab" id={`mp-tab-${platform}`} aria-controls={`mp-pane-${platform}`} aria-selected={platform === activeTextPlatform} tabIndex={platform === activeTextPlatform ? 0 : -1} className="ds-tab mp-tab" key={platform} onClick={() => setTextTab(platform)}>
+                  <NetworkGlyph network={platform} size={16} />{platformLabels[platform]}
+                  {issueCountByPlatform[platform] > 0 && <span className="ds-badge mp-tab__count" data-tone="danger"><span aria-hidden="true">{issueCountByPlatform[platform]}</span><span className="ds-sr-only">, {issueCountByPlatform[platform]} {issueCountByPlatform[platform] === 1 ? 'pendência' : 'pendências'}</span></span>}
+                </button>)}
+              </div>
+              {selected.map(platform => renderNetworkPane(platform))}
+            </>
+            : <p className="ds-hint mp-empty">Escolha ao menos uma rede em “Redes” para escrever o texto.</p>}
         </fieldset>
 
         <fieldset className="mp-step">
@@ -1949,5 +1996,6 @@ export function SchedulerPage({ onNavigate } = {}) {
     </Sheet>}
 
     {publicationModalOpen && publicationStatus && <PublicationStatusModal status={publicationStatus} platforms={selected} progress={progress} onReview={reviewError} onClose={closePublicationModal} />}
+    {confirmDialog}
   </div>
 }

@@ -148,3 +148,56 @@ describe('SchedulerPage — resultado, data e envio', () => {
     expect(await screen.findByRole('button', { name: 'Salvar como modelo' })).toBeEnabled()
   })
 })
+
+describe('SchedulerPage — contas que não publicam', () => {
+  beforeEach(() => { localStorage.clear(); sessionStorage.clear() })
+  afterEach(() => vi.restoreAllMocks())
+
+  function renderWith(accounts) {
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => path === '/api/accounts' ? Promise.resolve({ data: accounts }) : Promise.resolve({}))
+    const onNavigate = vi.fn()
+    const view = render(<ToastProvider><SchedulerPage onNavigate={onNavigate} /></ToastProvider>)
+    return { onNavigate, ...view }
+  }
+
+  it('avisa quando uma conta precisa ser reconectada e leva para Contas', async () => {
+    const { onNavigate } = renderWith([
+      { id: 1, platform: 'instagram', handle: 'ecoomidia', tokens: [{ status: 'valid' }] },
+      { id: 2, platform: 'tiktok', handle: 'loja', tokens: [{ status: 'expired' }] },
+    ])
+
+    const dialog = await screen.findByRole('dialog', { name: 'Uma conta precisa ser reconectada' })
+    expect(dialog).toHaveTextContent('@loja (TikTok)')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Ir para Contas' }))
+
+    await waitFor(() => expect(onNavigate).toHaveBeenCalledWith('integracoes'))
+  })
+
+  it('avisa quando nenhuma rede está conectada', async () => {
+    renderWith([])
+
+    expect(await screen.findByRole('dialog', { name: 'Conecte uma conta para publicar' })).toBeInTheDocument()
+  })
+
+  it('não avisa quando as contas funcionam, nem de novo depois de "Agora não"', async () => {
+    const valid = [{ id: 1, platform: 'instagram', handle: 'ecoomidia', tokens: [{ status: 'expiring' }] }]
+    const first = renderWith(valid)
+    await waitFor(() => expect(screen.getAllByText(/ecoomidia/).length).toBeGreaterThan(0))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    first.unmount()
+    vi.restoreAllMocks()
+
+    const broken = [{ id: 7, platform: 'facebook', name: 'Ecoo Mídia', tokens: [{ status: 'error' }] }]
+    const second = renderWith(broken)
+    const dialog = await screen.findByRole('dialog', { name: 'Uma conta precisa ser reconectada' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Agora não' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(second.onNavigate).not.toHaveBeenCalled()
+    second.unmount()
+    vi.restoreAllMocks()
+
+    renderWith(broken)
+    await waitFor(() => expect(screen.getAllByText(/Ecoo Mídia/).length).toBeGreaterThan(0))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+})
