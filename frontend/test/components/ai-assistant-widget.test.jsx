@@ -171,4 +171,32 @@ describe('AiAssistantWidget', () => {
     expect(screen.getByRole('button', { name: 'Enviar' })).toBeDisabled()
     expect(apiFetchMock.mock.calls.some(([path]) => path === '/api/ai/agent')).toBe(false)
   })
+
+  it('na conversa comum não leva ao Assistente; pedidos de página navegam (e "tokens" vira Contas)', async () => {
+    const replies = [
+      { message: 'Claro, posso ajudar.', navigation: 'ai' },
+      { message: 'Calendário aberto.', navigation: 'calendario' },
+      { message: 'Tokens.', navigation: 'tokens' },
+    ]
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/ai/agent') return Promise.resolve(replies.shift())
+      return Promise.resolve({ ok: true })
+    })
+    const onNavigate = vi.fn()
+    render(<AiAssistantWidget onNavigate={onNavigate} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir assistente inteligente' }))
+    const send = async (text, reply) => {
+      fireEvent.change(screen.getByLabelText('Mensagem para o Assistente inteligente'), { target: { value: text } })
+      fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+      await screen.findByText(reply)
+    }
+
+    await send('oi', 'Claro, posso ajudar.')
+    expect(onNavigate).not.toHaveBeenCalled()
+    await send('abre o calendário', 'Calendário aberto.')
+    expect(onNavigate).toHaveBeenLastCalledWith('calendario')
+    await send('meus tokens', 'Tokens.')
+    expect(onNavigate).toHaveBeenLastCalledWith('integracoes')
+  })
 })
+

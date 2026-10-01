@@ -651,9 +651,10 @@ function AppShellBody({ page, onPageChange, children, user, contentKey }) {
     else updatePrefs({ collapsed: !prefs.collapsed })
   }
 
-  function navigate(key) {
+  function navigate(key, options) {
     setMoreOpen(false)
-    onPageChange(key)
+    if (options) onPageChange(key, options)
+    else onPageChange(key)
   }
 
   useEffect(() => {
@@ -778,7 +779,7 @@ function AppShellBody({ page, onPageChange, children, user, contentKey }) {
       {phone && <MoreSheet open={moreOpen} onClose={() => setMoreOpen(false)} page={page} user={user} onNavigate={navigate} />}
       <AiAssistantWidget currentPage={page} onNavigate={onPageChange} />
       <ShortcutHelp open={shortcutHelpOpen} onClose={() => setShortcutHelpOpen(false)} />
-      <AppTutorial open={tutorialOpen} onNavigate={onPageChange} onClose={closeTutorial} onComplete={completeTutorial} />
+      <AppTutorial open={tutorialOpen} onNavigate={onPageChange} onClose={closeTutorial} onComplete={completeTutorial} isAdmin={userIsAdmin(user)} />
     </div>
   )
 }

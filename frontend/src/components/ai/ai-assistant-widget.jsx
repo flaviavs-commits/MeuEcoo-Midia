@@ -211,7 +211,7 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
       setMessages(value => [...value, { role: 'agent', text: reply, data: data.data, plan: data.plan || null, confirmationToken: data.confirmationToken || null }])
       setPendingPlan(data.requiresInput ? data.plan : null)
       persistMessage('fab', 'agent', reply)
-      if (data.navigation && onNavigate) onNavigate(data.navigation)
+      followNavigation(data.navigation)
     } catch (caught) { setError(friendlyAgentError(caught)) } finally { setSending(false); setProcessingMessage('') }
   }
 
@@ -224,13 +224,25 @@ export function AiAssistantWidget({ hidden = false, currentPage = null, onNaviga
       setMessages(value => value.map((message, messageIndex) => messageIndex === index ? { ...message, text: `${message.text}\n${reply}`, data: data.data, confirmationToken: null } : message))
       setPendingPlan(null)
       persistMessage('fab', 'agent', reply)
-      if (data.navigation && onNavigate) onNavigate(data.navigation)
+      followNavigation(data.navigation)
     } catch (caught) { setError(friendlyAgentError(caught)) } finally { setSending(false); setProcessingMessage('') }
+  }
+
+  /*
+   * O servidor sugere uma página em quase toda resposta, inclusive 'ai' na conversa comum: seguir essa
+   * levava a pessoa ao Assistente a cada mensagem. O widget já é o assistente, então 'ai' fica onde está;
+   * 'tokens' (página antiga) vira Contas. No celular a folha fecha para a página nova aparecer.
+   */
+  function followNavigation(target) {
+    if (!target || !onNavigate || target === 'ai') return
+    onNavigate(target === 'tokens' ? 'integracoes' : target)
+    if (phone) setOpen(false)
   }
 
   function continueToPost(postDraft) {
     storeAiPostDraft(postDraft)
     onNavigate?.('agendador')
+    if (phone) setOpen(false)
   }
 
   const chat = {

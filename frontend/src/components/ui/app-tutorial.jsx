@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { trapTab } from './floating.jsx'
 import { Icon } from './icon.jsx'
 
@@ -248,9 +248,9 @@ const STEPS = [
 
 // "Passos com conteúdo" são os que ficam entre a boas-vindas e a conclusão
 // — é essa contagem que aparece como "PASSO N DE M" para a pessoa.
-function stepEyebrow(step, index) {
+function stepEyebrow(step, index, total) {
   if (step.eyebrow) return step.eyebrow
-  return `PASSO ${index} DE ${STEPS.length - 2}`
+  return `PASSO ${index} DE ${total - 2}`
 }
 
 // A caixa do tutorial "encosta" no lado oposto ao do destaque: sobe para o
@@ -284,7 +284,9 @@ function findVisibleTarget(target) {
   return null
 }
 
-export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
+export function AppTutorial({ open, onNavigate, onClose, onComplete, isAdmin = false }) {
+  // A etapa de Administração só existe para quem vê esse menu.
+  const steps = useMemo(() => (isAdmin ? STEPS : STEPS.filter(item => item.target !== 'administracao')), [isAdmin])
   const [index, setIndex] = useState(0)
   const [spotlightRect, setSpotlightRect] = useState(null)
   const dialogRef = useRef(null)
@@ -323,8 +325,8 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
 
   useEffect(() => {
     if (!open) return
-    const step = STEPS[index]
-    if (step.page) onNavigate?.(step.page)
+    const step = steps[index]
+    if (step.page) onNavigate?.(step.page, { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, index])
 
@@ -335,7 +337,7 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
       setSpotlightRect(null)
       return
     }
-    const step = STEPS[index]
+    const step = steps[index]
     function updateRect() {
       setSpotlightRect(findSpotlight(step.target || step.page))
     }
@@ -350,7 +352,7 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
       window.removeEventListener('resize', updateRect)
       window.removeEventListener('scroll', updateRect, true)
     }
-  }, [open, index])
+  }, [open, index, steps])
 
   useEffect(() => {
     if (!open) return
@@ -371,13 +373,13 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
 
   if (!open) return null
 
-  const step = STEPS[index]
+  const step = steps[index]
   const isFirst = index === 0
-  const isLast = index === STEPS.length - 1
+  const isLast = index === steps.length - 1
 
   function goNext() {
     if (isLast) return onComplete()
-    setIndex(current => Math.min(current + 1, STEPS.length - 1))
+    setIndex(current => Math.min(current + 1, steps.length - 1))
   }
 
   function goBack() {
@@ -417,7 +419,7 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
     >
       <div className="tutorial-heading">
         <div className="tutorial-heading__text">
-          <p className="ds-eyebrow">{stepEyebrow(step, index)}</p>
+          <p className="ds-eyebrow">{stepEyebrow(step, index, steps.length)}</p>
           <h2 className="tutorial-title" id="tutorial-title">{step.title}</h2>
         </div>
         <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon tutorial-close" onClick={onClose} aria-label="Fechar tutorial"><Icon name="close" /></button>
@@ -430,7 +432,7 @@ export function AppTutorial({ open, onNavigate, onClose, onComplete }) {
       </ul>}
 
       <div className="ds-progress tutorial-progress" aria-hidden="true">
-        <span className="ds-progress__bar" style={{ '--value': `${((index + 1) / STEPS.length) * 100}%` }} />
+        <span className="ds-progress__bar" style={{ '--value': `${((index + 1) / steps.length) * 100}%` }} />
       </div>
 
       <div className="tutorial-footer">

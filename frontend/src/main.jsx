@@ -69,10 +69,11 @@ function App() {
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
   }, [])
-  const navigate = nextPage => {
+  // { replace: true } troca o endereço sem empilhar histórico (ex.: o tutorial andando pelas páginas).
+  const navigate = (nextPage, { replace = false } = {}) => {
     if (nextPage === 'equipe' && !TEAM_APPROVAL_UI_ENABLED) return
     if (!APP_PAGES.has(nextPage) || nextPage === page) return
-    window.history.pushState({}, '', `/app/${nextPage}`)
+    window.history[replace ? 'replaceState' : 'pushState']({}, '', `/app/${nextPage}`)
     setPage(nextPage)
   }
   // When the server comes back, the page remounts (key) and loads its data again.
