@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
-import { AnalyticsPage } from '../../src/pages/analytics-page.jsx'
+import { AnalyticsPage, CSV_URL_LIFETIME_MS } from '../../src/pages/analytics-page.jsx'
 import { ReportSchedulePanel } from '../../src/components/analytics/report-schedule-panel.jsx'
 import { ToastProvider } from '../../src/components/ui/toast.jsx'
 import * as api from '../../src/lib/api.js'
@@ -67,6 +67,34 @@ describe('AnalyticsPage', () => {
     fireEvent.keyDown(document.activeElement, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(document.activeElement).toBe(open)
+  })
+
+  it('exporta o CSV e só libera o arquivo depois que o navegador começou o download', async () => {
+    mockApi()
+    renderPage()
+    const exportButton = await screen.findByRole('button', { name: 'Exportar CSV' })
+    await waitFor(() => expect(exportButton).toBeEnabled())
+
+    const created = []
+    const { createObjectURL, revokeObjectURL } = URL
+    URL.createObjectURL = vi.fn(blob => { created.push(blob); return 'blob:relatorio' })
+    URL.revokeObjectURL = vi.fn()
+    const clicked = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(function () {
+      expect(this.href).toBe('blob:relatorio')
+      expect(this.download).toBe('relatorio-todas-as-redes-7dias.csv')
+    })
+    vi.useFakeTimers()
+    try {
+      fireEvent.click(exportButton)
+      expect(clicked).toHaveBeenCalledTimes(1)
+      expect(created[0].type).toBe('text/csv;charset=utf-8')
+      expect(URL.revokeObjectURL).not.toHaveBeenCalled()
+      vi.advanceTimersByTime(CSV_URL_LIFETIME_MS)
+      expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:relatorio')
+    } finally {
+      vi.useRealTimers()
+      Object.assign(URL, { createObjectURL, revokeObjectURL })
+    }
   })
 
   it('sem redes por falha na conferência, mostra a falha e tenta de novo também as contas', async () => {

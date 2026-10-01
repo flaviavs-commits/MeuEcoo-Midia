@@ -16,6 +16,9 @@ import { Sheet } from '../components/ui/floating.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { useIsPhone } from '../lib/breakpoints.js'
 
+// Quanto tempo a URL do CSV exportado continua válida depois do clique (o navegador precisa lê-la).
+export const CSV_URL_LIFETIME_MS = 10_000
+
 function csvValue(value) {
   return `"${String(value ?? '').replaceAll('"', '""')}"`
 }
@@ -164,7 +167,8 @@ export function AnalyticsPage({ onNavigate } = {}) {
     link.href = url
     link.download = `relatorio-${selectedPlatform || 'todas-as-redes'}-${periodDays}dias.csv`
     link.click()
-    URL.revokeObjectURL(url)
+    // Firefox e Safari leem o arquivo depois do clique; liberar a URL na mesma hora pode cancelar o download.
+    window.setTimeout(() => URL.revokeObjectURL(url), CSV_URL_LIFETIME_MS)
   }
 
   function printReport() {
