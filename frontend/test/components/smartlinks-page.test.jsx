@@ -135,4 +135,20 @@ describe('SmartlinksPage', () => {
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(novo).toHaveFocus()
   })
+
+  it('não cria um Smartlink com mais links do que o servidor guarda (30) e diz quantos remover', async () => {
+    const apiFetch = mockWithPages()
+    render(<ToastProvider><SmartlinksPage /></ToastProvider>)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Novo Smartlink/ }))
+    const sheet = await screen.findByRole('dialog')
+    fireEvent.change(within(sheet).getByLabelText('Nome interno'), { target: { value: 'Bio' } })
+    const lines = Array.from({ length: 32 }, (_, index) => `Link ${index + 1} | https://exemplo.com/${index + 1}`).join(String.fromCharCode(10))
+    fireEvent.change(within(sheet).getByLabelText('Um link por linha'), { target: { value: lines } })
+
+    expect(within(sheet).getByRole('alert')).toHaveTextContent('32 links válidos · o Smartlink aceita até 30. Remova 2 links para criar.')
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Criar Smartlink' }))
+    expect(apiFetch.mock.calls.some(([path, options]) => path === '/api/smartlinks' && options?.method === 'POST')).toBe(false)
+  })
 })
+

@@ -44,6 +44,7 @@
   .sl-check[data-tone='success'] { color: var(--ds-success); }
   .sl-check[data-tone='warning'] { color: var(--ds-ink-2); }
   .sl-check[data-tone='warning'] > .ds-icon { color: var(--ds-warning); }
+  .sl-check[data-tone='danger'] { color: var(--ds-danger); }
   .sl-sheet .ds-sheet__body { padding-top: 4px; }
 
   .sl-start { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 32px 48px; align-items: start; }

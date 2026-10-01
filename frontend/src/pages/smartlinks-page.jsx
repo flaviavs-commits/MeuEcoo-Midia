@@ -41,10 +41,13 @@ function messageOf(error, fallback) {
 // Quantos links de cada página aparecem antes do "Ver todos": com 10 ou 50
 // páginas, a lista continua legível.
 const PREVIEW_LINKS = 5
+// O servidor guarda no máximo 30 links válidos por Smartlink (src/routes/smartlinks.js) e descartava o
+// resto em silêncio: o formulário conta e não deixa criar acima disso.
+const MAX_SMARTLINK_ITEMS = 30
 const FORM_ID = 'sl-create-form'
 
-// A caixa de links cresce com o conteúdo (a página rola, não a caixa): com 50+
-// linhas continua dando para ver e revisar tudo.
+// A caixa de links cresce com o conteúdo (a página rola, não a caixa): com dezenas
+// de linhas continua dando para ver e revisar tudo.
 function useAutoGrow(ref, value) {
   useLayoutEffect(() => {
     const element = ref.current
@@ -167,6 +170,10 @@ export function SmartlinksPage() {
   async function save(event) {
     event.preventDefault()
     if (creating) return
+    if (tooManyLinks) {
+      linksRef.current?.focus()
+      return
+    }
     setCreating(true)
     try {
       const items = form.links.split('\n').map(parseLinkLine).filter(Boolean)
@@ -250,6 +257,8 @@ export function SmartlinksPage() {
   const linkLines = form.links.split('\n').filter(line => line.trim())
   const validLinks = linkLines.map(parseLinkLine).filter(isPublishableItem)
   const ignoredLines = linkLines.length - validLinks.length
+  const extraLinks = validLinks.length - MAX_SMARTLINK_ITEMS
+  const tooManyLinks = extraLinks > 0
   const showInlineForm = !loading && !loadError && !smartlinks.length
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
 
@@ -305,11 +314,13 @@ export function SmartlinksPage() {
           <label className="ds-label" htmlFor="sl-links">Um link por linha</label>
           {linkLines.length > 0 && <span className="ds-counter"><span className="ds-num">{linkLines.length}</span> {linkLines.length === 1 ? 'linha' : 'linhas'}</span>}
         </div>
-        <textarea ref={linksRef} id="sl-links" className="ds-textarea sl-links" value={form.links} onChange={event => setForm(current => ({ ...current, links: event.target.value }))} placeholder={'https://exemplo.com\nInstagram | https://instagram.com/'} required aria-describedby="sl-links-help sl-links-check" />
+        <textarea ref={linksRef} id="sl-links" className="ds-textarea sl-links" value={form.links} onChange={event => setForm(current => ({ ...current, links: event.target.value }))} placeholder={'https://exemplo.com\nInstagram | https://instagram.com/'} required aria-invalid={tooManyLinks || undefined} aria-describedby="sl-links-help sl-links-check" />
         <p className="ds-hint" id="sl-links-help">Escreva <code>Texto | https://endereço</code> ou só o endereço. Só endereços com <strong>https://</strong> entram na página.</p>
-        {linkLines.length > 0 && <p className="sl-check" id="sl-links-check" data-tone={ignoredLines ? 'warning' : 'success'} aria-live="polite">
-          <Icon name={ignoredLines ? 'alertTriangle' : 'checkCircle'} size={16} />
-          {validLinks.length} {validLinks.length === 1 ? 'link válido' : 'links válidos'}{ignoredLines ? ` · ${ignoredLines} ${ignoredLines === 1 ? 'linha será ignorada' : 'linhas serão ignoradas'} (precisa de texto e https://)` : ''}
+        {linkLines.length > 0 && <p className="sl-check" id="sl-links-check" data-tone={tooManyLinks ? 'danger' : ignoredLines ? 'warning' : 'success'} aria-live="polite" role={tooManyLinks ? 'alert' : undefined}>
+          <Icon name={tooManyLinks ? 'alertCircle' : ignoredLines ? 'alertTriangle' : 'checkCircle'} size={16} />
+          {tooManyLinks
+            ? `${validLinks.length} links válidos · o Smartlink aceita até ${MAX_SMARTLINK_ITEMS}. Remova ${extraLinks} ${extraLinks === 1 ? 'link' : 'links'} para criar.`
+            : <>{validLinks.length} {validLinks.length === 1 ? 'link válido' : 'links válidos'}{ignoredLines ? ` · ${ignoredLines} ${ignoredLines === 1 ? 'linha será ignorada' : 'linhas serão ignoradas'} (precisa de texto e https://)` : ''}{validLinks.length >= MAX_SMARTLINK_ITEMS - 5 ? ` · até ${MAX_SMARTLINK_ITEMS} por Smartlink` : ''}</>}
         </p>}
       </div>
     </fieldset>
