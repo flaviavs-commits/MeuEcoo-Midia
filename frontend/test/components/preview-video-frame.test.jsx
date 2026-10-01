@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { waitForDecodedVideoFrame } from '../../src/pages/scheduler-page.jsx'
+import { waitForDecodedVideoFrame } from '../../src/lib/video-frame.js'
 
 // Regressão do "borrão" no preview de vídeo do agendador: capturar o frame
 // logo após um seek, usando só um tempo fixo (dois requestAnimationFrame),
