@@ -9,6 +9,10 @@ import { useServerDown } from '../components/layout/connection-banner.jsx'
 const SCHEDULER_AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
 const DASHBOARD_PLATFORMS = [['instagram', 'Instagram'], ['facebook', 'Facebook'], ['youtube', 'YouTube'], ['tiktok', 'TikTok']]
 const SUMMARY_DAYS = 7
+// A lista geral de posts vem paginada (100 por vez, dos mais antigos para os mais novos) e inclui os
+// excluídos: com mais de 100 posts, os próximos agendamentos sumiam e as falhas ficavam de fora. O
+// Início busca cada status que usa, e marca "+" quando há mais do que a primeira página.
+const DASHBOARD_STATUSES = ['scheduled', 'error', 'partial', 'published']
 const ANALYTICS_RETRY_BASE_MS = 5000
 const ANALYTICS_RETRY_MAX_MS = 60000
 const PLATFORM_LABELS = Object.fromEntries(DASHBOARD_PLATFORMS)
@@ -177,6 +181,7 @@ export function DashboardPage({ onNavigate }) {
   const [analytics, setAnalytics] = useState(null)
   const [analyticsError, setAnalyticsError] = useState('')
   const [postsLoading, setPostsLoading] = useState(true)
+  const [postsTruncated, setPostsTruncated] = useState({})
   const [accountsLoading, setAccountsLoading] = useState(true)
   const [analyticsLoading, setAnalyticsLoading] = useState(true)
   const [analyticsRetry, setAnalyticsRetry] = useState(0)
@@ -197,12 +202,18 @@ export function DashboardPage({ onNavigate }) {
     setAccountsLoading(true)
     setPostsError('')
     setAccountsError('')
-    apiFetch('/api/posts')
-      .then(posts => { if (active) setData(current => ({ ...current, posts: posts.posts || posts || [] })) })
+    Promise.all(DASHBOARD_STATUSES.map(status => apiFetch(`/api/posts?status=${status}&limit=100`)))
+      .then(results => {
+        if (!active) return
+        const byId = new Map()
+        results.forEach(result => (Array.isArray(result?.posts) ? result.posts : []).forEach(post => byId.set(post.id, post)))
+        setData(current => ({ ...current, posts: [...byId.values()] }))
+        setPostsTruncated(Object.fromEntries(DASHBOARD_STATUSES.map((status, index) => [status, Boolean(results[index]?.hasMore)])))
+      })
       .catch(error => { if (active) setPostsError(error.message) })
       .finally(() => { if (active) setPostsLoading(false) })
     apiFetch('/api/accounts')
-      .then(accounts => { if (active) setData(current => ({ ...current, accounts: accounts.accounts || accounts.data || accounts || [] })) })
+      .then(accounts => { if (active) setData(current => ({ ...current, accounts: Array.isArray(accounts?.data) ? accounts.data : Array.isArray(accounts?.accounts) ? accounts.accounts : [] })) })
       .catch(error => { if (active) setAccountsError(error.message) })
       .finally(() => { if (active) setAccountsLoading(false) })
     return () => { active = false }
@@ -345,9 +356,10 @@ export function DashboardPage({ onNavigate }) {
   }, [focusAfterRemoval])
 
   const failedCount = data.posts.filter(post => FAILURE_STATUSES.includes(post.status)).length
-  const publicationsFigure = statFigure(postsLoading, postsError, data.posts.length)
-  const scheduledFigure = statFigure(postsLoading, postsError, scheduled)
-  const failuresFigure = statFigure(postsLoading, postsError, failedCount)
+  const anyTruncated = Object.values(postsTruncated).some(Boolean)
+  const publicationsFigure = statFigure(postsLoading, postsError, `${data.posts.length}${anyTruncated ? '+' : ''}`)
+  const scheduledFigure = statFigure(postsLoading, postsError, `${scheduled}${postsTruncated.scheduled ? '+' : ''}`)
+  const failuresFigure = statFigure(postsLoading, postsError, `${failedCount}${postsTruncated.error || postsTruncated.partial ? '+' : ''}`)
   const accountsFigure = statFigure(accountsLoading, accountsError, data.accounts.length)
   const attentionCount = reviewAlerts.length + (scheduledWithoutDate ? 1 : 0)
 

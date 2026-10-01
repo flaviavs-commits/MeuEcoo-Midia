@@ -2,6 +2,14 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { DashboardPage } from '../../src/pages/dashboard-page.jsx'
 import * as api from '../../src/lib/api.js'
 
+// O Início busca os posts por status (/api/posts?status=…): o mock responde cada status com os posts dele
+// ('failed' nos dados de teste conta como 'error').
+const isPostsList = path => path.startsWith('/api/posts?status=')
+function postsByStatus(path, posts) {
+  const status = new URLSearchParams(path.split('?')[1]).get('status')
+  return { posts: posts.filter(post => post.status === status || (status === 'error' && post.status === 'failed')), hasMore: false }
+}
+
 describe('DashboardPage', () => {
   afterEach(() => {
     vi.restoreAllMocks()
@@ -9,9 +17,9 @@ describe('DashboardPage', () => {
   })
 
   it('shows a loading message before data arrives, not the empty state', async () => {
-    let resolvePosts
+    const resolvePosts = []
     vi.spyOn(api, 'apiFetch').mockImplementation(path => {
-      if (path === '/api/posts') return new Promise(resolve => { resolvePosts = resolve })
+      if (isPostsList(path)) return new Promise(resolve => { resolvePosts.push(resolve) })
       return Promise.resolve({ accounts: [] })
     })
 
@@ -20,7 +28,7 @@ describe('DashboardPage', () => {
     expect(screen.getByText('Carregando publicações...')).toBeInTheDocument()
     expect(screen.queryByText('Nenhuma publicação encontrada.')).not.toBeInTheDocument()
 
-    resolvePosts({ posts: [] })
+    resolvePosts.forEach(resolve => resolve({ posts: [] }))
     await waitFor(() => expect(screen.getByText('Seu Início ainda está vazio')).toBeInTheDocument())
     expect(screen.queryByText('Visualizações')).not.toBeInTheDocument()
     expect(screen.queryByText('Publicações recentes')).not.toBeInTheDocument()
@@ -28,7 +36,7 @@ describe('DashboardPage', () => {
 
   it('renders fetched posts once loaded', async () => {
     vi.spyOn(api, 'apiFetch').mockImplementation(path => {
-      if (path === '/api/posts') return Promise.resolve({ posts: [{ id: 1, text: 'Meu post', status: 'scheduled' }] })
+      if (isPostsList(path)) return Promise.resolve(postsByStatus(path, [{ id: 1, text: 'Meu post', status: 'scheduled' }]))
       return Promise.resolve({ accounts: [{ id: 1 }] })
     })
 
@@ -48,7 +56,7 @@ describe('DashboardPage', () => {
 
   it('opens content failures in the editor with the original post attached', async () => {
     vi.spyOn(api, 'apiFetch').mockImplementation(path => {
-      if (path === '/api/posts') return Promise.resolve({ posts: [{ id: 262, text: 'Meu post', platforms: ['instagram'], status: 'failed', errorMessage: 'This exact content is already scheduled.' }] })
+      if (isPostsList(path)) return Promise.resolve(postsByStatus(path, [{ id: 262, text: 'Meu post', platforms: ['instagram'], status: 'failed', errorMessage: 'This exact content is already scheduled.' }]))
       if (path === '/api/accounts') return Promise.resolve({ accounts: [] })
       return Promise.resolve({ metrics: [] })
     })
@@ -65,7 +73,7 @@ describe('DashboardPage', () => {
 
   it('keeps the "Agendar agora" call and sends the performance details to Relatórios', async () => {
     vi.spyOn(api, 'apiFetch').mockImplementation(path => {
-      if (path === '/api/posts') return Promise.resolve({ posts: [{ id: 5, text: 'Publicado ontem', status: 'published' }] })
+      if (isPostsList(path)) return Promise.resolve(postsByStatus(path, [{ id: 5, text: 'Publicado ontem', status: 'published' }]))
       if (path === '/api/accounts') return Promise.resolve({ accounts: [{ id: 1, platform: 'instagram' }] })
       return Promise.resolve({ metrics: [] })
     })
@@ -83,7 +91,7 @@ describe('DashboardPage', () => {
 
   it('does not say there are no failures while the posts are still loading', async () => {
     vi.spyOn(api, 'apiFetch').mockImplementation(path => {
-      if (path === '/api/posts') return new Promise(() => {})
+      if (isPostsList(path)) return new Promise(() => {})
       return Promise.resolve({ accounts: [] })
     })
 
@@ -95,7 +103,7 @@ describe('DashboardPage', () => {
 
   it('does not claim an empty schedule when the posts could not be loaded', async () => {
     vi.spyOn(api, 'apiFetch').mockImplementation(path => {
-      if (path === '/api/posts') return Promise.reject(new Error('Falha de rede'))
+      if (isPostsList(path)) return Promise.reject(new Error('Falha de rede'))
       if (path === '/api/accounts') return Promise.resolve({ accounts: [{ id: 1, platform: 'instagram' }] })
       return Promise.resolve({ metrics: [] })
     })
@@ -109,7 +117,7 @@ describe('DashboardPage', () => {
   it('shows the 7-day figures only after the metrics arrive', async () => {
     let resolveMetrics
     const apiFetch = vi.spyOn(api, 'apiFetch').mockImplementation(path => {
-      if (path === '/api/posts') return Promise.resolve({ posts: [{ id: 5, text: 'Publicado ontem', status: 'published' }] })
+      if (isPostsList(path)) return Promise.resolve(postsByStatus(path, [{ id: 5, text: 'Publicado ontem', status: 'published' }]))
       if (path === '/api/accounts') return Promise.resolve({ accounts: [{ id: 1, platform: 'instagram' }] })
       if (path.startsWith('/api/posts/analytics')) return new Promise(resolve => { resolveMetrics = resolve })
       return Promise.resolve({})
@@ -128,7 +136,7 @@ describe('DashboardPage', () => {
 
   it('separates the metrics error from the retry sentence', async () => {
     vi.spyOn(api, 'apiFetch').mockImplementation(path => {
-      if (path === '/api/posts') return Promise.resolve({ posts: [{ id: 5, text: 'Publicado ontem', status: 'published' }] })
+      if (isPostsList(path)) return Promise.resolve(postsByStatus(path, [{ id: 5, text: 'Publicado ontem', status: 'published' }]))
       if (path === '/api/accounts') return Promise.resolve({ accounts: [{ id: 1, platform: 'instagram' }] })
       if (path.startsWith('/api/posts/analytics')) return Promise.reject(new Error('Não foi possível concluir a operação'))
       return Promise.resolve({})
@@ -141,7 +149,7 @@ describe('DashboardPage', () => {
 
   it('names the networks of an alert in text, not only with logos', async () => {
     vi.spyOn(api, 'apiFetch').mockImplementation(path => {
-      if (path === '/api/posts') return Promise.resolve({ posts: [{ id: 7, text: 'Falhou em duas redes', platforms: ['instagram', 'facebook'], status: 'failed', errorMessage: 'This exact content is already scheduled.' }] })
+      if (isPostsList(path)) return Promise.resolve(postsByStatus(path, [{ id: 7, text: 'Falhou em duas redes', platforms: ['instagram', 'facebook'], status: 'failed', errorMessage: 'This exact content is already scheduled.' }]))
       if (path === '/api/accounts') return Promise.resolve({ accounts: [] })
       return Promise.resolve({ metrics: [] })
     })
@@ -161,7 +169,7 @@ describe('DashboardPage', () => {
       metrics: { views, likes: views / 20, comments: views / 20 },
     }))
     vi.spyOn(api, 'apiFetch').mockImplementation(path => {
-      if (path === '/api/posts') return Promise.resolve({ posts: [{ id: 5, text: 'Publicado ontem', status: 'published' }] })
+      if (isPostsList(path)) return Promise.resolve(postsByStatus(path, [{ id: 5, text: 'Publicado ontem', status: 'published' }]))
       if (path === '/api/accounts') return Promise.resolve({ accounts: [{ id: 1, platform: 'instagram' }] })
       if (path.startsWith('/api/posts/analytics')) return Promise.resolve({ metrics })
       return Promise.resolve({})
@@ -185,7 +193,7 @@ describe('DashboardPage', () => {
         posts = posts.filter(post => post.id !== 1)
         return Promise.resolve({ ok: true })
       }
-      if (path === '/api/posts') return Promise.resolve({ posts })
+      if (isPostsList(path)) return Promise.resolve(postsByStatus(path, posts))
       if (path === '/api/accounts') return Promise.resolve({ accounts: [] })
       return Promise.resolve({ metrics: [] })
     })
@@ -201,4 +209,26 @@ describe('DashboardPage', () => {
     const nextReview = within(nextTitle.closest('li')).getByRole('button', { name: 'Revisar no editor' })
     await waitFor(() => expect(nextReview).toHaveFocus())
   })
+
+  it('busca cada status do Início e marca "+" quando há mais posts do que a primeira página', async () => {
+    const apiFetch = vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/posts?status=scheduled&limit=100') return Promise.resolve({ posts: [
+        { id: 1, text: 'Primeiro da fila', status: 'scheduled', scheduledAt: '2026-10-05T12:00:00.000Z', platforms: ['instagram'] },
+        { id: 2, text: 'Segundo da fila', status: 'scheduled', scheduledAt: '2026-10-06T12:00:00.000Z', platforms: ['instagram'] },
+      ], hasMore: true })
+      if (isPostsList(path)) return Promise.resolve({ posts: [], hasMore: false })
+      if (path === '/api/accounts') return Promise.resolve({ data: [{ id: 1, platform: 'instagram' }] })
+      return Promise.resolve({ metrics: [] })
+    })
+
+    render(<DashboardPage onNavigate={() => {}} />)
+
+    expect(await screen.findByText('Primeiro da fila')).toBeInTheDocument()
+    expect(screen.getByText('Agendadas').nextElementSibling).toHaveTextContent('2+')
+    for (const status of ['scheduled', 'error', 'partial', 'published']) {
+      expect(apiFetch).toHaveBeenCalledWith(`/api/posts?status=${status}&limit=100`)
+    }
+    expect(apiFetch).not.toHaveBeenCalledWith('/api/posts')
+  })
 })
+
