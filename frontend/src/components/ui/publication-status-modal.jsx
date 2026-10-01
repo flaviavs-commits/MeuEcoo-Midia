@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Icon } from './icon.jsx'
 import { trapTab } from './floating.jsx'
+import { PLATFORM_LABELS } from '../../lib/platforms.js'
 
-const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 // Depois desse tempo processando, o diálogo deixa sair: a rede pode levar minutos (novas tentativas,
 // confirmação por webhook) e a publicação continua sendo acompanhada sem ele.
 export const LEAVE_PROCESSING_AFTER_MS = 20_000

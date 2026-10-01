@@ -8,13 +8,13 @@ import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { FilterGroup, FilterOption, FilterSheet, FiltersButton } from '../components/ui/filters.jsx'
 import { useIsPhone } from '../lib/breakpoints.js'
+import { PLATFORM_LABELS } from '../lib/platforms.js'
 
 const AI_GENERATION_TIMEOUT_MS = 60_000
 // O /api/ai/generate recusa instruções com mais de 4000 caracteres (o mesmo limite do Assistente).
 const THEME_MAX_LENGTH = 4000
 // A caixa do tema começa com três linhas e cresce enquanto a pessoa escreve, até esta altura.
 const THEME_MAX_HEIGHT = 240
-const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 const IDEA_FILTERS = [['all', 'Todas'], ['drafts', 'Em andamento'], ['templates', 'Modelos']]
 
 function platformsOf(draft) {

@@ -11,8 +11,8 @@ import { Sheet } from '../components/ui/floating.jsx'
 import { DateTimeField, toApiDateTime } from '../components/ui/date-time-field.jsx'
 import { FilterGroup, FilterOption, FilterSheet, FiltersButton } from '../components/ui/filters.jsx'
 import { useIsPhone } from '../lib/breakpoints.js'
+import { PLATFORM_LABELS } from '../lib/platforms.js'
 
-const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 const CALENDAR_VIEW_KEY = 'meu-ecoo:calendar-view'
 const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']

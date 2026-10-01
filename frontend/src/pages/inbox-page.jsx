@@ -6,6 +6,7 @@ import { CommentsModal } from '../components/analytics/comments-modal.jsx'
 import { FilterGroup, FilterOption, FilterSheet, FiltersButton } from '../components/ui/filters.jsx'
 import { Select } from '../components/ui/select.jsx'
 import { useIsCompact, useIsPhone } from '../lib/breakpoints.js'
+import { NETWORK_LABELS } from '../lib/platforms.js'
 
 const INBOX_FILTERS_KEY = 'meu-ecoo:inbox-filters'
 const INBOX_REFRESH_INTERVAL_MS = 60_000
@@ -21,7 +22,6 @@ const inboxPlatforms = [
   { id: 'youtube', label: 'YouTube' },
   { id: 'tiktok', label: 'TikTok' },
 ]
-const NETWORK_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok', linkedin: 'LinkedIn', threads: 'Threads', reddit: 'Reddit', bluesky: 'Bluesky', x: 'X', twitter: 'X' }
 
 function readInboxFilters() {
   try { return JSON.parse(localStorage.getItem(INBOX_FILTERS_KEY) || '{}') } catch { return {} }

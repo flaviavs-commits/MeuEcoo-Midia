@@ -3,8 +3,8 @@ import { apiFetch } from '../../lib/api.js'
 import { Icon, NetworkGlyph } from '../ui/icon.jsx'
 import { Sheet } from '../ui/floating.jsx'
 import { Select } from '../ui/select.jsx'
+import { NETWORK_LABELS } from '../../lib/platforms.js'
 
-const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', linkedin: 'LinkedIn', threads: 'Threads', reddit: 'Reddit', bluesky: 'Bluesky', x: 'X', twitter: 'X', tiktok: 'TikTok' }
 const COMMENTS_REFRESH_INTERVAL_MS = 60_000
 const COMMENTS_EMPTY_RETRY_INTERVAL_MS = 60_000
 const COMMENTS_EVENTUAL_CONSISTENCY_WINDOW_MS = 5 * COMMENTS_REFRESH_INTERVAL_MS
@@ -111,7 +111,7 @@ function previewFromInboxPost(post) {
 function PostPreview({ post }) {
   if (!post) return null
   const platform = post.platform || 'instagram'
-  const label = PLATFORM_LABELS[platform] || platform
+  const label = NETWORK_LABELS[platform] || platform
   const items = mediaItemsOf(post)
   const handle = post.handle ? (String(post.handle).startsWith('@') ? post.handle : `@${post.handle}`) : 'Sua publicação'
   const caption = post.text || ''
@@ -148,7 +148,7 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
   const authorAvatar = comment.authorAvatarUrl || comment.profilePictureUrl || comment.avatarUrl || null
   const viewerName = post?.handle || 'sua conta'
   const isReply = commentParentId(comment) !== null
-  const platformLabel = PLATFORM_LABELS[platform] || platform || 'rede social'
+  const platformLabel = NETWORK_LABELS[platform] || platform || 'rede social'
   const platformClass = platformKey(platform)
 
   async function send() {
@@ -213,7 +213,7 @@ function CommentRow({ comment, postId, post, platform, replySupported, onReplied
             <button type="button" className="ds-btn ds-btn--primary ds-btn--sm" onClick={send} disabled={sending}>{sending ? 'Publicando…' : 'Responder'}</button>
           </div>
           <div className="cm-reply__tools">
-            <span className="cm-reply__as">Respondendo como <strong>@{String(viewerName).replace(/^@/, '')}</strong> · será publicada no {PLATFORM_LABELS[platform] || platform || 'rede social'}</span>
+            <span className="cm-reply__as">Respondendo como <strong>@{String(viewerName).replace(/^@/, '')}</strong> · será publicada no {NETWORK_LABELS[platform] || platform || 'rede social'}</span>
             <span className="cm-reply__actions">
               {savedTexts.length > 0 && <Select
                 size="sm"

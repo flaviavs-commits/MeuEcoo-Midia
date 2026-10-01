@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { readStoredJson, removeStored, writeStored } from '../lib/storage.js'
 import { apiFetch } from '../lib/api.js'
+import { uploadToStorage } from '../lib/upload.js'
 import { TEAM_APPROVAL_UI_ENABLED } from '../lib/feature-flags.js'
 import { buildValidationIssues, INSTAGRAM_CAROUSEL_MAX_ITEMS, TIKTOK_PHOTO_MAX_ITEMS, mediaFileKey, readVideoMeta } from '../lib/postValidation.js'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
@@ -21,9 +22,8 @@ import { TIKTOK_VIDEO_DIMENSIONS, mediaKindLabel, ratioLabel, resolvePreviewAspe
 import { accountIdKey, accountsForPlatform, buildAccountSelectionIssues, groupAccountsByPerson, selectedAccountsForPost } from '../lib/account-selection.js'
 import { HeartIcon, CommentIcon, ShareArrowIcon, BookmarkIcon, ThumbsUpIcon, GlobeIcon, MoreIcon, MusicNoteIcon, DislikeIcon, RemixIcon, SendPlaneIcon } from '../components/ui/preview-icons.jsx'
 import '../styles/scheduler-composer.css'
+import { PLATFORMS, PLATFORM_LABELS } from '../lib/platforms.js'
 
-const platforms = ['instagram', 'facebook', 'youtube', 'tiktok']
-const platformLabels = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 const IMAGE_MIME_BY_EXTENSION = { heic: 'image/heic', heif: 'image/heif', avif: 'image/avif', tif: 'image/tiff', tiff: 'image/tiff', bmp: 'image/bmp' }
 const TOKEN_STATUS = { valid: ['ok', 'Token válido'], expiring: ['warning', 'Expirando'], expired: ['failed', 'Requer atenção'], error: ['failed', 'Requer atenção'] }
 const atHandle = value => (value.startsWith('@') ? value : `@${value}`)
@@ -118,7 +118,6 @@ async function imageSourceToFile(source, fileName = 'imagem-gerada-ia.png') {
   return new File([blob], safeName, { type: blob.type || 'image/png', lastModified: Date.now() })
 }
 
-const aiPlatformLabels = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 const MEDIA_AI_MODEL = 'openrouter'
 const MEDIA_HASHTAG_LIMITS = { instagram: 5, facebook: 2, youtube: 3, tiktok: 2 }
 const MEDIA_TEXT_LIMITS = { tiktok: 4000 }
@@ -339,7 +338,7 @@ function MediaAiSuggestions({ files, selected, contexto, previews, onApply }) {
 
   async function analyzeMedia() {
     if (!files.length || !selected.length) return
-    const requestedPlatforms = [...new Set(selected.filter(platform => platforms.includes(platform)))]
+    const requestedPlatforms = [...new Set(selected.filter(platform => PLATFORMS.includes(platform)))]
     if (!requestedPlatforms.length || requestedPlatforms.length > 4) {
       setAnalysisError('Selecione entre 1 e 4 redes sociais antes de gerar a descrição.')
       return
@@ -488,7 +487,6 @@ async function uploadWithConcurrency(items, upload, limit, onProgress) {
   return results
 }
 
-const previewLabels = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 
 function PreviewVideo({ src, platform, coverUrl = '' }) {
   const [frame, setFrame] = useState('')
@@ -806,7 +804,7 @@ function formatDuration(seconds) {
 }
 
 function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesByPlatform = {}, previews, publishNow, approvalRequested, date, youtubeTitle, igFormat, igAspect, onIgAspectChange, tiktokAspect, youtubeFormat, facebookFormat, mediaProfile, accounts, coverUrl = '', inSheet = false }) {
-  const availablePlatforms = selected.length ? selected : platforms
+  const availablePlatforms = selected.length ? selected : PLATFORMS
   const [activePlatform, setActivePlatform] = useState(availablePlatforms[0])
   const platformsKey = availablePlatforms.join(',')
   useEffect(() => {
@@ -858,11 +856,11 @@ function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesBy
       <span className="ds-badge" data-tone={approvalRequested ? 'info' : publishNow ? 'gold' : date ? 'info' : 'outline'}>{statusLabel}</span>
     </div>
     <div className="ds-netswitch mp-preview__tabs" role="tablist" aria-label="Prévia por rede social" onKeyDown={event => handleTabKeys(event, availablePlatforms, activePlatform, setActivePlatform, 'mp-pv-tab-')}>
-      {availablePlatforms.map(platform => <button type="button" role="tab" id={`mp-pv-tab-${platform}`} aria-controls="mp-preview-stage" aria-selected={activePlatform === platform} tabIndex={activePlatform === platform ? 0 : -1} className="ds-netswitch__opt" key={platform} onClick={() => setActivePlatform(platform)}><NetworkGlyph network={platform} size={16} />{previewLabels[platform]}</button>)}
+      {availablePlatforms.map(platform => <button type="button" role="tab" id={`mp-pv-tab-${platform}`} aria-controls="mp-preview-stage" aria-selected={activePlatform === platform} tabIndex={activePlatform === platform ? 0 : -1} className="ds-netswitch__opt" key={platform} onClick={() => setActivePlatform(platform)}><NetworkGlyph network={platform} size={16} />{PLATFORM_LABELS[platform]}</button>)}
     </div>
     <div className="mp-preview__stage" id="mp-preview-stage" role="tabpanel" aria-labelledby={`mp-pv-tab-${activePlatform}`}>
       <div className="mp-preview__format">
-        <p className="mp-preview__formatname">{previewLabels[activePlatform]} · {formatName}</p>
+        <p className="mp-preview__formatname">{PLATFORM_LABELS[activePlatform]} · {formatName}</p>
         <p className="ds-meta">{sizeText}</p>
       </div>
       {activePlatform === 'instagram' && igFormat === 'post' && onIgAspectChange && <div className="ds-field mp-preview__aspect">
@@ -1043,7 +1041,7 @@ export function SchedulerPage({ onNavigate } = {}) {
     if (connectedAccounts.length && !broken.length) return undefined
     const signature = connectedAccounts.length ? broken.map(account => account.id).sort().join(',') : 'none'
     try { if (sessionStorage.getItem(ACCOUNTS_WARNING_KEY) === signature) return undefined } catch { /* sem armazenamento: avisa */ }
-    const names = broken.map(account => `${handleOf(account)} (${platformLabels[account.platform] || account.platform})`)
+    const names = broken.map(account => `${handleOf(account)} (${PLATFORM_LABELS[account.platform] || account.platform})`)
     const listed = names.length > 1 ? `${names.slice(0, -1).join(', ')} e ${names.at(-1)}` : names[0]
     let active = true
     confirm(connectedAccounts.length
@@ -1112,7 +1110,7 @@ export function SchedulerPage({ onNavigate } = {}) {
       if (savedDraft) {
         sourceFailureId.current = savedDraft.sourceFailureId || null
         setReplacingFailureId(savedDraft.sourceFailureId || null)
-        const knownSelected = Array.isArray(savedDraft.selected) ? savedDraft.selected.filter(platform => platforms.includes(platform)) : []
+        const knownSelected = Array.isArray(savedDraft.selected) ? savedDraft.selected.filter(platform => PLATFORMS.includes(platform)) : []
         const savedSelected = knownSelected.length ? knownSelected : ['instagram']
         const savedText = typeof savedDraft.text === 'string' ? savedDraft.text : ''
         const savedTexts = savedDraft.textByPlatform && typeof savedDraft.textByPlatform === 'object' ? savedDraft.textByPlatform : {}
@@ -1356,7 +1354,7 @@ export function SchedulerPage({ onNavigate } = {}) {
       if (suggestion.plataforma === 'youtube' && suggestion.titulo) setYoutubeTitle(suggestion.titulo)
     })
     if (!options.silent && suggestions.length) {
-      const labels = suggestions.map(suggestion => aiPlatformLabels[suggestion.plataforma] || suggestion.plataforma).filter(Boolean).join(', ')
+      const labels = suggestions.map(suggestion => PLATFORM_LABELS[suggestion.plataforma] || suggestion.plataforma).filter(Boolean).join(', ')
       notify(`Sugestão aplicada para ${labels}.`)
     }
   }
@@ -1483,19 +1481,7 @@ export function SchedulerPage({ onNavigate } = {}) {
   const dateMissing = (!publishNow || Boolean(approvalWorkspaceId)) && !date
 
   async function uploadFile(file) {
-    const data = await apiFetch('/api/posts/upload-url', { method: 'POST', body: JSON.stringify({ filename: file.name, mimetype: file.type }) })
-    let response
-    try {
-      response = await fetch(data.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
-    } catch {
-      throw new Error(`Não foi possível enviar ${file.name}. Verifique a conexão e tente de novo.`)
-    }
-    if (!response.ok) throw new Error(`O armazenamento recusou ${file.name}. Tente de novo.`)
-    const uploaded = await response.json().catch(() => null)
-    // Em modo privado o backend fornece uma URL proxy assinada; no modo
-    // público preservamos a URL final devolvida pelo Blob.
-    const mediaUrl = data.mediaUrl || uploaded?.url
-    if (!mediaUrl) throw new Error(`O upload de ${file.name} não retornou uma URL válida.`)
+    const mediaUrl = await uploadToStorage(file, { filename: file.name, mimetype: file.type })
     return { url: mediaUrl, mimetype: file.type, name: file.name, size: file.size }
   }
 
@@ -1583,7 +1569,7 @@ export function SchedulerPage({ onNavigate } = {}) {
 
   const aiContext = selected.map(platform => {
     const value = platform === 'tiktok' ? (textByPlatform.tiktokDescription || '') : (textByPlatform[platform] || '')
-    return value.trim() ? `${aiPlatformLabels[platform] || platform}: ${value.trim()}` : ''
+    return value.trim() ? `${PLATFORM_LABELS[platform] || platform}: ${value.trim()}` : ''
   }).filter(Boolean).join('\n\n')
 
   const carouselPlatforms = selected.filter(platform => platform === 'instagram' || platform === 'tiktok' || platform === 'facebook' && facebookFormat === 'post')
@@ -1636,7 +1622,7 @@ export function SchedulerPage({ onNavigate } = {}) {
     setIssuesOpen(false)
     const text = String(issue.message || '').toLowerCase()
     const pane = issue.platform && selected.includes(issue.platform) ? issue.platform : activeTextPlatform
-    const network = issue.platform ? platformLabels[issue.platform] : ''
+    const network = issue.platform ? PLATFORM_LABELS[issue.platform] : ''
     let candidates = ['.mp-drop .mp-fileinput']
     if (/antecedência|no passado|data e hora|data e a hora/.test(text)) candidates = ['#mp-date']
     else if (/carregar suas contas/.test(text)) candidates = ['.mp-accts .ds-alert button']
@@ -1662,7 +1648,7 @@ export function SchedulerPage({ onNavigate } = {}) {
   }
 
   function renderNetworkPane(platform) {
-    const label = PLATFORM_TEXT_LIMITS[platform]?.label || platformLabels[platform] || platform
+    const label = PLATFORM_TEXT_LIMITS[platform]?.label || PLATFORM_LABELS[platform] || platform
     const limit = getPlatformTextLimit(platform)
     const value = textByPlatform[platform] || ''
     const targets = accountsForPlatform(connectedAccounts, platform).filter(isAccountSelected)
@@ -1777,12 +1763,12 @@ export function SchedulerPage({ onNavigate } = {}) {
             <button type="button" className="ds-btn ds-btn--quiet ds-btn--icon ds-btn--sm ds-alert__close" onClick={() => setLastResult(null)} aria-label="Dispensar resultado"><Icon name="close" size={16} /></button>
           </div>}
           <div className="mp-nets" role="group" aria-label="Redes sociais">
-            {platforms.map(platform => {
+            {PLATFORMS.map(platform => {
               const isSelected = selected.includes(platform)
               return <label className="mp-net" data-selected={isSelected || undefined} key={platform}>
                 <input type="checkbox" className="ds-checkbox" checked={isSelected} onChange={() => toggle(platform)} />
                 <NetworkGlyph network={platform} size={20} />
-                <span className="mp-net__text"><span className="mp-net__name">{platformLabels[platform]}</span><span className="mp-net__acct">{networkSummary(platform)}</span></span>
+                <span className="mp-net__text"><span className="mp-net__name">{PLATFORM_LABELS[platform]}</span><span className="mp-net__acct">{networkSummary(platform)}</span></span>
               </label>
             })}
           </div>
@@ -1818,7 +1804,7 @@ export function SchedulerPage({ onNavigate } = {}) {
                         ? <ul className="mp-acctlist">{visible.map(account => {
                           const label = accountLabelOf(account)
                           const [tone, tokenLabel] = TOKEN_STATUS[account.tokens?.find(token => token.status)?.status] || ['muted', 'Sem status']
-                          const networkLabel = platformLabels[account.platform] || account.platform
+                          const networkLabel = PLATFORM_LABELS[account.platform] || account.platform
                           return <li key={account.id}><label className="mp-acct">
                             <input type="checkbox" className="ds-checkbox" checked={isAccountSelected(account)} disabled={!selected.includes(account.platform)} onChange={() => toggleAccount(account.id)} aria-label={`Usar ${label} no ${networkLabel}`} />
                             {account.avatarUrl ? <img className="mp-acct__avatar" src={account.avatarUrl} alt="" /> : <span className="mp-acct__avatar" aria-hidden="true"><NetworkGlyph network={account.platform} size={16} /></span>}
@@ -1882,7 +1868,7 @@ export function SchedulerPage({ onNavigate } = {}) {
             <ul className="ds-disclosure__body mp-limits__list">
               {selected.map(platform => <li key={platform}>
                 <NetworkGlyph network={platform} size={16} />
-                <span><strong>{platformLabels[platform]}</strong> {socialMediaResolutionHint(platform, { instagramFormat: igFormat, facebookFormat, youtubeFormat, mediaKind: mediaProfile?.kind })}. {socialMediaLimitHint(platform, { instagramFormat: igFormat, facebookFormat })}</span>
+                <span><strong>{PLATFORM_LABELS[platform]}</strong> {socialMediaResolutionHint(platform, { instagramFormat: igFormat, facebookFormat, youtubeFormat, mediaKind: mediaProfile?.kind })}. {socialMediaLimitHint(platform, { instagramFormat: igFormat, facebookFormat })}</span>
               </li>)}
             </ul>
           </details>}
@@ -1895,7 +1881,7 @@ export function SchedulerPage({ onNavigate } = {}) {
             ? <>
               <div className="ds-tabs mp-tabs" role="tablist" aria-label="Texto por rede" onKeyDown={event => handleTabKeys(event, selected, activeTextPlatform, setTextTab, 'mp-tab-')}>
                 {selected.map(platform => <button type="button" role="tab" id={`mp-tab-${platform}`} aria-controls={`mp-pane-${platform}`} aria-selected={platform === activeTextPlatform} tabIndex={platform === activeTextPlatform ? 0 : -1} className="ds-tab mp-tab" key={platform} onClick={() => setTextTab(platform)}>
-                  <NetworkGlyph network={platform} size={16} />{platformLabels[platform]}
+                  <NetworkGlyph network={platform} size={16} />{PLATFORM_LABELS[platform]}
                   {issueCountByPlatform[platform] > 0 && <span className="ds-badge mp-tab__count" data-tone="danger"><span aria-hidden="true">{issueCountByPlatform[platform]}</span><span className="ds-sr-only">, {issueCountByPlatform[platform]} {issueCountByPlatform[platform] === 1 ? 'pendência' : 'pendências'}</span></span>}
                 </button>)}
               </div>

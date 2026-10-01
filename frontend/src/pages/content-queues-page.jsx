@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { apiFetch, ApiError } from '../lib/api.js'
+import { apiFetch, ApiError, messageOf } from '../lib/api.js'
+import { uploadToStorage } from '../lib/upload.js'
 import { useIsPhone } from '../lib/breakpoints.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { useConfirm } from '../components/ui/confirm-dialog.jsx'
@@ -17,10 +18,6 @@ const FORM_ID = 'rep-create-form'
 
 // Mensagem do backend quando existe; falha de rede ou resposta fora do formato
 // vira o texto da ação, nunca o erro técnico.
-function messageOf(error, fallback) {
-  return error instanceof ApiError ? error.message : fallback
-}
-
 const TIKTOK_PRIVACY = [
   { value: 'PUBLIC_TO_EVERYONE', label: 'Público' },
   { value: 'MUTUAL_FOLLOW_FRIENDS', label: 'Amigos' },
@@ -90,14 +87,7 @@ export function ContentQueuesPage() {
     })
   }
   async function uploadMedia(file) {
-    const signed = await apiFetch('/api/posts/upload-url', { method: 'POST', body: JSON.stringify({ filename: file.name, mimetype: file.type }) })
-    const response = await fetch(signed.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
-      .catch(() => { throw new Error(`Não foi possível enviar ${file.name}. Verifique sua conexão e tente de novo.`) })
-    if (!response.ok) throw new Error(`Não foi possível enviar ${file.name}.`)
-    const uploaded = await response.json().catch(() => null)
-    const mediaUrl = signed.mediaUrl || uploaded?.url
-    if (!mediaUrl) throw new Error('O upload não retornou uma URL válida.')
-    return { url: mediaUrl, size: file.size }
+    return { url: await uploadToStorage(file, { filename: file.name, mimetype: file.type }), size: file.size }
   }
   async function save(event) {
     event.preventDefault()

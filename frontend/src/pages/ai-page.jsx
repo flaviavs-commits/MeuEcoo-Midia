@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { apiFetch, ApiError } from '../lib/api.js'
+import { apiFetch, messageOf } from '../lib/api.js'
+import { uploadToStorage } from '../lib/upload.js'
 import { PublicationStatusModal } from '../components/ui/publication-status-modal.jsx'
 import { Sheet } from '../components/ui/floating.jsx'
 import { useToast } from '../components/ui/toast.jsx'
@@ -73,11 +74,7 @@ function formatActivityDate(value) {
 
 // Mensagem do backend quando existe; falha de rede ou resposta fora do formato
 // vira o texto da ação. Erros criados pela própria tela já trazem texto pronto.
-function messageOf(error, fallback) {
-  return error instanceof ApiError ? error.message : fallback
-}
-
-// fetch direto (imagem gerada, upload assinado): a falha de rede chega como
+// fetch direto (imagem gerada): a falha de rede chega como
 // TypeError em inglês ("Failed to fetch"); aqui vira a frase da etapa.
 async function fetchOrExplain(url, options, message) {
   try { return await fetch(url, options) }
@@ -303,15 +300,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
         return response.blob()
       })
       const mimeType = imageBlob.type || 'image/png'
-      const signed = await apiFetch('/api/posts/upload-url', {
-        method: 'POST',
-        body: JSON.stringify({ filename: `ia-${Date.now()}-${index + 1}.png`, mimetype: mimeType }),
-      })
-      const uploadResponse = await fetchOrExplain(signed.uploadUrl, { method: 'PUT', headers: { 'Content-Type': mimeType }, body: imageBlob }, 'Não foi possível enviar uma imagem para publicação. Verifique sua conexão e tente de novo.')
-      if (!uploadResponse.ok) throw new Error('Não foi possível enviar uma imagem para publicação.')
-      const uploaded = await uploadResponse.json().catch(() => null)
-      const mediaUrl = signed.mediaUrl || uploaded?.url
-      if (!mediaUrl) throw new Error('O upload de uma imagem não retornou uma URL válida.')
+      const mediaUrl = await uploadToStorage(imageBlob, { filename: `ia-${Date.now()}-${index + 1}.png`, mimetype: mimeType, label: 'uma imagem para publicação' })
       return { path: mediaUrl, type: 'image', mimetype: mimeType, size: imageBlob.size }
     }))
     return { mediaPath: uploadedItems[0].path, mediaItems: uploadedItems.length > 1 ? uploadedItems : null, mediaSize: uploadedItems[0].size }

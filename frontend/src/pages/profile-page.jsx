@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { apiFetch, ApiError, logout } from '../lib/api.js'
+import { apiFetch, logout, messageOf } from '../lib/api.js'
+import { uploadToStorage } from '../lib/upload.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { Select } from '../components/ui/select.jsx'
 import { useConfirm } from '../components/ui/confirm-dialog.jsx'
@@ -8,6 +9,7 @@ import { PasswordInput } from '../components/ui/password-input.jsx'
 import { getTutorialStatus, requestTutorialOpen, TUTORIAL_STATUS_EVENT } from '../lib/tutorial.js'
 import { DEFAULT_PLAN, PLANS, getMeuEcooPricing, getPlan, normalizePlan } from '../lib/plans.js'
 import { PASSWORD_MAX_LENGTH, PASSWORD_RULE_LABELS, passwordRules } from '../lib/password-rules.js'
+import { PLATFORM_LABELS } from '../lib/platforms.js'
 
 function formatDateTime(value) {
   if (!value) return ''
@@ -16,7 +18,6 @@ function formatDateTime(value) {
 }
 
 const DEFAULT_NOTIFICATIONS = { email: true, published: true, failures: true, comments: true }
-const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 // O sino só avisa o que pede ação (publicação que falhou ou saiu em parte das redes);
 // publicações concluídas e comentários ficam no Calendário, em Atividades e no Inbox.
 // As preferências "published" e "comments" continuam salvas como estão, sem efeito na tela.
@@ -45,10 +46,6 @@ function formatDate(value) {
 
 // Mensagem do backend quando existe; falha de rede, upload direto ou resposta
 // fora do formato vira o texto da ação, nunca o erro técnico ("Failed to fetch").
-function messageOf(error, fallback) {
-  return error instanceof ApiError ? error.message : fallback
-}
-
 function formatCurrency(priceCents) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(priceCents || 0) / 100)
 }
@@ -225,12 +222,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
     if (!file.type.startsWith('image/')) return notify('Escolha uma imagem JPG, PNG, GIF ou WebP.', 'error')
     setAvatarSaving(true)
     try {
-      const upload = await apiFetch('/api/posts/upload-url', { method: 'POST', body: JSON.stringify({ filename: file.name, mimetype: file.type }) })
-      const response = await fetch(upload.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
-      if (!response.ok) throw new Error('Não foi possível enviar a imagem.')
-      const uploaded = await response.json().catch(() => null)
-      const avatarUrl = upload.mediaUrl || uploaded?.url
-      if (!avatarUrl) throw new Error('O upload não retornou uma URL válida.')
+      const avatarUrl = await uploadToStorage(file, { filename: file.name, mimetype: file.type, label: 'a foto' })
       await apiFetch('/api/me/avatar', { method: 'POST', body: JSON.stringify({ avatarUrl }) })
       setProfile(current => ({ ...current, avatarUrl }))
       onUserChange?.({ avatarUrl })

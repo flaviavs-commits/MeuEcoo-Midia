@@ -1,3 +1,5 @@
+import { PLATFORM_LABELS } from './platforms.js'
+
 export function accountIdKey(value) {
   return String(value?.id ?? value)
 }
@@ -35,7 +37,7 @@ export function buildAccountSelectionIssues(accounts, platforms, selectedAccount
     const platformAccounts = accountsForPlatform(accounts, platform)
     const selected = new Set((Array.isArray(selectedAccountIds) ? selectedAccountIds : []).map(accountIdKey))
     const selectedCount = platformAccounts.filter(account => selected.has(accountIdKey(account))).length
-    const label = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok' }[platform] || platform
+    const label = PLATFORM_LABELS[platform] || platform
 
     if (!platformAccounts.length) return [{ platform, message: `Nenhuma conta de ${label} está conectada.` }]
     if (!selectedCount) return [{ platform, message: `Selecione pelo menos uma conta de ${label} para continuar.` }]

@@ -1,3 +1,5 @@
+import { PLATFORM_LABELS } from './platforms.js'
+
 // Espelho client-side de src/domain/posts/mediaLimits.js.
 // A validação do backend continua obrigatória; esta tabela evita upload
 // desnecessário e mostra a pendência antes do envio do arquivo.
@@ -90,7 +92,7 @@ export function validateMediaMetadata({ platform, mediaKind, format, youtubeForm
 }
 
 function networkLabel(platform) {
-  return { instagram: 'Instagram', tiktok: 'TikTok', youtube: 'YouTube', facebook: 'Facebook' }[platform] || platform
+  return PLATFORM_LABELS[platform] || platform
 }
 
 function formatLabel(platform, format, youtubeFormat) {

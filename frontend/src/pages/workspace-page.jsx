@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { apiFetch, ApiError } from '../lib/api.js'
+import { apiFetch, messageOf } from '../lib/api.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { useConfirm } from '../components/ui/confirm-dialog.jsx'
 import { Select } from '../components/ui/select.jsx'
@@ -39,10 +39,6 @@ function formatDate(value) {
 
 // Mensagem do backend quando ela existe; qualquer outro erro (ex.: resposta
 // num formato inesperado) vira o texto próprio da ação, nunca o erro técnico.
-function messageOf(error, fallback) {
-  return error instanceof ApiError ? error.message : fallback
-}
-
 const MEMBER_ROLES = [
   { value: 'editor', label: 'Editor' },
   { value: 'reviewer', label: 'Aprovador' },

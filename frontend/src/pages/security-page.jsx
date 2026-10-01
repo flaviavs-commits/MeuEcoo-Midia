@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { apiFetch, ApiError } from '../lib/api.js'
+import { apiFetch, messageOf } from '../lib/api.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { Icon } from '../components/ui/icon.jsx'
 import { PasswordInput } from '../components/ui/password-input.jsx'
@@ -7,10 +7,6 @@ import { PasswordInput } from '../components/ui/password-input.jsx'
 const STEPS = ['Confirme sua senha', 'Escaneie o QR Code', 'Digite o código']
 
 // Mensagem do backend quando existe; qualquer outra falha vira o texto da ação.
-function messageOf(error, fallback) {
-  return error instanceof ApiError ? error.message : fallback
-}
-
 export function SecurityPage({ user, onUserChange }) {
   const [enabled, setEnabled] = useState(Boolean(user?.totpEnabled))
   const [setup, setSetup] = useState(null)

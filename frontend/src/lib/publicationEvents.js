@@ -1,5 +1,6 @@
+import { PLATFORM_LABELS } from './platforms.js'
+
 const EVENT_PAGE_SIZE = 200
-const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 
 export function formatPlatformList(platforms = []) {
   const labels = [...new Set(platforms.filter(Boolean).map(platform => PLATFORM_LABELS[platform] || platform))]

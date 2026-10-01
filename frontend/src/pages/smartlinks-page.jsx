@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { apiFetch, ApiError } from '../lib/api.js'
+import { apiFetch, ApiError, messageOf } from '../lib/api.js'
+import { uploadToStorage } from '../lib/upload.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { useConfirm } from '../components/ui/confirm-dialog.jsx'
 import { Icon } from '../components/ui/icon.jsx'
@@ -34,10 +35,6 @@ const previewSlug = value => String(value || '').toLowerCase().normalize('NFD').
 
 // Mensagem do backend quando existe; falha de rede ou resposta fora do formato
 // vira o texto da ação, nunca o erro técnico.
-function messageOf(error, fallback) {
-  return error instanceof ApiError ? error.message : fallback
-}
-
 // Quantos links de cada página aparecem antes do "Ver todos": com 10 ou 50
 // páginas, a lista continua legível.
 const PREVIEW_LINKS = 5
@@ -152,12 +149,7 @@ export function SmartlinksPage() {
     if (!file.type.startsWith('image/')) return notify('Escolha uma imagem JPG, PNG, GIF ou WebP.', 'error')
     setUploadingLogo(true)
     try {
-      const upload = await apiFetch('/api/posts/upload-url', { method: 'POST', body: JSON.stringify({ filename: file.name, mimetype: file.type }) })
-      const response = await fetch(upload.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file }).catch(() => { throw new Error('Não foi possível enviar a logo. Verifique sua conexão e tente de novo.') })
-      if (!response.ok) throw new Error('Não foi possível enviar a logo.')
-      const uploaded = await response.json().catch(() => null)
-      const mediaUrl = upload.mediaUrl || uploaded?.url
-      if (!mediaUrl) throw new Error('O upload não retornou uma URL válida.')
+      const mediaUrl = await uploadToStorage(file, { filename: file.name, mimetype: file.type, label: 'a logo' })
       setForm(current => ({ ...current, logoUrl: mediaUrl }))
       notify('Logo da loja carregada.')
     } catch (error) {

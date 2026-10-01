@@ -7,6 +7,7 @@ import { useConfirm } from '../components/ui/confirm-dialog.jsx'
 import { Icon } from '../components/ui/icon.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { FilterGroup, FilterOption, FilterSheet, FiltersButton } from '../components/ui/filters.jsx'
+import { PLATFORM_LABELS } from '../lib/platforms.js'
 
 const HISTORY_LIMIT = 200
 // Filtros no plural; o selo de cada linha usa o singular. O servidor também grava
@@ -18,7 +19,6 @@ const TYPE_META = {
   ok: { label: 'Sucesso', status: 'ok', icon: 'checkCircle' },
   info: { label: 'Informação', status: 'muted', icon: 'info' },
 }
-const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 
 function dayKey(value) {
   const date = new Date(value)

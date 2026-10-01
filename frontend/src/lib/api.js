@@ -31,6 +31,12 @@ export class ApiError extends Error {
   }
 }
 
+// Texto de erro para a pessoa: a mensagem da API (já tratada em português) ou a frase da tela.
+// Qualquer outro erro (falha de código, TypeError do navegador) nunca chega à interface.
+export function messageOf(error, fallback) {
+  return error instanceof ApiError ? error.message : fallback
+}
+
 // Tela de login; quando a sessão cai no meio do uso, leva junto a chave da
 // página atual (ver app-pages.js) para voltar a ela depois de entrar.
 export function loginPath({ returnPage } = {}) {

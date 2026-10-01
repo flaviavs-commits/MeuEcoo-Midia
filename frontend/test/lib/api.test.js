@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, apiFetch, publicApiFetch } from '../../src/lib/api.js'
+import { ApiError, apiFetch, messageOf, publicApiFetch } from '../../src/lib/api.js'
 
 function jsonResponse(body, status = 200) {
   return { ok: status >= 200 && status < 300, status, text: vi.fn().mockResolvedValue(JSON.stringify(body)) }
@@ -41,5 +41,13 @@ describe('api client', () => {
   it('converte abort/timeout em erro de rede controlado', async () => {
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(Object.assign(new Error('aborted'), { name: 'AbortError' })))
     await expect(publicApiFetch('/api/config', { timeoutMs: 1 })).rejects.toMatchObject({ status: 408 })
+  })
+})
+
+describe('messageOf', () => {
+  it('mostra a mensagem da API e troca qualquer outro erro pela frase da tela', () => {
+    expect(messageOf(new ApiError('Senha atual incorreta.', 401), 'Não foi possível salvar.')).toBe('Senha atual incorreta.')
+    expect(messageOf(new TypeError('Failed to fetch'), 'Não foi possível salvar.')).toBe('Não foi possível salvar.')
+    expect(messageOf(null, 'Não foi possível salvar.')).toBe('Não foi possível salvar.')
   })
 })
