@@ -72,8 +72,6 @@ function formatActivityDate(value) {
   return Number.isNaN(date.getTime()) ? '' : date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
 }
 
-// Mensagem do backend quando existe; falha de rede ou resposta fora do formato
-// vira o texto da ação. Erros criados pela própria tela já trazem texto pronto.
 // fetch direto (imagem gerada): a falha de rede chega como
 // TypeError em inglês ("Failed to fetch"); aqui vira a frase da etapa.
 async function fetchOrExplain(url, options, message) {

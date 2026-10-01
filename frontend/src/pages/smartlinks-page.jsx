@@ -33,8 +33,6 @@ const formatCount = value => Number(value || 0).toLocaleString('pt-BR')
 
 const previewSlug = value => String(value || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'seu-link'
 
-// Mensagem do backend quando existe; falha de rede ou resposta fora do formato
-// vira o texto da ação, nunca o erro técnico.
 // Quantos links de cada página aparecem antes do "Ver todos": com 10 ou 50
 // páginas, a lista continua legível.
 const PREVIEW_LINKS = 5

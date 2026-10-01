@@ -44,8 +44,6 @@ function formatDate(value) {
   return date.toLocaleDateString('pt-BR', { dateStyle: 'long' })
 }
 
-// Mensagem do backend quando existe; falha de rede, upload direto ou resposta
-// fora do formato vira o texto da ação, nunca o erro técnico ("Failed to fetch").
 function formatCurrency(priceCents) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(priceCents || 0) / 100)
 }

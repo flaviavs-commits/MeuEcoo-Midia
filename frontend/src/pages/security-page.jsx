@@ -6,7 +6,6 @@ import { PasswordInput } from '../components/ui/password-input.jsx'
 
 const STEPS = ['Confirme sua senha', 'Escaneie o QR Code', 'Digite o código']
 
-// Mensagem do backend quando existe; qualquer outra falha vira o texto da ação.
 export function SecurityPage({ user, onUserChange }) {
   const [enabled, setEnabled] = useState(Boolean(user?.totpEnabled))
   const [setup, setSetup] = useState(null)

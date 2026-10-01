@@ -16,8 +16,6 @@ const days = [['1', 'Seg'], ['2', 'Ter'], ['3', 'Qua'], ['4', 'Qui'], ['5', 'Sex
 const STATUS_FILTERS = [['all', 'Todas'], ['active', 'Ativas'], ['paused', 'Pausadas']]
 const FORM_ID = 'rep-create-form'
 
-// Mensagem do backend quando existe; falha de rede ou resposta fora do formato
-// vira o texto da ação, nunca o erro técnico.
 const TIKTOK_PRIVACY = [
   { value: 'PUBLIC_TO_EVERYONE', label: 'Público' },
   { value: 'MUTUAL_FOLLOW_FRIENDS', label: 'Amigos' },

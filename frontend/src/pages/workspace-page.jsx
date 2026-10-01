@@ -37,8 +37,6 @@ function formatDate(value) {
   return Number.isNaN(date.getTime()) ? 'agora' : date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })
 }
 
-// Mensagem do backend quando ela existe; qualquer outro erro (ex.: resposta
-// num formato inesperado) vira o texto próprio da ação, nunca o erro técnico.
 const MEMBER_ROLES = [
   { value: 'editor', label: 'Editor' },
   { value: 'reviewer', label: 'Aprovador' },
