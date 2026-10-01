@@ -155,8 +155,13 @@ export function AiPage() {
     }
   }, [])
 
+  // Novas ideias substituem a lista, e imagem e publicação em andamento apontam para a posição da
+  // ideia: gerar no meio disso gravaria o resultado na ideia errada. Espera terminar.
+  const ideaWorkBusy = imageLoadingIndex !== null || publishingIndex !== null
+
   async function generate(event) {
     event.preventDefault()
+    if (ideaWorkBusy) return
     if (!instruction.trim()) {
       setInstructionError('Descreva o que você quer publicar para receber as ideias.')
       return
@@ -615,8 +620,8 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
           <div className="as-prompt__bar">
             {instructionError
               ? <p className="ds-fieldmsg" data-tone="danger" id="as-instruction-help"><Icon name="alertCircle" />{instructionError}</p>
-              : <p className="ds-hint" id="as-instruction-help">Informe o tema, o público e o objetivo. Quanto mais contexto, mais úteis serão as sugestões.</p>}
-            <button type="submit" className="ds-btn ds-btn--primary as-compose__submit" disabled={loading || loadingMore}>
+              : <p className="ds-hint" id="as-instruction-help">{ideaWorkBusy ? 'Espere a imagem ou a publicação em andamento terminar para gerar novas ideias.' : 'Informe o tema, o público e o objetivo. Quanto mais contexto, mais úteis serão as sugestões.'}</p>}
+            <button type="submit" className="ds-btn ds-btn--primary as-compose__submit" disabled={loading || loadingMore || ideaWorkBusy}>
               {loading ? <><span className="ds-spinner" aria-hidden="true" />Gerando ideias…</> : <><Icon name="sparkle" />{posts.length ? 'Gerar novas ideias' : 'Gerar ideias'}</>}
             </button>
           </div>
