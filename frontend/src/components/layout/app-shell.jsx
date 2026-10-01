@@ -109,19 +109,13 @@ function notificationKind(item) {
 }
 
 const NOTIFICATION_KIND_LABELS = { success: 'Sucesso', error: 'Erro', pending: 'Em processamento', warning: 'Atenção', info: 'Atualização' }
-const NOTIFICATION_KIND_ICONS = { success: 'checkCircle', error: 'alertCircle', pending: 'processing', warning: 'halfCircle', info: 'info', comment: 'comment' }
+const NOTIFICATION_KIND_ICONS = { success: 'checkCircle', error: 'alertCircle', pending: 'processing', warning: 'halfCircle', info: 'info' }
 const NOTIFICATION_POLL_INTERVAL_MS = 60 * 1000
 
-function isPublicationNotification(item) {
-  return /^post #\d+\s+(?:publicado com sucesso|publicado parcialmente|falhou ao publicar)/.test(String(item?.message || '').toLowerCase())
-}
-
-function isCommentNotification(item) {
-  return /^novo comentário de @/i.test(String(item?.message || ''))
-}
-
+// O sino só avisa o que pede uma ação: publicação que falhou ou saiu só em parte das redes.
+// Publicações concluídas ficam no Calendário e em Atividades; comentários, no Inbox.
 function isBellNotification(item) {
-  return isPublicationNotification(item) || isCommentNotification(item)
+  return /^post #\d+\s+(?:publicado parcialmente|falhou ao publicar)/.test(String(item?.message || '').toLowerCase())
 }
 
 function mergeNotifications(current, incoming) {
@@ -133,12 +127,7 @@ function mergeNotifications(current, incoming) {
 }
 
 function notificationPreferenceEnabled(item, user) {
-  const preferences = user?.notificationPreferences || {}
-  if (isCommentNotification(item)) return preferences.comments !== false
-  const kind = notificationKind(item)
-  if (kind === 'success') return preferences.published !== false
-  if (kind === 'warning' || kind === 'error') return preferences.failures !== false
-  return true
+  return user?.notificationPreferences?.failures !== false
 }
 
 function NavItem({ item, page, user, rail, onNavigate }) {
@@ -331,15 +320,14 @@ function MoreSheet({ open, onClose, page, user, onNavigate }) {
 function NotificationsBody({ loading, error, notifications }) {
   if (loading) return <div className="ds-notif__state" aria-live="polite"><span className="ds-spinner" aria-hidden="true" />Carregando atualizações...</div>
   if (error) return <div className="ds-notif__state ds-notif__state--error" role="alert"><Icon name="alertCircle" />Não foi possível carregar as notificações agora.</div>
-  if (!notifications.length) return <div className="ds-notif__state"><Icon name="bell" />Nenhuma atualização recente.</div>
+  if (!notifications.length) return <div className="ds-notif__state"><Icon name="checkCircle" />Nada precisa da sua atenção agora. Avisamos aqui quando uma publicação falhar.</div>
   return <ul className="ds-notif__list">
     {notifications.map(item => {
-      const comment = isCommentNotification(item)
-      const kind = comment ? 'comment' : notificationKind(item)
+      const kind = notificationKind(item)
       return <li className="ds-notif__item" data-kind={kind} key={item.id}>
         <span className="ds-notif__mark" aria-hidden="true"><Icon name={NOTIFICATION_KIND_ICONS[kind] || 'info'} /></span>
         <div className="ds-notif__body">
-          <p className="ds-notif__kind">{comment ? 'Novo comentário' : NOTIFICATION_KIND_LABELS[kind]}</p>
+          <p className="ds-notif__kind">{NOTIFICATION_KIND_LABELS[kind]}</p>
           <p className="ds-notif__msg">{item.message}</p>
           <p className="ds-notif__time">{item.timestamp ? new Date(item.timestamp).toLocaleString('pt-BR') : 'Agora'}</p>
         </div>
@@ -459,7 +447,7 @@ function useNotifications(user) {
       polling.current = true
       try {
         // A consulta também funciona fora do Inbox e faz o backend descobrir
-        // comentários novos para transformá-los em notificações do sininho.
+        // comentários novos (que aparecem no Inbox).
         await apiFetch('/api/posts/inbox/unread').catch(() => {})
         const result = await apiFetch(`/api/logs/since/${cursor.current}`)
         const logs = result.logs || []
@@ -595,7 +583,7 @@ function AppTopbar({ context, user, phone, rail, showSidebarToggle, onToggleSide
           footer={<button type="button" className="ds-btn ds-btn--secondary ds-btn--block" onClick={seeAllNotifications}>Ver histórico completo</button>}
         >{notificationsBody}</Sheet>
       : <Popover open={open === 'notifications'} anchorRef={bellRef} onClose={close} role="dialog" ariaLabel="Notificações recentes" className="ds-notif" placement="bottom-end">
-          <div className="ds-popover__head"><p className="ds-popover__title">Notificações</p><span className="ds-meta">Recentes</span></div>
+          <div className="ds-popover__head"><p className="ds-popover__title">Notificações</p><span className="ds-meta">Só o que precisa de ação</span></div>
           {notificationsBody}
           <div className="ds-popover__foot">
             <button type="button" className="ds-menu__item ds-notif__all" onClick={seeAllNotifications}>Ver histórico completo<Icon name="arrow" /></button>

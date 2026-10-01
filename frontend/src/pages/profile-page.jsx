@@ -17,10 +17,11 @@ function formatDateTime(value) {
 
 const DEFAULT_NOTIFICATIONS = { email: true, published: true, failures: true, comments: true }
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
+// O sino só avisa o que pede ação (publicação que falhou ou saiu em parte das redes);
+// publicações concluídas e comentários ficam no Calendário, em Atividades e no Inbox.
+// As preferências "published" e "comments" continuam salvas como estão, sem efeito na tela.
 const NOTIFICATION_OPTIONS = [
-  ['published', 'Publicações concluídas', 'Aviso quando um post for publicado nas redes.'],
-  ['failures', 'Falhas de publicação', 'Aviso quando uma publicação não der certo.'],
-  ['comments', 'Novos comentários', 'Acompanhe as interações da sua comunidade.'],
+  ['failures', 'Falhas de publicação', 'Aviso no sino quando uma publicação falhar ou sair só em parte das redes.'],
   ['email', 'Avisos importantes por e-mail', 'Receba no seu e-mail os avisos importantes da conta.'],
 ]
 const CHARGE_NOTES = {
@@ -443,7 +444,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
       </fieldset>
       <fieldset className="pf-group">
         <legend className="pf-group__title">Notificações</legend>
-        <p className="ds-hint">Escolha quais atualizações devem aparecer para você.</p>
+        <p className="ds-hint">Só avisamos o que precisa de uma ação sua.</p>
         <ul className="pf-toggles">
           {NOTIFICATION_OPTIONS.map(([key, label, description]) => <li key={key}>
             <label className="pf-toggle" htmlFor={`pf-note-${key}`}>

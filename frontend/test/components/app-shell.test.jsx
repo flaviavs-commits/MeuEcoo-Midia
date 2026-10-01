@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, within } from '@testing-library/react'
+import * as api from '../../src/lib/api.js'
 import { AppShell, clampSidebarWidth, readSidebarPrefs } from '../../src/components/layout/app-shell.jsx'
 
 const sidebarNav = () => screen.getByRole('navigation', { name: 'Navegação principal' })
@@ -261,5 +262,25 @@ describe('AppShell on phones', () => {
     const account = screen.getByRole('dialog', { name: 'Sua conta' })
     expect(within(account).getByRole('button', { name: 'Sair' })).toBeInTheDocument()
     expect(within(account).getByRole('group', { name: 'Tema da interface' })).toBeInTheDocument()
+  })
+
+  it('keeps in the bell only what needs action: failed and partial publications', async () => {
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => path.startsWith('/api/logs')
+      ? Promise.resolve({ logs: [
+        { id: 4, type: 'ok', message: 'Post #12 publicado com sucesso em Instagram.' },
+        { id: 3, type: 'info', message: 'Novo comentário de @ana no post #12.' },
+        { id: 2, type: 'err', message: 'Post #11 falhou ao publicar no TikTok.' },
+        { id: 1, type: 'warn', message: 'Post #10 publicado parcialmente: Facebook falhou.' },
+      ] })
+      : Promise.resolve({}))
+    render(<AppShell page="dashboard" onPageChange={() => {}} user={{ name: 'Tiago' }}>x</AppShell>)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir notificações' }))
+    const panel = await screen.findByRole('dialog', { name: /^Notificações/ })
+    expect(await within(panel).findByText('Post #11 falhou ao publicar no TikTok.')).toBeInTheDocument()
+    expect(within(panel).getByText('Post #10 publicado parcialmente: Facebook falhou.')).toBeInTheDocument()
+    expect(within(panel).queryByText(/publicado com sucesso/)).not.toBeInTheDocument()
+    expect(within(panel).queryByText(/Novo comentário/)).not.toBeInTheDocument()
+    vi.restoreAllMocks()
   })
 })
