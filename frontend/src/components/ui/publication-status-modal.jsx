@@ -1,8 +1,11 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Icon } from './icon.jsx'
 import { trapTab } from './floating.jsx'
 
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
+// Depois desse tempo processando, o diálogo deixa sair: a rede pode levar minutos (novas tentativas,
+// confirmação por webhook) e a publicação continua sendo acompanhada sem ele.
+export const LEAVE_PROCESSING_AFTER_MS = 20_000
 
 // Resultado por rede de uma publicação ("Publicadas" / "Não publicadas").
 export function PublicationResultGroups({ summary }) {
@@ -24,6 +27,15 @@ export function PublicationStatusModal({ status, platforms, progress, onReview, 
   const onCloseRef = useRef(onClose)
   const statusType = status?.type
   const isProcessing = statusType === 'processing'
+  const [canLeave, setCanLeave] = useState(false)
+
+  useEffect(() => {
+    if (!isProcessing) return undefined
+    setCanLeave(false)
+    const timer = window.setTimeout(() => setCanLeave(true), LEAVE_PROCESSING_AFTER_MS)
+    return () => window.clearTimeout(timer)
+  }, [isProcessing])
+  const closable = !isProcessing || canLeave
 
   useEffect(() => { onCloseRef.current = onClose }, [onClose])
 
@@ -51,14 +63,13 @@ export function PublicationStatusModal({ status, platforms, progress, onReview, 
     target?.focus({ preventScroll: true })
   }, [statusType])
 
-  // Esc fecha somente quando o fechamento já é permitido (durante o
-  // processamento o diálogo continua sem saída, como antes).
+  // Esc fecha quando o fechamento é permitido (no começo do processamento, ainda não).
   useEffect(() => {
-    if (!statusType || isProcessing) return undefined
+    if (!statusType || !closable) return undefined
     const onKey = event => { if (event.key === 'Escape') onCloseRef.current?.() }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [statusType, isProcessing])
+  }, [statusType, closable])
 
   if (!status) return null
 
@@ -128,6 +139,10 @@ export function PublicationStatusModal({ status, platforms, progress, onReview, 
               : platformList.length > 0 && <div className="pub-status__chips">{platformList.map(platform => <span className="ds-badge" data-tone={isSuccess ? 'success' : 'outline'} key={platform}>✓ {platform}</span>)}</div>}
       </div>
 
+      {isProcessing && canLeave && <footer className="ds-modal__foot pub-status__foot pub-status__foot--background">
+        <p className="ds-hint">A rede ainda não confirmou. Você pode continuar usando o app: avisamos quando terminar, e o Calendário mostra o andamento.</p>
+        <button type="button" className="ds-btn ds-btn--secondary" onClick={onClose}>Continuar em segundo plano</button>
+      </footer>}
       {!isProcessing && <footer className="ds-modal__foot pub-status__foot">
         {(isWarning || status.type === 'error') && onReview && <button type="button" className="ds-btn ds-btn--secondary" onClick={onReview}><Icon name="compose" />Revisar no editor</button>}
         <button type="button" className={`ds-btn ${isSuccess || isScheduled ? 'ds-btn--primary' : 'ds-btn--quiet'}`} onClick={onClose}>{isSuccess || isScheduled ? 'Fechar confirmação' : 'Fechar aviso'}</button>

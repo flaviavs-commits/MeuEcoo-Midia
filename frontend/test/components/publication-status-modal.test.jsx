@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { PublicationStatusModal } from '../../src/components/ui/publication-status-modal.jsx'
 
 describe('PublicationStatusModal', () => {
@@ -49,5 +49,25 @@ describe('PublicationStatusModal — foco', () => {
     fireEvent.click(closeFooter)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
+  })
+})
+
+describe('PublicationStatusModal — processamento longo', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('no começo não tem saída; depois de um tempo deixa continuar em segundo plano (botão e Esc)', async () => {
+    vi.useFakeTimers()
+    const onClose = vi.fn()
+    render(<PublicationStatusModal status={{ type: 'processing', message: 'Publicando no Instagram' }} platforms={['instagram']} onClose={onClose} />)
+
+    expect(screen.queryByRole('button', { name: 'Continuar em segundo plano' })).not.toBeInTheDocument()
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).not.toHaveBeenCalled()
+
+    await act(async () => { await vi.advanceTimersByTimeAsync(20_000) })
+    fireEvent.click(screen.getByRole('button', { name: 'Continuar em segundo plano' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(2)
   })
 })

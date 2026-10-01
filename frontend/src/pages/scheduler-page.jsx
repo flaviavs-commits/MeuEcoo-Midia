@@ -31,6 +31,7 @@ const accountLabelOf = account => account.handle || account.name || account.toke
 // Contas que não publicam mais: o acesso venceu ou deu erro (as que só estão "expirando" ainda funcionam).
 const BROKEN_TOKEN_STATUSES = new Set(['expired', 'error'])
 const ACCOUNTS_WARNING_KEY = 'meu-ecoo:accounts-warning-seen'
+const PUBLICATION_MONITOR_MAX_MS = 30 * 60 * 1000
 function tokenStatusOf(account) {
   return account.tokens?.find(token => token.status)?.status || ''
 }
@@ -971,6 +972,9 @@ export function SchedulerPage({ onNavigate } = {}) {
   const { confirm, confirmDialog } = useConfirm()
   const validationRequest = useRef(0)
   const publicationPollTimer = useRef(null)
+  const activeMonitor = useRef(null)
+  const mountedRef = useRef(true)
+  const publicationModalOpenRef = useRef(false)
   const sourceFailureId = useRef(null)
   const accountGroups = useMemo(() => groupAccountsByPerson(connectedAccounts), [connectedAccounts])
 
@@ -1087,7 +1091,14 @@ export function SchedulerPage({ onNavigate } = {}) {
     return () => { cancelled = true }
   }, [notify])
 
-  useEffect(() => () => clearTimeout(publicationPollTimer.current), [])
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      clearTimeout(publicationPollTimer.current)
+    }
+  }, [])
+  useEffect(() => { publicationModalOpenRef.current = publicationModalOpen }, [publicationModalOpen])
 
   useEffect(() => {
     try {
@@ -1166,15 +1177,25 @@ export function SchedulerPage({ onNavigate } = {}) {
     return () => clearTimeout(timer)
   }, [draftReady, textByPlatform, titleByPlatform, selected, youtubeTitle, igFormat, facebookFormat, youtubeFormat, files.length])
 
+  // Acompanha a publicação pelos eventos do servidor. Um acompanhamento por vez; para ao sair da
+  // página e depois de 30 minutos (o Calendário mostra o desfecho). Se a pessoa fechou o diálogo
+  // ("Continuar em segundo plano"), o resultado chega por aviso.
   function monitorPublication(postId, initialCursor) {
+    clearTimeout(publicationPollTimer.current)
+    const monitor = Symbol('publication-monitor')
+    activeMonitor.current = monitor
+    const startedAt = Date.now()
     let cursor = initialCursor
+    const stillCurrent = () => mountedRef.current && activeMonitor.current === monitor
     const poll = async () => {
       try {
-        const { events = [] } = await apiFetch(`/api/logs/events/since/${cursor}`)
+        const { events = [] } = await apiFetch(`/api/logs/events/since/${cursor}`) || {}
+        if (!stillCurrent()) return
         if (events.length) cursor = Math.max(cursor, ...events.map(event => Number(event.id) || 0))
         const result = findPublicationResult(events, postId)
         if (result) {
           setPublicationStatus(result)
+          if (!publicationModalOpenRef.current) notify(result.message, result.type === 'success' ? 'success' : 'error')
           if (result.type === 'success') clearComposer()
           return
         }
@@ -1182,7 +1203,7 @@ export function SchedulerPage({ onNavigate } = {}) {
         // Uma falha pontual de rede não encerra o acompanhamento; o próximo
         // ciclo tenta novamente sem substituir a mensagem da publicação.
       }
-      publicationPollTimer.current = setTimeout(poll, 4000)
+      if (stillCurrent() && Date.now() - startedAt < PUBLICATION_MONITOR_MAX_MS) publicationPollTimer.current = setTimeout(poll, 4000)
     }
     poll()
   }
