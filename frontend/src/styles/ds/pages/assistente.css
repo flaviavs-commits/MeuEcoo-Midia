@@ -15,7 +15,18 @@
     display: grid; gap: 20px; padding: 22px;
     border-radius: var(--ds-radius-xl); background: var(--ds-surface); border: 1px solid var(--ds-line); box-shadow: var(--ds-shadow-2);
   }
-  .as-instruction { min-height: 132px; }
+  /* prompt and "Gerar ideias" are one piece: the field on top, its hint and the button below it */
+  .as-prompt {
+    display: grid; border: 1px solid var(--ds-line-strong); border-bottom-color: var(--ds-line-control); border-radius: var(--ds-radius-lg);
+    background: var(--ds-surface); transition: border-color var(--ds-dur-fast) var(--ds-ease-out), box-shadow var(--ds-dur-fast) var(--ds-ease-out);
+  }
+  .as-prompt:focus-within { border-color: var(--ds-accent-graphic); box-shadow: 0 0 0 3px var(--ds-accent-soft); }
+  .as-prompt[data-invalid='true'] { border-color: var(--ds-danger); }
+  .as-prompt > .as-instruction { min-height: 120px; border: 0; border-radius: var(--ds-radius-lg) var(--ds-radius-lg) 0 0; background: transparent; box-shadow: none; outline: none; }
+  .as-prompt > .as-instruction:focus, .as-prompt > .as-instruction:focus-visible { border: 0; box-shadow: none; outline: none; }
+  .as-prompt__bar { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 10px 10px 12px; border-top: 1px solid var(--ds-line); }
+  .as-prompt__bar > p { flex: 1 1 240px; min-width: 0; margin: 0; }
+  .as-prompt__bar > .ds-btn { flex: none; }
   .as-limits { margin-top: 2px; }
   .as-limits > summary { font-size: var(--ds-text-sm); }
 
@@ -40,8 +51,6 @@
   .as-quota { display: grid; gap: 6px; padding: 12px 14px; border-radius: var(--ds-radius-lg); background: var(--ds-tint); }
   .as-quota > p:first-child { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: var(--ds-text-sm); color: var(--ds-ink-2); }
   .as-quota strong { font-weight: var(--ds-weight-semibold); color: var(--ds-ink); }
-  .as-compose__go { display: grid; justify-items: end; gap: 8px; }
-  .as-compose__go > .ds-hint { justify-self: stretch; text-align: right; }
 
   .as-results { display: grid; gap: 16px; min-width: 0; }
   .as-results__head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 8px 16px; }
@@ -197,8 +206,8 @@
     .as-tabs .ds-tab > .ds-icon { display: none; }
     .as-compose { padding: 16px; gap: 18px; }
     .as-choice { min-height: 44px; }
-    .as-compose__go { justify-items: stretch; }
-    .as-compose__go > .ds-hint { text-align: left; }
+    .as-prompt__bar { flex-wrap: wrap; }
+    .as-prompt__bar > .ds-btn { width: 100%; }
     .as-idea { padding: 16px; }
     .as-idea__foot > .ds-btn { flex: 1 1 100%; }
     .as-howto { padding: 18px; }

@@ -84,7 +84,7 @@ async function fetchOrExplain(url, options, message) {
   catch { throw new Error(message) }
 }
 
-const SLIDE_COUNTS = [3, 4, 5, 6, 7, 8].map(count => ({ value: count, label: `${count} slides` }))
+const SLIDE_COUNTS = [2, 3, 4, 5, 6, 7, 8].map(count => ({ value: count, label: `${count} slides` }))
 const TIKTOK_PRIVACY = [
   { value: 'PUBLIC_TO_EVERYONE', label: 'Público' },
   { value: 'MUTUAL_FOLLOW_FRIENDS', label: 'Amigos' },
@@ -270,7 +270,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
     const post = posts[index]
     if (!post) return
     const isCarousel = post.visualFormat === 'carousel'
-    const total = isCarousel ? Math.min(Math.max(Number(post.carouselCount) || 5, 3), 8) : 1
+    const total = isCarousel ? Math.min(Math.max(Number(post.carouselCount) || 5, 2), 8) : 1
     setImageLoadingIndex(index)
     setImageLoadingProgress(isCarousel ? { current: 0, total } : null)
     updatePost(index, { imageError: '', publishStatus: '' })
@@ -421,7 +421,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
       let postWithImage = post
       const hasGeneratedMedia = isCarousel ? postWithImage.carouselImages?.length > 1 : !!postWithImage.imageUrl
       if (!hasGeneratedMedia) {
-        const total = Math.min(Math.max(Number(postWithImage.carouselCount) || 5, 3), 8)
+        const total = Math.min(Math.max(Number(postWithImage.carouselCount) || 5, 2), 8)
         setPublicationProgress(isCarousel ? `Gerando carrossel (0/${total})...` : 'Gerando imagem...')
         const generated = isCarousel
           ? await requestCarousel(postWithImage, total, current => {
@@ -568,30 +568,6 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
 
   const createPanel = <div className="as-create">
     <form className="as-compose" onSubmit={generate} noValidate>
-      <div className="ds-field">
-        <div className="ds-field__top">
-          <label className="ds-label" htmlFor="as-instruction">O que você quer publicar?</label>
-          <span className="ds-counter" data-level={instructionLevel}>{instruction.length}/{INSTRUCTION_MAX_LENGTH}</span>
-        </div>
-        <textarea
-          id="as-instruction"
-          className="ds-textarea as-instruction"
-          value={instruction}
-          onChange={event => { setInstruction(event.target.value); if (instructionError) setInstructionError('') }}
-          placeholder="Ex.: crie 3 ideias para divulgar minha cafeteria"
-          maxLength={INSTRUCTION_MAX_LENGTH}
-          aria-invalid={instructionError ? 'true' : undefined}
-          aria-describedby="as-instruction-help"
-        />
-        {instructionError
-          ? <p className="ds-fieldmsg" data-tone="danger" id="as-instruction-help"><Icon name="alertCircle" />{instructionError}</p>
-          : <p className="ds-hint" id="as-instruction-help">Informe o tema, o público e o objetivo. Quanto mais contexto, mais úteis serão as sugestões.</p>}
-        <details className="ds-disclosure as-limits">
-          <summary>Limites de conteúdo<Icon name="chevronDown" size={16} className="ds-disclosure__chev" /></summary>
-          <p className="ds-disclosure__body">O sistema não atende temas médicos, jurídicos, adultos ou análises financeiras aprofundadas.</p>
-        </details>
-      </div>
-
       {/* Opções curtas; a explicação do carrossel só aparece quando ele é escolhido. */}
       <fieldset className="as-look">
         <legend className="ds-label">Formato visual</legend>
@@ -609,7 +585,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
           {visualFormat === 'carousel' && <Select id="as-slides" className="as-slides" value={carouselCount} onChange={count => setCarouselCount(Number(count))} aria-label="Quantidade de slides" options={SLIDE_COUNTS} />}
         </div>
         <p className="ds-hint">{visualFormat === 'carousel'
-          ? 'De 3 a 8 fotos, para Instagram ou TikTok. Cada slide usa uma imagem do limite do mês.'
+          ? 'De 2 a 8 fotos, para Instagram ou TikTok. Cada slide usa uma imagem do limite do mês.'
           : 'Uma arte para acompanhar a publicação. Pedir “carrossel” na instrução também gera um carrossel.'}</p>
         {imageQuota && <div className="as-quota" aria-live="polite">
           <p><span>Imagens do mês</span><strong className="ds-num">{imageQuota.remaining} de {imageQuota.limit} disponíveis</strong></p>
@@ -618,13 +594,41 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
         </div>}
       </fieldset>
 
-      {errorSource === 'generate' && errorAlert}
-      <div className="as-compose__go">
-        <button type="submit" className="ds-btn ds-btn--primary as-compose__submit" disabled={loading || loadingMore}>
-          {loading ? <><span className="ds-spinner" aria-hidden="true" />Gerando ideias…</> : <><Icon name="sparkle" />{posts.length ? 'Gerar novas ideias' : 'Gerar ideias'}</>}
-        </button>
+      {/* O pedido e o botão que o transforma em ideias formam uma peça só. */}
+      <div className="ds-field">
+        <div className="ds-field__top">
+          <label className="ds-label" htmlFor="as-instruction">O que você quer publicar?</label>
+          <span className="ds-counter" data-level={instructionLevel}>{instruction.length}/{INSTRUCTION_MAX_LENGTH}</span>
+        </div>
+        <div className="as-prompt" data-invalid={instructionError ? 'true' : undefined}>
+          <textarea
+            id="as-instruction"
+            className="ds-textarea as-instruction"
+            value={instruction}
+            onChange={event => { setInstruction(event.target.value); if (instructionError) setInstructionError('') }}
+            onKeyDown={event => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); event.currentTarget.form?.requestSubmit() } }}
+            placeholder="Ex.: crie 3 ideias para divulgar minha cafeteria"
+            maxLength={INSTRUCTION_MAX_LENGTH}
+            aria-invalid={instructionError ? 'true' : undefined}
+            aria-describedby="as-instruction-help"
+          />
+          <div className="as-prompt__bar">
+            {instructionError
+              ? <p className="ds-fieldmsg" data-tone="danger" id="as-instruction-help"><Icon name="alertCircle" />{instructionError}</p>
+              : <p className="ds-hint" id="as-instruction-help">Informe o tema, o público e o objetivo. Quanto mais contexto, mais úteis serão as sugestões.</p>}
+            <button type="submit" className="ds-btn ds-btn--primary as-compose__submit" disabled={loading || loadingMore}>
+              {loading ? <><span className="ds-spinner" aria-hidden="true" />Gerando ideias…</> : <><Icon name="sparkle" />{posts.length ? 'Gerar novas ideias' : 'Gerar ideias'}</>}
+            </button>
+          </div>
+        </div>
         {posts.length > 0 && <p className="ds-hint">Novas ideias substituem as sugestões atuais. Para somar, use “Gerar mais ideias”.</p>}
+        <details className="ds-disclosure as-limits">
+          <summary>Limites de conteúdo<Icon name="chevronDown" size={16} className="ds-disclosure__chev" /></summary>
+          <p className="ds-disclosure__body">O sistema não atende temas médicos, jurídicos, adultos ou análises financeiras aprofundadas.</p>
+        </details>
       </div>
+
+      {errorSource === 'generate' && errorAlert}
     </form>
 
     <section className="as-results" aria-labelledby="as-results-title" aria-busy={loading || undefined}>

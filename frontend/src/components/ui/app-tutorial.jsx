@@ -167,7 +167,7 @@ const STEPS = [
     body: 'Descreva o que quer publicar e use o sistema inteligente para gerar ideias, imagens e leituras práticas do seu desempenho.',
     tips: [
       'Informe um tema e gere até três sugestões; depois peça mais ideias sem apagar as anteriores.',
-      'Escolha o modelo disponível, edite o texto e gere uma imagem única ou um carrossel de 3 a 8 slides para Instagram.',
+      'Escolha o modelo disponível, edite o texto e gere uma imagem única ou um carrossel de 2 a 8 slides para Instagram.',
       'Escolha a rede e a conta compatível para publicar a sugestão; o YouTube exige mídia de vídeo.',
       'Acompanhe o status da publicação e consulte o diagnóstico das execuções do agente.',
       'Analise os últimos 7, 30 ou 90 dias para descobrir melhor horário, período do dia, perfis e nichos com melhor sinal.',
