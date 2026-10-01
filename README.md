@@ -111,7 +111,7 @@ não confiável.
 |---|---|
 | `npm run frontend:dev` | servidor de desenvolvimento (HTTPS, porta 5173) |
 | `npm run frontend:build` (ou `npm run build`) | bundle de produção em `public/react/`, que é o que o Express e a Vercel publicam |
-| `npm run frontend:lint` | ESLint: regras recomendadas do JavaScript e regras de hooks do React |
+| `npm run frontend:lint` (ou `npm run lint`, que o CI chama) | ESLint: regras recomendadas do JavaScript e regras de hooks do React |
 | `npm run test:components` | Vitest + Testing Library (`frontend/test/**/*.test.{js,jsx}`) |
 | `npm run frontend:e2e` | Playwright: E2E de fumaça (`frontend/e2e`), sem backend |
 
@@ -134,7 +134,7 @@ frontend/
 │   ├── components/
 │   │   ├── ui/                # componentes compartilhados do design system (Select, Sheet, Icon, PlanGate, toasts…)
 │   │   ├── layout/            # AppShell (menus, topo, avisos) e o aviso de servidor fora do ar
-│   │   └── analytics/ library/ ai/ marketing/   # peças de uma área só
+│   │   └── composer/ analytics/ library/ ai/ marketing/   # peças de uma área só (composer = Meu Post)
 │   ├── hooks/                 # useApiResource (carregar e recarregar), useMediaUpload, useAnalytics
 │   ├── lib/                   # lógica sem React: api.js, upload.js, platforms.js, storage.js, app-pages.js, validações…
 │   ├── workers/               # validação de mídia fora da thread principal
