@@ -3,13 +3,13 @@ import { lazy, StrictMode, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import { LandingPage } from './pages/landing-page.jsx'
 import { useEffect, useState } from 'react'
+import { ConnectionBanner, ServerStatusContext, useSession } from './components/layout/connection-banner.jsx'
 import { AppShell } from './components/layout/app-shell.jsx'
 import { DashboardPage } from './pages/dashboard-page.jsx'
 import { ModulePage } from './pages/module-page.jsx'
 import { PlanGate } from './components/ui/plan-gate.jsx'
 import { hasActivePlanModule } from './lib/plans.js'
 import { LoginPage, ResetPasswordPage, VerifyTwoFactorPage } from './pages/auth-page.jsx'
-import { apiFetch, rememberSession } from './lib/api.js'
 import { applyTheme, getStoredTheme } from './components/ui/theme-selector.jsx'
 import { TEAM_APPROVAL_UI_ENABLED } from './lib/feature-flags.js'
 import { APP_PAGES } from './lib/app-pages.js'
@@ -65,19 +65,10 @@ function pageFromLocation(pathname = window.location.pathname) {
 
 function App() {
   const [page, setPage] = useState(() => pageFromLocation())
-  const [user, setUser] = useState(null)
-  const updateUser = patch => setUser(current => ({ ...(current || {}), ...patch }))
+  const { user, updateUser, status: serverStatus, generation, retry } = useSession()
   useEffect(() => {
     if (window.location.pathname === '/app/automacoes') window.history.replaceState({}, '', '/app/dashboard')
     if (window.location.pathname === '/app/equipe' && !TEAM_APPROVAL_UI_ENABLED) window.history.replaceState({}, '', '/app/dashboard')
-  }, [])
-  useEffect(() => {
-    let active = true
-    apiFetch('/api/me').then(currentUser => {
-      rememberSession()
-      if (active) setUser(currentUser)
-    }).catch(() => {})
-    return () => { active = false }
   }, [])
   useEffect(() => {
     const onPopState = () => setPage(pageFromLocation())
@@ -90,13 +81,15 @@ function App() {
     window.history.pushState({}, '', `/app/${nextPage}`)
     setPage(nextPage)
   }
-  return <AppShell page={page} onPageChange={navigate} user={user}>
+  // When the server comes back, the page remounts (key) and loads its data again.
+  return <ServerStatusContext.Provider value={serverStatus}><AppShell page={page} onPageChange={navigate} user={user}>
+    <ConnectionBanner status={serverStatus} onRetry={retry} />
     {page === 'dashboard'
       ? user && !hasActivePlanModule(user.plan, 'dashboard', user.planActive, user.planUnrestricted)
         ? <PlanGate currentPlan={user.plan} moduleName="dashboard" planActive={user.planActive} />
-        : <DashboardPage onNavigate={navigate} />
-      : <ModulePage type={page} onNavigate={navigate} user={user} onUserChange={updateUser} />}
-  </AppShell>
+        : <DashboardPage onNavigate={navigate} key={generation} />
+      : <ModulePage type={page} onNavigate={navigate} user={user} onUserChange={updateUser} key={generation} />}
+  </AppShell></ServerStatusContext.Provider>
 }
 
 const pathname = window.location.pathname

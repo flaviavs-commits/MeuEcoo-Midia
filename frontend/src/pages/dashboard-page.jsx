@@ -4,6 +4,7 @@ import { OnboardingChecklist } from '../components/ui/onboarding-checklist.jsx'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { useConfirm } from '../components/ui/confirm-dialog.jsx'
+import { useServerDown } from '../components/layout/connection-banner.jsx'
 
 const SCHEDULER_AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
 const DASHBOARD_PLATFORMS = [['instagram', 'Instagram'], ['facebook', 'Facebook'], ['youtube', 'YouTube'], ['tiktok', 'TikTok']]
@@ -170,6 +171,7 @@ export function DashboardPage({ onNavigate }) {
   const [deletingPostId, setDeletingPostId] = useState(null)
   const [alertError, setAlertError] = useState('')
   const { confirm, confirmDialog } = useConfirm()
+  const serverDown = useServerDown()
   // Depois de excluir um alerta, o foco vai para o alerta seguinte (ou o anterior, ou o próximo título),
   // em vez de cair no início da página junto com o botão que sumiu.
   const [focusAfterRemoval, setFocusAfterRemoval] = useState(null)
@@ -344,7 +346,7 @@ export function DashboardPage({ onNavigate }) {
       </div>
     </header>
 
-    {dashboardError && <div className="ds-alert dash-banner" data-tone="danger" role="alert">
+    {dashboardError && !serverDown && <div className="ds-alert dash-banner" data-tone="danger" role="alert">
       <Icon name="alertCircle" className="ds-alert__icon" />
       <p className="ds-alert__title">Parte das informações não carregou</p>
       <p className="ds-alert__text">{dashboardError}</p>

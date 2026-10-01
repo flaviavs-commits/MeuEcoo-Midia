@@ -902,6 +902,10 @@
     padding: 0 var(--ds-gutter) 56px;
   }
   .ds-page:focus { outline: none; }
+  /* "O servidor não respondeu": once, above the page, on the page's own column */
+  .ds-connbanner {
+    flex: none; width: calc(100% - 2 * var(--ds-gutter)); max-width: var(--ds-content-max); margin: 20px auto 0;
+  }
   .ds-foot {
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px;
     padding: 14px calc(var(--ds-gutter) + 64px) 18px var(--ds-gutter); border-top: 1px solid var(--ds-line);
