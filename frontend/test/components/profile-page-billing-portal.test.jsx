@@ -22,11 +22,13 @@ function mockApi({ subscription = null, extra = {} } = {}) {
 }
 
 describe('ProfilePage — Gerenciar assinatura (Customer Portal)', () => {
+  // Plano e cobrança é uma aba própria: cada teste a abre, como a pessoa faria.
   afterEach(() => vi.restoreAllMocks())
 
   it('não mostra o botão quando não há assinatura gerenciável', async () => {
     mockApi({ subscription: null })
     render(<ToastProvider><ProfilePage user={PROFILE} /></ToastProvider>)
+    await userEvent.click(await screen.findByRole('tab', { name: 'Plano e cobrança' }))
 
     await waitFor(() => expect(screen.getByText('Plano atual: EcooMidia Pro')).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: 'Gerenciar assinatura' })).not.toBeInTheDocument()
@@ -35,6 +37,7 @@ describe('ProfilePage — Gerenciar assinatura (Customer Portal)', () => {
   it('não mostra o botão quando a assinatura está cancelada', async () => {
     mockApi({ subscription: { status: 'canceled', plan: 'pro', cancelAtPeriodEnd: true, currentPeriodEnd: null, manageable: false } })
     render(<ToastProvider><ProfilePage user={PROFILE} /></ToastProvider>)
+    await userEvent.click(await screen.findByRole('tab', { name: 'Plano e cobrança' }))
 
     await waitFor(() => expect(screen.getByText('Plano atual: EcooMidia Pro')).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: 'Gerenciar assinatura' })).not.toBeInTheDocument()
@@ -49,6 +52,7 @@ describe('ProfilePage — Gerenciar assinatura (Customer Portal)', () => {
     window.location = { assign: vi.fn() }
 
     render(<ToastProvider><ProfilePage user={PROFILE} /></ToastProvider>)
+    await userEvent.click(await screen.findByRole('tab', { name: 'Plano e cobrança' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Gerenciar assinatura' })).toBeInTheDocument())
 
     await userEvent.click(screen.getByRole('button', { name: 'Gerenciar assinatura' }))
@@ -59,6 +63,7 @@ describe('ProfilePage — Gerenciar assinatura (Customer Portal)', () => {
   it('avisa quando a assinatura já está marcada para cancelar ao fim do período', async () => {
     mockApi({ subscription: { status: 'active', plan: 'pro', cancelAtPeriodEnd: true, currentPeriodEnd: '2026-10-10T00:00:00.000Z', manageable: true } })
     render(<ToastProvider><ProfilePage user={PROFILE} /></ToastProvider>)
+    await userEvent.click(await screen.findByRole('tab', { name: 'Plano e cobrança' }))
 
     await waitFor(() => expect(screen.getByText(/já está marcada para cancelar ao fim do período/)).toBeInTheDocument())
   })
@@ -70,6 +75,7 @@ describe('ProfilePage — Gerenciar assinatura (Customer Portal)', () => {
     })
 
     render(<ToastProvider><ProfilePage user={PROFILE} /></ToastProvider>)
+    await userEvent.click(await screen.findByRole('tab', { name: 'Plano e cobrança' }))
     await waitFor(() => expect(screen.getByRole('button', { name: 'Gerenciar assinatura' })).toBeInTheDocument())
     await userEvent.click(screen.getByRole('button', { name: 'Gerenciar assinatura' }))
 

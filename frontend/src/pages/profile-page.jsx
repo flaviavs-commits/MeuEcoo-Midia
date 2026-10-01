@@ -67,7 +67,7 @@ function formFromProfile(data) {
 const SECTION_SLUGS = { 'pf-plano': 'plano', 'pf-dados': 'dados', 'pf-seguranca': 'seguranca', 'pf-sessoes': 'sessoes', 'pf-ajuda': 'ajuda' }
 
 function sectionFromHash() {
-  const slug = window.location.hash.replace(/^#/, '')
+  const slug = String(window.location?.hash || '').replace(/^#/, '')
   return Object.keys(SECTION_SLUGS).find(id => SECTION_SLUGS[id] === slug) || null
 }
 
