@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { readStoredJson, removeStored, writeStored } from '../lib/storage.js'
 import { apiFetch } from '../lib/api.js'
 import { TEAM_APPROVAL_UI_ENABLED } from '../lib/feature-flags.js'
 import { buildValidationIssues, INSTAGRAM_CAROUSEL_MAX_ITEMS, TIKTOK_PHOTO_MAX_ITEMS, mediaFileKey, readVideoMeta } from '../lib/postValidation.js'
@@ -999,7 +1000,7 @@ export function SchedulerPage({ onNavigate } = {}) {
   }, [])
 
   function clearComposer() {
-    setTextByPlatform({}); setTitleByPlatform({}); setDate(''); setFiles([]); setFilesByPlatform({}); setCoverFile(null); setCoverSourceKey(''); setCoverTime(null); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setIgFormat('post'); setIgAspect('auto'); setFacebookFormat('post'); setTiktokAspect('auto'); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setPublishNow(false); setApprovalWorkspaceId(''); setSavedMessage(null); localStorage.removeItem(AUTOSAVE_KEY); setDraftSavedAt(null); setServerDraftStatus('')
+    setTextByPlatform({}); setTitleByPlatform({}); setDate(''); setFiles([]); setFilesByPlatform({}); setCoverFile(null); setCoverSourceKey(''); setCoverTime(null); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setIgFormat('post'); setIgAspect('auto'); setFacebookFormat('post'); setTiktokAspect('auto'); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setPublishNow(false); setApprovalWorkspaceId(''); setSavedMessage(null); removeStored(AUTOSAVE_KEY); setDraftSavedAt(null); setServerDraftStatus('')
     sourceFailureId.current = null
     setReplacingFailureId(null)
   }
@@ -1107,11 +1108,12 @@ export function SchedulerPage({ onNavigate } = {}) {
 
   useEffect(() => {
     try {
-      const savedDraft = JSON.parse(localStorage.getItem(AUTOSAVE_KEY) || 'null')
+      const savedDraft = readStoredJson(AUTOSAVE_KEY)
       if (savedDraft) {
         sourceFailureId.current = savedDraft.sourceFailureId || null
         setReplacingFailureId(savedDraft.sourceFailureId || null)
-        const savedSelected = savedDraft.selected?.length ? savedDraft.selected : ['instagram']
+        const knownSelected = Array.isArray(savedDraft.selected) ? savedDraft.selected.filter(platform => platforms.includes(platform)) : []
+        const savedSelected = knownSelected.length ? knownSelected : ['instagram']
         const savedText = typeof savedDraft.text === 'string' ? savedDraft.text : ''
         const savedTexts = savedDraft.textByPlatform && typeof savedDraft.textByPlatform === 'object' ? savedDraft.textByPlatform : {}
         const savedTitles = savedDraft.titleByPlatform && typeof savedDraft.titleByPlatform === 'object' ? savedDraft.titleByPlatform : {}
@@ -1143,7 +1145,7 @@ export function SchedulerPage({ onNavigate } = {}) {
         setDraftSavedAt(savedDraft.savedAt ? new Date(savedDraft.savedAt) : null)
       }
     } catch {
-      localStorage.removeItem(AUTOSAVE_KEY)
+      removeStored(AUTOSAVE_KEY)
     } finally {
       setDraftReady(true)
     }
@@ -1154,12 +1156,12 @@ export function SchedulerPage({ onNavigate } = {}) {
     const timer = setTimeout(() => {
       const hasContent = Object.values(textByPlatform).some(value => value?.trim()) || Object.values(titleByPlatform).some(value => value?.trim()) || youtubeTitle.trim() || files.length
       if (!hasContent) {
-        localStorage.removeItem(AUTOSAVE_KEY)
+        removeStored(AUTOSAVE_KEY)
         setDraftSavedAt(null)
         return
       }
       const savedAt = new Date()
-      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ textByPlatform, titleByPlatform, date, publishNow, approvalWorkspaceId: TEAM_APPROVAL_UI_ENABLED ? approvalWorkspaceId : '', selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, youtubeFormat, igFormat, igAspect, facebookFormat, tiktokAspect, tiktokPrivacyLevel, youtubeCategoryId, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, sourceFailureId: sourceFailureId.current, savedAt: savedAt.toISOString() }))
+      writeStored(AUTOSAVE_KEY, JSON.stringify({ textByPlatform, titleByPlatform, date, publishNow, approvalWorkspaceId: TEAM_APPROVAL_UI_ENABLED ? approvalWorkspaceId : '', selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, youtubeFormat, igFormat, igAspect, facebookFormat, tiktokAspect, tiktokPrivacyLevel, youtubeCategoryId, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, sourceFailureId: sourceFailureId.current, savedAt: savedAt.toISOString() }))
       setDraftSavedAt(savedAt)
     }, 700)
     return () => clearTimeout(timer)

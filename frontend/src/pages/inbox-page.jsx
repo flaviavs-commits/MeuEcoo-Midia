@@ -61,7 +61,7 @@ export function InboxMediaPreview({ media }) {
 export function InboxPage() {
   const conversationRef = useRef(null)
   const listScrollRef = useRef(0)
-  const [platform, setPlatform] = useState(() => readInboxFilters().platform || 'all')
+  const [platform, setPlatform] = useState(() => (inboxPlatforms.some(item => item.id === readInboxFilters().platform) ? readInboxFilters().platform : 'all'))
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState(readInboxStatusFilter)
   const [unanswered, setUnanswered] = useState({})

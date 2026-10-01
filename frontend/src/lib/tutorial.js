@@ -1,3 +1,4 @@
+import { writeStored } from './storage.js'
 // Estado do tutorial guiado, persistido no navegador do usuário.
 //
 // - "seen": o tutorial já apareceu automaticamente para esta pessoa (não deve
@@ -26,7 +27,7 @@ export function getTutorialStatus() {
 }
 
 function saveStatus(status) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(status))
+  writeStored(STORAGE_KEY, status)
   window.dispatchEvent(new CustomEvent(TUTORIAL_STATUS_EVENT, { detail: status }))
   return status
 }

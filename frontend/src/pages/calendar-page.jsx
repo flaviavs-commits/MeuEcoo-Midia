@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { oneOf, readStored, writeStored } from '../lib/storage.js'
 import { blankComposerDraft, composerDraftFromPost, mediaItemsOf, mediaSelectionOf, openInComposer } from '../lib/composer-handoff.js'
 import { apiFetch } from '../lib/api.js'
 import { useApiResource } from '../hooks/use-api-resource.js'
@@ -333,8 +334,8 @@ export function CalendarPage({ onNavigate }) {
   const [date, setDate] = useState('')
   const [repeatDate, setRepeatDate] = useState('')
   const [pasteDate, setPasteDate] = useState('')
-  const [platformFilter, setPlatformFilter] = useState(() => localStorage.getItem(`${CALENDAR_VIEW_KEY}:platform`) || 'all')
-  const [viewMode, setViewMode] = useState(() => localStorage.getItem(CALENDAR_VIEW_KEY) || 'calendar')
+  const [platformFilter, setPlatformFilter] = useState(() => oneOf(readStored(`${CALENDAR_VIEW_KEY}:platform`), ['all', ...Object.keys(PLATFORM_LABELS)], 'all'))
+  const [viewMode, setViewMode] = useState(() => oneOf(readStored(CALENDAR_VIEW_KEY), ['calendar', 'list'], 'calendar'))
   const [draggedPost, setDraggedPost] = useState(null)
   const [dropDay, setDropDay] = useState(null)
   const [filtersOpen, setFiltersOpen] = useState(false)
@@ -400,8 +401,8 @@ export function CalendarPage({ onNavigate }) {
     return () => window.clearInterval(interval)
   }, [reload])
 
-  useEffect(() => { localStorage.setItem(`${CALENDAR_VIEW_KEY}:platform`, platformFilter) }, [platformFilter])
-  useEffect(() => { localStorage.setItem(CALENDAR_VIEW_KEY, viewMode) }, [viewMode])
+  useEffect(() => { writeStored(`${CALENDAR_VIEW_KEY}:platform`, platformFilter) }, [platformFilter])
+  useEffect(() => { writeStored(CALENDAR_VIEW_KEY, viewMode) }, [viewMode])
 
   function shift(delta) {
     const next = new Date(year, month - 1 + delta, 1)

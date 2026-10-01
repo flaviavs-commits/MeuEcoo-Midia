@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { writeStored } from '../lib/storage.js'
 import { apiFetch } from '../lib/api.js'
 import { detectNetworks, DEFAULT_ANALYTICS_PERIOD, ANALYTICS_PERIODS } from '../lib/analytics-format.js'
 
@@ -40,7 +41,7 @@ export function useAnalytics({ comparePeriod = false } = {}) {
   const pendingAnalyticsKeyRef = useRef(null)
   const loadAnalyticsRef = useRef(null)
   useEffect(() => {
-    localStorage.setItem(ANALYTICS_FILTERS_KEY, JSON.stringify({ activeNet, activeTab, periodDays }))
+    writeStored(ANALYTICS_FILTERS_KEY, { activeNet, activeTab, periodDays })
   }, [activeNet, activeTab, periodDays])
 
   const loadAccounts = useCallback(async () => {
