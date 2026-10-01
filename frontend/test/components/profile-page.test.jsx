@@ -12,7 +12,11 @@ function mockApi(profile) {
 }
 
 describe('ProfilePage', () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.restoreAllMocks()
+    // a aba aberta fica no endereço (#seguranca…); cada teste começa sem ela
+    window.history.replaceState(null, '', '/')
+  })
 
   it('mostra o plano primeiro quando o pagamento está pendente', async () => {
     const profile = { id: 1, email: 'a@allowed.test', fullName: 'Ana', plan: 'basico', planActive: false }
@@ -31,6 +35,7 @@ describe('ProfilePage', () => {
     const apiFetchMock = mockApi(profile)
     render(<ToastProvider><ProfilePage user={profile} /></ToastProvider>)
 
+    fireEvent.click(await screen.findByRole('tab', { name: 'Segurança' }))
     fireEvent.change(await screen.findByLabelText('Nova senha'), { target: { value: 'abc123' } })
     fireEvent.change(screen.getByLabelText('Confirmar nova senha'), { target: { value: 'abc123' } })
     fireEvent.click(screen.getByRole('button', { name: 'Alterar senha' }))
@@ -44,6 +49,7 @@ describe('ProfilePage', () => {
     mockApi(profile)
     render(<ToastProvider><ProfilePage user={profile} /></ToastProvider>)
 
+    fireEvent.click(await screen.findByRole('tab', { name: 'Segurança' }))
     const nova = await screen.findByLabelText('Nova senha')
     expect(nova).toHaveAttribute('type', 'password')
     expect(screen.getAllByRole('button', { name: 'Mostrar senha' })).toHaveLength(3)
@@ -96,6 +102,7 @@ describe('ProfilePage', () => {
     })
     render(<ToastProvider><ProfilePage user={profile} /></ToastProvider>)
 
+    fireEvent.click(await screen.findByRole('tab', { name: 'Sessões' }))
     const botao = await screen.findByRole('button', { name: 'Sair de todos os dispositivos' })
     fireEvent.click(botao)
     fireEvent.click(botao)
@@ -106,5 +113,24 @@ describe('ProfilePage', () => {
     fireEvent.click(screen.getByRole('button', { name: /Encerrando/ }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(apiFetch.mock.calls.filter(([path]) => path === '/api/me/logout-all')).toHaveLength(1)
+  })
+
+  it('mostra uma seção por vez e guarda a aberta no endereço', async () => {
+    const profile = { id: 7, email: 'g@allowed.test', fullName: 'Gabi', plan: 'pro', planActive: true }
+    mockApi(profile)
+    render(<ToastProvider><ProfilePage user={profile} /></ToastProvider>)
+
+    const dados = await screen.findByRole('tab', { name: 'Dados e preferências' })
+    expect(dados).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getAllByRole('heading', { level: 2 }).map(heading => heading.textContent)).toEqual(['Dados e preferências'])
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Plano e cobrança' }))
+    expect(screen.getByRole('tabpanel')).toHaveAccessibleName('Plano e cobrança')
+    expect(screen.queryByLabelText('Nome completo')).not.toBeInTheDocument()
+    expect(window.location.hash).toBe('#plano')
+
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Plano e cobrança' }), { key: 'ArrowDown' })
+    expect(screen.getByRole('tab', { name: 'Segurança' })).toHaveFocus()
+    expect(screen.getByRole('tab', { name: 'Segurança' })).toHaveAttribute('aria-selected', 'true')
   })
 })

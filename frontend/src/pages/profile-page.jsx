@@ -62,12 +62,12 @@ function formFromProfile(data) {
   }
 }
 
-function scrollToSection(id) {
-  const target = document.getElementById(id)
-  if (!target) return
-  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
-  target.querySelector('h2')?.focus({ preventScroll: true })
+// Cada seção é uma tela. O endereço guarda a aberta (#plano, #dados…), então um link leva direto a ela.
+const SECTION_SLUGS = { 'pf-plano': 'plano', 'pf-dados': 'dados', 'pf-seguranca': 'seguranca', 'pf-sessoes': 'sessoes', 'pf-ajuda': 'ajuda' }
+
+function sectionFromHash() {
+  const slug = window.location.hash.replace(/^#/, '')
+  return Object.keys(SECTION_SLUGS).find(id => SECTION_SLUGS[id] === slug) || null
 }
 
 const LANGUAGES = [{ value: 'pt-BR', label: 'Português (Brasil)' }, { value: 'en-US', label: 'English (United States)' }]
@@ -98,6 +98,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
   const [tutorialStatus, setTutorialStatus] = useState(() => getTutorialStatus())
 
   const notify = useToast()
+  const [chosenSection, setChosenSection] = useState(sectionFromHash)
   const { confirm, confirmDialog } = useConfirm()
 
   useEffect(() => {
@@ -550,6 +551,27 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
   </section>
 
   const sectionContent = { 'pf-plano': planSection, 'pf-dados': dataSection, 'pf-seguranca': securitySection, 'pf-sessoes': sessionSection, 'pf-ajuda': helpSection }
+  const activeSection = orderedSections.some(section => section.id === chosenSection) ? chosenSection : orderedSections[0].id
+
+  function selectSection(id, { focus = false } = {}) {
+    setChosenSection(id)
+    try { window.history.replaceState(window.history.state, '', `#${SECTION_SLUGS[id]}`) } catch { /* sem histórico: só troca a tela */ }
+    if (focus) document.getElementById(`${id}-tab`)?.focus()
+    // no celular as abas ficam acima do conteúdo: volta para o começo da seção se ela ficou fora da tela
+    window.requestAnimationFrame?.(() => {
+      const panel = document.getElementById('pf-panel')
+      if (panel && panel.getBoundingClientRect().top < 0) panel.scrollIntoView({ block: 'start' })
+    })
+  }
+
+  function onTabKeyDown(event) {
+    const index = orderedSections.findIndex(section => section.id === activeSection)
+    const last = orderedSections.length - 1
+    const next = { ArrowDown: index + 1, ArrowRight: index + 1, ArrowUp: index - 1, ArrowLeft: index - 1, Home: 0, End: last }[event.key]
+    if (next === undefined) return
+    event.preventDefault()
+    selectSection(orderedSections[(next + orderedSections.length) % orderedSections.length].id, { focus: true })
+  }
 
   return <div className="ds-page pf" data-ds-root>
     <header className="ds-pagehead pf-head">
@@ -585,10 +607,14 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
 
     <div className="pf-frame">
       <nav className="pf-nav" aria-label="Seções do perfil">
-        <ul>{orderedSections.map(section => <li key={section.id}><button type="button" onClick={() => scrollToSection(section.id)}><Icon name={section.icon} size={18} />{section.label}{section.id === 'pf-plano' && !planActive && <><span className="pf-nav__dot" aria-hidden="true" /><span className="ds-sr-only"> (pagamento pendente)</span></>}</button></li>)}</ul>
+        <ul role="tablist" aria-label="Seções do perfil" onKeyDown={onTabKeyDown}>{orderedSections.map(section => <li key={section.id} role="presentation">
+          <button type="button" role="tab" id={`${section.id}-tab`} aria-controls="pf-panel" aria-selected={activeSection === section.id} tabIndex={activeSection === section.id ? 0 : -1} onClick={() => selectSection(section.id)}>
+            <Icon name={section.icon} size={18} />{section.label}{section.id === 'pf-plano' && !planActive && <><span className="pf-nav__dot" aria-hidden="true" /><span className="ds-sr-only"> (pagamento pendente)</span></>}
+          </button>
+        </li>)}</ul>
       </nav>
-      <div className="pf-content">
-        {orderedSections.map(section => sectionContent[section.id])}
+      <div className="pf-content" role="tabpanel" id="pf-panel" aria-labelledby={`${activeSection}-tab`} tabIndex={-1}>
+        {sectionContent[activeSection]}
       </div>
     </div>
     {confirmDialog}
