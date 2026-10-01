@@ -18,7 +18,7 @@ describe('DraftsPage', () => {
 
   it('shows the counts in one line and tells media and networks in text', async () => {
     vi.spyOn(api, 'apiFetch').mockImplementation(path => {
-      if (path === '/api/drafts') {
+      if (path.startsWith('/api/drafts?')) {
         return Promise.resolve({ drafts: [
           { id: 1, title: 'Roteiro de Reels', text: 'Três dicas rápidas.', platforms: ['instagram', 'tiktok'], mediaItems: [{ path: '/v.mp4', type: 'video' }, { path: '/a.png', type: 'image' }] },
           { id: 2, title: 'Modelo de publicação', text: 'Gancho em uma frase.', platforms: ['facebook'], is_template: true },
@@ -53,7 +53,7 @@ describe('DraftsPage', () => {
   it('generates ideas with the same request as before and saves each one', async () => {
     const apiFetchMock = vi.spyOn(api, 'apiFetch').mockImplementation((path, options = {}) => {
       if (path === '/api/drafts' && options.method === 'POST') return Promise.resolve({ draft: {} })
-      if (path === '/api/drafts') return Promise.resolve({ drafts: [] })
+      if (path.startsWith('/api/drafts?')) return Promise.resolve({ drafts: [] })
       if (path === '/api/ai/generate') return Promise.resolve({ posts: [{ titulo: 'Ideia A', texto: 'Texto A' }, { titulo: 'Ideia B', texto: 'Texto B' }] })
       return Promise.resolve({})
     })
@@ -104,7 +104,7 @@ describe('DraftsPage', () => {
         drafts = drafts.filter(draft => draft.id !== 1)
         return Promise.resolve({ ok: true })
       }
-      if (path === '/api/drafts') return Promise.resolve({ drafts })
+      if (path.startsWith('/api/drafts?')) return Promise.resolve({ drafts })
       return Promise.resolve({})
     })
 
@@ -121,7 +121,7 @@ describe('DraftsPage', () => {
   it('shows a failed delete as its own message and keeps the list', async () => {
     vi.spyOn(api, 'apiFetch').mockImplementation((path, options = {}) => {
       if (path === '/api/drafts/1' && options.method === 'DELETE') return Promise.reject(new api.ApiError('Não foi possível excluir a ideia agora.', 500))
-      if (path === '/api/drafts') return Promise.resolve({ drafts: [{ id: 1, title: 'Primeira ideia', text: 'Um', platforms: ['instagram'] }] })
+      if (path.startsWith('/api/drafts?')) return Promise.resolve({ drafts: [{ id: 1, title: 'Primeira ideia', text: 'Um', platforms: ['instagram'] }] })
       return Promise.resolve({})
     })
 
@@ -139,7 +139,7 @@ describe('DraftsPage', () => {
   it('shows a failed load with a retry instead of an empty chest or zero counts', async () => {
     let failing = true
     vi.spyOn(api, 'apiFetch').mockImplementation(path => {
-      if (path === '/api/drafts') return failing ? Promise.reject(new Error('Tempo esgotado')) : Promise.resolve({ drafts: [{ id: 9, title: 'De volta', text: 'Texto', platforms: [] }] })
+      if (path.startsWith('/api/drafts?')) return failing ? Promise.reject(new Error('Tempo esgotado')) : Promise.resolve({ drafts: [{ id: 9, title: 'De volta', text: 'Texto', platforms: [] }] })
       return Promise.resolve({})
     })
 
@@ -168,7 +168,7 @@ describe('DraftsPage', () => {
   it('empties the chest only after the DS confirmation', async () => {
     const apiFetchMock = vi.spyOn(api, 'apiFetch').mockImplementation((path, options = {}) => {
       if (path === '/api/drafts' && options.method === 'DELETE') return Promise.resolve({ ok: true })
-      if (path === '/api/drafts') return Promise.resolve({ drafts: [{ id: 1, title: 'Primeira ideia', text: 'Um', platforms: ['instagram'] }, { id: 2, title: 'Segunda ideia', text: 'Dois', platforms: ['facebook'] }] })
+      if (path.startsWith('/api/drafts?')) return Promise.resolve({ drafts: [{ id: 1, title: 'Primeira ideia', text: 'Um', platforms: ['instagram'] }, { id: 2, title: 'Segunda ideia', text: 'Dois', platforms: ['facebook'] }] })
       return Promise.resolve({})
     })
 
@@ -184,4 +184,38 @@ describe('DraftsPage', () => {
     await waitFor(() => expect(apiFetchMock).toHaveBeenCalledWith('/api/drafts', { method: 'DELETE' }))
     expect(await screen.findByText('Baú de Ideias esvaziado.')).toBeInTheDocument()
   })
+
+  it('lê todas as páginas de ideias, não só as primeiras', async () => {
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/drafts?limit=100&offset=0') return Promise.resolve({ drafts: [{ id: 1, title: 'Da primeira página', text: 'Um', platforms: ['instagram'] }], hasMore: true })
+      if (path === '/api/drafts?limit=100&offset=1') return Promise.resolve({ drafts: [{ id: 2, title: 'Da segunda página', text: 'Dois', platforms: ['instagram'] }], hasMore: false })
+      return Promise.resolve({})
+    })
+
+    renderPage()
+
+    expect(await screen.findByRole('heading', { name: 'Da segunda página' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Da primeira página' })).toBeInTheDocument()
+  })
+
+  it('quando uma das ideias não grava, diz quantas entraram e recarrega a lista (sem duplicar ao tentar de novo)', async () => {
+    let posts = 0
+    const apiFetchMock = vi.spyOn(api, 'apiFetch').mockImplementation((path, options = {}) => {
+      if (path === '/api/drafts' && options.method === 'POST') {
+        posts += 1
+        return posts === 2 ? Promise.reject(new api.ApiError('Não foi possível salvar a ideia.', 500)) : Promise.resolve({ draft: {} })
+      }
+      if (path.startsWith('/api/drafts?')) return Promise.resolve({ drafts: [] })
+      if (path === '/api/ai/generate') return Promise.resolve({ posts: [{ titulo: 'A', texto: 'Texto A' }, { titulo: 'B', texto: 'Texto B' }, { titulo: 'C', texto: 'Texto C' }] })
+      return Promise.resolve({})
+    })
+
+    renderPage()
+    fireEvent.change(await screen.findByLabelText('Tema ou instrução'), { target: { value: 'bastidores' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Gerar ideias' }))
+
+    expect(await screen.findAllByText('2 de 3 ideias foram salvas no Baú de Ideias. As outras não entraram; gere de novo se quiser mais.')).not.toHaveLength(0)
+    expect(apiFetchMock.mock.calls.filter(([path]) => path.startsWith('/api/drafts?')).length).toBeGreaterThan(1)
+  })
 })
+

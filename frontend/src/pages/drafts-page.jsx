@@ -93,7 +93,20 @@ export function DraftsPage({ onNavigate }) {
   const themeRef = useRef(null)
   const listRef = useRef(null)
   const phone = useIsPhone()
-  const load = useCallback(() => apiFetch('/api/drafts').then(data => data.drafts || []), [])
+  // A API entrega as ideias em páginas (até 100). A busca e os filtros do Baú são feitos aqui, então
+  // todas as páginas são lidas (até 2.000 ideias); antes só as 50 primeiras apareciam.
+  const load = useCallback(async () => {
+    const all = []
+    let offset = 0
+    for (let page = 0; page < 20; page += 1) {
+      const data = await apiFetch(`/api/drafts?limit=100&offset=${offset}`)
+      const batch = Array.isArray(data?.drafts) ? data.drafts : []
+      all.push(...batch)
+      if (!data?.hasMore || !batch.length) break
+      offset += batch.length
+    }
+    return all
+  }, [])
   // `error` é só da lista; excluir e esvaziar mostram o próprio aviso.
   const { value: drafts, loading, error, reload } = useApiResource(load, [])
   const notify = useToast()
@@ -153,10 +166,20 @@ export function DraftsPage({ onNavigate }) {
         }))
         .filter(idea => idea.text.trim())
       if (!ideas.length) throw new Error('O sistema inteligente não retornou nenhuma ideia válida. Tente reformular o tema.')
-      await Promise.all(ideas.map(idea => apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify(idea) })))
-      setText('')
+      // Cada ideia é gravada por conta própria: se uma falhar, as outras ficam salvas e a lista recarrega,
+      // para que tentar de novo não duplique as que já entraram.
+      const results = await Promise.allSettled(ideas.map(idea => apiFetch('/api/drafts', { method: 'POST', body: JSON.stringify(idea) })))
+      const saved = results.filter(result => result.status === 'fulfilled').length
       await reload().catch(() => {})
-      notify(`${ideas.length} ${ideas.length === 1 ? 'ideia gerada' : 'ideias geradas'} e salvas no Baú de Ideias.`)
+      if (!saved) throw results.find(result => result.status === 'rejected').reason
+      setText('')
+      if (saved < ideas.length) {
+        const message = `${saved} de ${ideas.length} ideias foram salvas no Baú de Ideias. As outras não entraram; gere de novo se quiser mais.`
+        setFormError(message)
+        notify(message, 'error')
+      } else {
+        notify(`${ideas.length} ${ideas.length === 1 ? 'ideia gerada' : 'ideias geradas'} e salvas no Baú de Ideias.`)
+      }
     }
     catch (caught) { setFormError(caught.message); notify(caught.message, 'error') }
     finally {
