@@ -133,4 +133,30 @@ describe('ProfilePage', () => {
     expect(screen.getByRole('tab', { name: 'Segurança' })).toHaveFocus()
     expect(screen.getByRole('tab', { name: 'Segurança' })).toHaveAttribute('aria-selected', 'true')
   })
+
+  it('na volta do checkout abre a aba de planos e consulta o pagamento até ele confirmar', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    window.history.replaceState(null, '', '/app/perfil?billing=success')
+    const profile = { id: 8, email: 'h@allowed.test', fullName: 'Hugo', plan: 'pro', planActive: true }
+    const pending = { currentPlan: 'pro', planActive: true, subscription: null, charge: { status: 'processing' } }
+    const paid = { ...pending, charge: { status: 'paid' } }
+    let statusCalls = 0
+    const apiFetch = vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+      if (path === '/api/me/profile') return Promise.resolve(profile)
+      if (path === '/api/billing/status') { statusCalls += 1; return Promise.resolve(statusCalls >= 3 ? paid : pending) }
+      return Promise.reject(new Error(`rota não mockada: ${path}`))
+    })
+    render(<ToastProvider><ProfilePage user={profile} onUserChange={() => {}} /></ToastProvider>)
+
+    expect(await screen.findByRole('tab', { name: 'Plano e cobrança' })).toHaveAttribute('aria-selected', 'true')
+    expect(window.location.search).toBe('')
+    await vi.advanceTimersByTimeAsync(2100)
+    await vi.advanceTimersByTimeAsync(2100)
+    expect(await screen.findByText('Cobrança deste mês confirmada.')).toBeInTheDocument()
+    const polls = apiFetch.mock.calls.filter(([path]) => path === '/api/billing/status').length
+    await vi.advanceTimersByTimeAsync(4200)
+    expect(apiFetch.mock.calls.filter(([path]) => path === '/api/billing/status')).toHaveLength(polls)
+    vi.useRealTimers()
+  })
 })
+

@@ -95,11 +95,14 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
   const [passwordSaving, setPasswordSaving] = useState(false)
   const [passwordError, setPasswordError] = useState('')
   const [avatarSaving, setAvatarSaving] = useState(false)
-  const [checkoutCancelled] = useState(() => new URLSearchParams(window.location.search).get('billing') === 'cancelled')
+  // Volta do checkout (?billing=success|cancelled): lido uma vez ao abrir, porque o endereço é limpo logo depois.
+  const [billingReturn] = useState(() => new URLSearchParams(window.location.search).get('billing') || '')
+  const checkoutCancelled = billingReturn === 'cancelled'
+  const returnedFromCheckout = billingReturn === 'success'
   const [tutorialStatus, setTutorialStatus] = useState(() => getTutorialStatus())
 
   const notify = useToast()
-  const [chosenSection, setChosenSection] = useState(sectionFromHash)
+  const [chosenSection, setChosenSection] = useState(() => sectionFromHash() || (billingReturn ? 'pf-plano' : null))
   const { confirm, confirmDialog } = useConfirm()
 
   useEffect(() => {
@@ -135,13 +138,15 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
 
   // O retorno "cancelado" do checkout só precisa de um aviso; a URL volta a ficar limpa.
   useEffect(() => {
-    if (checkoutCancelled) window.history.replaceState({}, '', window.location.pathname)
+    if (checkoutCancelled) window.history.replaceState({}, '', `${window.location.pathname}${window.location.hash}`)
   }, [checkoutCancelled])
 
+  // Depois do pagamento, o webhook pode demorar: consulta o status até a cobrança aparecer paga
+  // (até 6 vezes, a cada 2 s). Depende só de "voltou do checkout"; antes dependia de `billing`, e a
+  // primeira resposta reiniciava o efeito, que parava na primeira tentativa.
   useEffect(() => {
-    if (!billing || new URLSearchParams(window.location.search).get('billing') !== 'success') return undefined
-    window.history.replaceState({}, '', window.location.pathname)
-    if (billing.charge?.status === 'paid') return undefined
+    if (!returnedFromCheckout) return undefined
+    window.history.replaceState({}, '', `${window.location.pathname}${window.location.hash}`)
 
     let active = true
     let attempts = 0
@@ -165,7 +170,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
       active = false
       if (timer) window.clearTimeout(timer)
     }
-  }, [billing, onUserChange])
+  }, [returnedFromCheckout, onUserChange])
 
   function updateForm(key, value) {
     setForm(current => ({ ...current, [key]: value }))
