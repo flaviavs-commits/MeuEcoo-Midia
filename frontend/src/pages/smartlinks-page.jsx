@@ -14,7 +14,7 @@ function parseLinkLine(line) {
   try {
     const url = new URL(value)
     if (url.protocol === 'https:' && url.hostname) return { label: url.hostname.replace(/^www\./i, ''), url: url.toString() }
-  } catch {}
+  } catch { /* não é um endereço válido: mostra o texto como está */ }
   return { label: '', url: value }
 }
 

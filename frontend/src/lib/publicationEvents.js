@@ -49,7 +49,6 @@ export function publicationResultMessage(event) {
   }))
   const published = results.filter(result => result.success === true)
   const failures = results.filter(result => result.success === false)
-  const details = failures.map(result => `${result.label}: ${result.detail}`).join(' | ')
 
   const platforms = formatPlatformList(data.platforms || (data.results || []).map(result => result.platform))
   const resultSummary = results.length

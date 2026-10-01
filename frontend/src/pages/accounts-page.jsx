@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { apiFetch, ApiError } from '../lib/api.js'
 import { useApiResource } from '../hooks/use-api-resource.js'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
@@ -122,9 +122,9 @@ export function AccountsPage({ onNavigate, user }) {
   const { confirm, confirmDialog } = useConfirm()
   const plan = getPlan(user?.plan)
   const connectionLimit = user?.planUnrestricted ? Infinity : (plan.maxConnections || providers.length)
-  const allowedPlatforms = new Set(user?.planUnrestricted || !Array.isArray(user?.allowedPlatforms) || !user.allowedPlatforms.length
+  const allowedPlatforms = useMemo(() => new Set(user?.planUnrestricted || !Array.isArray(user?.allowedPlatforms) || !user.allowedPlatforms.length
     ? providers.map(item => item.platform)
-    : user.allowedPlatforms)
+    : user.allowedPlatforms), [user?.planUnrestricted, user?.allowedPlatforms])
   const accountsByPlatform = platformName => accounts.filter(account => account.platform === platformName)
   // A busca cobre nome, identificador e rede; o status separa contas saudáveis das que pedem reconexão.
   const matchesFilters = account => {
@@ -150,7 +150,7 @@ export function AccountsPage({ onNavigate, user }) {
     if (allowedPlatforms.has(platform)) return
     const firstAllowed = providers.find(item => allowedPlatforms.has(item.platform))
     if (firstAllowed) setPlatform(firstAllowed.platform)
-  }, [platform, user?.allowedPlatforms, user?.planUnrestricted])
+  }, [platform, allowedPlatforms])
 
   // Se a verificação falhar, o resumo diz que não verificou, em vez de "0 APIs disponíveis".
   const loadHealth = useCallback(() => apiFetch('/api/platform-health')

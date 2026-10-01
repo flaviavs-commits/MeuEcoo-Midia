@@ -202,7 +202,7 @@ export function DraftsPage({ onNavigate }) {
     await reload().catch(() => {})
   }
 
-  function useDraft(draft) {
+  function startPostFromDraft(draft) {
     const platforms = inferredPlatformsOf(draft)
     const textByPlatform = objectField(draft.text_by_platform || draft.textByPlatform)
     const titleByPlatform = objectField(draft.title_by_platform || draft.titleByPlatform)
@@ -359,7 +359,7 @@ export function DraftsPage({ onNavigate }) {
                         <span className="ds-sr-only">Redes: {names}</span>
                       </span>
                       : <span className="ds-meta">Nenhuma rede selecionada</span>}
-                    <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm bau-idea__use" onClick={() => useDraft(draft)}>Criar post<Icon name="arrow" size={16} /></button>
+                    <button type="button" className="ds-btn ds-btn--secondary ds-btn--sm bau-idea__use" onClick={() => startPostFromDraft(draft)}>Criar post<Icon name="arrow" size={16} /></button>
                   </div>
                 </div>
               </li>

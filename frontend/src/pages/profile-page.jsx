@@ -129,6 +129,8 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
     }).catch(caught => setLoadError(messageOf(caught, 'Verifique sua conexão e tente de novo.'))).finally(() => setLoading(false))
   }
 
+  // Carrega uma vez ao abrir; o mesmo loadProfile é o "Tentar de novo" do aviso de erro.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { loadProfile() }, [])
 
   // O retorno "cancelado" do checkout só precisa de um aviso; a URL volta a ficar limpa.
@@ -163,7 +165,7 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
       active = false
       if (timer) window.clearTimeout(timer)
     }
-  }, [billing])
+  }, [billing, onUserChange])
 
   function updateForm(key, value) {
     setForm(current => ({ ...current, [key]: value }))

@@ -31,7 +31,7 @@ function storeAiPostDraft(postDraft) {
   // A referência em memória evita perder uma imagem grande por limite de
   // sessionStorage; o storage mantém o fluxo funcionando após uma navegação.
   window.__socialAiPostDraft = payload
-  try { sessionStorage.setItem(AI_POST_DRAFT_KEY, JSON.stringify(payload)) } catch {}
+  try { sessionStorage.setItem(AI_POST_DRAFT_KEY, JSON.stringify(payload)) } catch { /* storage cheio ou bloqueado: a referência em memória acima basta */ }
 }
 
 function summarizeData(data) {

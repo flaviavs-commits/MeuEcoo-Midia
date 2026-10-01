@@ -222,7 +222,7 @@ export function MediaLibraryPage({ onNavigate }) {
     loadFolders().catch(() => setFoldersState('error'))
   }
 
-  function useAssetInPost(asset) {
+  function sendToPost(asset) {
     try {
       sessionStorage.setItem(MEDIA_LIBRARY_SELECTION_KEY, JSON.stringify({ id: asset.id, name: asset.name, url: asset.url, mimeType: asset.mimeType, sizeBytes: asset.sizeBytes }))
       onNavigate?.('agendador')
@@ -301,7 +301,7 @@ export function MediaLibraryPage({ onNavigate }) {
     { label: 'Visualizar', icon: 'eye', onSelect: () => setPreview(asset) },
     { label: 'Editar informações', icon: 'compose', onSelect: () => setEditing(asset) },
     { label: 'Mover para pasta', icon: 'folderMove', onSelect: () => setMoving(asset) },
-    { label: 'Usar no Meu Post', icon: 'send', onSelect: () => useAssetInPost(asset) },
+    { label: 'Usar no Meu Post', icon: 'send', onSelect: () => sendToPost(asset) },
     { label: 'Remover da biblioteca', icon: 'trash', danger: true, onSelect: () => remove(asset) },
   ]
   const folderChip = (name, count, pressed, onClick, key) => <button type="button" className="ds-netswitch__opt lib-folders__opt" aria-pressed={pressed} onClick={onClick} key={key}>
@@ -370,7 +370,7 @@ export function MediaLibraryPage({ onNavigate }) {
         : assets.length
           ? <>
             <ul className="lib-assets" aria-busy={loading} ref={assetsRef}>
-              {assets.map(asset => <MediaCard key={asset.id} asset={asset} showFolder={!folder} menuItems={assetMenu(asset)} onOpen={setPreview} onUse={useAssetInPost} />)}
+              {assets.map(asset => <MediaCard key={asset.id} asset={asset} showFolder={!folder} menuItems={assetMenu(asset)} onOpen={setPreview} onUse={sendToPost} />)}
             </ul>
             {hasMore && <div className="lib-more"><button type="button" className="ds-btn ds-btn--secondary" onClick={loadMore} disabled={loadingMore}>{loadingMore ? <><span className="ds-spinner" aria-hidden="true" />Carregando…</> : 'Carregar mais mídias'}</button></div>}
           </>
@@ -390,7 +390,7 @@ export function MediaLibraryPage({ onNavigate }) {
       </div>}
     </section>
 
-    <MediaPreview asset={preview} onClose={() => setPreview(null)} onUse={useAssetInPost} onEdit={asset => { setPreview(null); setEditing(asset) }} onMove={asset => { setPreview(null); setMoving(asset) }} onRemove={remove} />
+    <MediaPreview asset={preview} onClose={() => setPreview(null)} onUse={sendToPost} onEdit={asset => { setPreview(null); setEditing(asset) }} onMove={asset => { setPreview(null); setMoving(asset) }} onRemove={remove} />
     <MediaEditDialog asset={editing} folders={folderOptions} onClose={() => setEditing(null)} onSave={submitEdit} />
     <MediaMoveDialog asset={moving} folders={folderOptions} onClose={() => setMoving(null)} onMove={submitMove} />
     <FolderDialog open={folderDialogOpen} onClose={() => setFolderDialogOpen(false)} onCreate={createFolder} />

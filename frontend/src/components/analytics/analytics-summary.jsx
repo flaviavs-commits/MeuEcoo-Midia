@@ -1,7 +1,7 @@
 import { Line, Bar } from 'react-chartjs-2'
 import { EngagementTypeBar } from './engagement-type-bar.jsx'
 import {
-  filterByPeriod, filterByPeriodOffset, filterTikTokVideosByPeriod, filterTikTokVideosByPeriodOffset, tiktokVideoToMetric, latestOf, fmtNum, formatDiaBR, baseChartOptions, PLAT_LABELS, PLAT_COLORS, NETWORK_ORDER, ANALYTICS_PERIODS,
+  filterByPeriod, filterByPeriodOffset, filterTikTokVideosByPeriod, filterTikTokVideosByPeriodOffset, tiktokVideoToMetric, latestOf, fmtNum, formatDiaBR, baseChartOptions, PLAT_LABELS, NETWORK_ORDER, ANALYTICS_PERIODS,
   accountAnalyticsPlatformTotals, vizColors, chartLabel,
 } from '../../lib/analytics-format.js'
 import { Icon, NetworkGlyph } from '../ui/icon.jsx'
@@ -125,9 +125,6 @@ export function AnalyticsSummary({ data, tiktokVideos, periodDays, activeNet = n
   }
 
   const totalViews = sumKnown(scopeNetworks.map(platform => mergedPlatformTotal(platform, 'views')))
-  const totalLikes = sumKnown(scopeNetworks.map(platform => mergedPlatformTotal(platform, 'likes')))
-  const totalComments = sumKnown(scopeNetworks.map(platform => mergedPlatformTotal(platform, 'comments')))
-  const totalShares = sumKnown(scopeNetworks.map(platform => mergedPlatformTotal(platform, 'shares')))
   const totalEngagement = sumKnown(scopeNetworks.map(platform => {
     const accountValue = accountTotals[platform]?.engagement
     if (accountValue?.hasData) return accountValue.value

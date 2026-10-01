@@ -63,7 +63,6 @@ function rowsFromSource(source) {
 
   const rows = flattenValues(source)
   const ages = rows.filter(row => row.path.some(value => /^age?\d|^\d{1,3}[-–]\d{1,3}$|^\d{2,3}\+?$/.test(String(value).toLowerCase())))
-  const genders = rows.filter(row => row.path.some(value => /^(m|f|male|female|man|woman|homem|mulher|masculino|feminino|user_specified|other)$/i.test(String(value))))
   const ageGenderRows = ages.filter(ageRow => {
     const age = ageRow.path.find(value => /^age?\d|^\d{1,3}[-–]\d{1,3}$|^\d{2,3}\+?$/.test(String(value).toLowerCase()))
     const gender = ageRow.path.find(value => /^(m|f|male|female|man|woman|homem|mulher|masculino|feminino|user_specified|other)$/i.test(String(value)))

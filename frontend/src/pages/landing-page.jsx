@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { PLANS } from '../lib/plans.js'
 import { CopyrightNotice } from '../components/ui/copyright-notice.jsx'
 import { TimelineStory } from '../components/marketing/timeline-story.jsx'
@@ -115,39 +115,6 @@ function AccountMenu() {
       </ul>
       <p className="mkt-account-foot">Escolha o plano que combina com a sua rotina.</p>
     </nav>
-  </div>
-}
-
-function HandCircleCallout() {
-  const ref = useRef(null)
-  const [drawn, setDrawn] = useState(false)
-
-  useEffect(() => {
-    const node = ref.current
-    if (!node) return
-    const prefersReduced = typeof window.matchMedia === 'function'
-      && window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (prefersReduced || typeof IntersectionObserver !== 'function') {
-      setDrawn(true)
-      return
-    }
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some(entry => entry.isIntersecting)) {
-        setDrawn(true)
-        observer.disconnect()
-      }
-    }, { threshold: 0.6 })
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
-
-  return <div ref={ref} className={`mkt-callout${drawn ? ' is-drawn' : ''}`} aria-hidden="true">
-    <span className="mkt-callout-text">4 redes<br />em um só<br />lugar!</span>
-    <svg className="mkt-callout-mark" viewBox="0 0 300 210" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path className="mkt-callout-ring" pathLength="1" d="M70 55C41 70 33 120 55 158c24 41 96 48 158 36 47-9 78-44 74-86-4-41-58-63-118-58-38 3-71 14-90 33" />
-      <path className="mkt-callout-ring mkt-callout-ring--2" pathLength="1" d="M63 78C46 104 52 143 88 165c40 24 108 22 160-2 41-19 55-58 38-92-16-32-70-45-128-38-40 5-73 20-90 43" />
-      <path className="mkt-callout-arrow" pathLength="1" d="M96 178c-14 12-22 27-24 44m0 0 16-13m-16 13-4-20" />
-    </svg>
   </div>
 }
 

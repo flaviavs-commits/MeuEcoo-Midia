@@ -15,7 +15,7 @@ import { findPublicationResult, latestPublicationEventId, processingPublicationM
 import { useToast } from '../components/ui/toast.jsx'
 import { useConfirm } from '../components/ui/confirm-dialog.jsx'
 import { PLATFORM_TEXT_LIMITS, getPlatformTextLimit } from '../lib/platformTextLimits.js'
-import { PREVIEW_ASPECTS, PREVIEW_ASPECT_OPTIONS, TIKTOK_VIDEO_DIMENSIONS, mediaKindLabel, ratioLabel, resolvePreviewAspect, shouldUseFullBleedPreview, socialMediaLimitHint, socialMediaResolutionHint } from '../lib/mediaFormat.js'
+import { TIKTOK_VIDEO_DIMENSIONS, mediaKindLabel, ratioLabel, resolvePreviewAspect, shouldUseFullBleedPreview, socialMediaLimitHint, socialMediaResolutionHint } from '../lib/mediaFormat.js'
 import { accountIdKey, accountsForPlatform, buildAccountSelectionIssues, groupAccountsByPerson, selectedAccountsForPost } from '../lib/account-selection.js'
 import { HeartIcon, CommentIcon, ShareArrowIcon, BookmarkIcon, ThumbsUpIcon, GlobeIcon, MoreIcon, MusicNoteIcon, DislikeIcon, RemixIcon, SendPlaneIcon } from '../components/ui/preview-icons.jsx'
 import '../styles/scheduler-composer.css'
@@ -489,14 +489,6 @@ async function uploadWithConcurrency(items, upload, limit, onProgress) {
 
 const previewLabels = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 
-function previewAspectOptions(platform, instagramFormat, mediaKind) {
-  if (platform === 'instagram' && ['reel', 'story'].includes(instagramFormat)) return [PREVIEW_ASPECTS.vertical]
-  if (platform === 'instagram') return [PREVIEW_ASPECTS.square, PREVIEW_ASPECTS.portrait, PREVIEW_ASPECTS.instagramWide]
-  if (platform === 'tiktok' && mediaKind === 'video') return [PREVIEW_ASPECTS.vertical]
-  if (platform === 'tiktok') return PREVIEW_ASPECT_OPTIONS
-  return Object.values(PREVIEW_ASPECTS)
-}
-
 function PreviewVideo({ src, platform, coverUrl = '' }) {
   const [frame, setFrame] = useState('')
 
@@ -815,9 +807,11 @@ function formatDuration(seconds) {
 function PostPreview({ textByPlatform, titleByPlatform, selected, files, filesByPlatform = {}, previews, publishNow, approvalRequested, date, youtubeTitle, igFormat, igAspect, onIgAspectChange, tiktokAspect, youtubeFormat, facebookFormat, mediaProfile, accounts, coverUrl = '', inSheet = false }) {
   const availablePlatforms = selected.length ? selected : platforms
   const [activePlatform, setActivePlatform] = useState(availablePlatforms[0])
+  const platformsKey = availablePlatforms.join(',')
   useEffect(() => {
-    if (!availablePlatforms.includes(activePlatform)) setActivePlatform(availablePlatforms[0])
-  }, [activePlatform, availablePlatforms.join(',')])
+    const available = platformsKey.split(',')
+    if (!available.includes(activePlatform)) setActivePlatform(available[0])
+  }, [activePlatform, platformsKey])
   const activeFiles = filesByPlatform[activePlatform]?.length ? filesByPlatform[activePlatform] : files
   const activeFileKeys = new Set(activeFiles.map(file => mediaFileKey(file)))
   const activePreviews = previews.filter(preview => activeFileKeys.has(preview.key))
@@ -1259,48 +1253,6 @@ export function SchedulerPage({ onNavigate } = {}) {
   }
   function selectFiles(event) { addFiles(event.target.files); event.target.value = '' }
   function dropFiles(event) { event.preventDefault(); addFiles(event.dataTransfer.files) }
-  function addPlatformFiles(platform, fileList) {
-    const incoming = Array.from(fileList || []).map(normalizeMediaFile)
-    const valid = incoming.filter(file => file.type.startsWith('image/') || file.type.startsWith('video/'))
-    if (incoming.length !== valid.length) {
-      setError('Alguns arquivos foram ignorados. Selecione somente imagens ou vídeos.')
-      return
-    }
-    const allowsCarousel = ['instagram', 'facebook', 'tiktok'].includes(platform) && !(platform === 'facebook' && facebookFormat === 'reel')
-    const current = valid.some(file => file.type.startsWith('video/')) || !allowsCarousel ? [] : (filesByPlatform[platform] || [])
-    const unique = [...current, ...valid].filter((file, index, list) => list.findIndex(item => mediaFileKey(item) === mediaFileKey(file)) === index)
-    const videoFiles = unique.filter(file => file.type.startsWith('video/'))
-    const carouselLimit = platform === 'tiktok' ? TIKTOK_PHOTO_MAX_ITEMS : platform === 'instagram' || platform === 'facebook' ? 10 : 1
-    if (platform === 'facebook' && facebookFormat === 'reel' && (unique.length !== 1 || videoFiles.length !== 1)) {
-      setError('O Reel do Facebook aceita exatamente um vídeo vertical 9:16.')
-      return
-    }
-    if (platform === 'youtube' && (unique.length !== 1 || videoFiles.length !== 1)) {
-      setError('O YouTube aceita exatamente um vídeo por publicação.')
-      return
-    }
-    if (videoFiles.length && (unique.length !== 1 || platform === 'instagram' && igFormat === 'post' && unique.length > 1)) {
-      setError(`${platformLabels[platform]} aceita um vídeo sozinho; carrosséis usam somente fotos.`)
-      return
-    }
-    if (!videoFiles.length && unique.length > carouselLimit) {
-      setError(`O ${platformLabels[platform]} aceita no máximo ${carouselLimit} fotos neste carrossel.`)
-      return
-    }
-    if (platform === 'instagram' && unique.length > 1 && igFormat !== 'post') {
-      setError('O carrossel do Instagram está disponível somente no Feed.')
-      return
-    }
-    setFilesByPlatform(previous => ({ ...previous, [platform]: unique }))
-  }
-  function selectPlatformFiles(platform, event) { addPlatformFiles(platform, event.target.files); event.target.value = '' }
-  function clearPlatformFiles(platform) {
-    setFilesByPlatform(previous => {
-      const next = { ...previous }
-      delete next[platform]
-      return next
-    })
-  }
   function removeFile(key) { setFiles(current => current.filter(file => mediaFileKey(file) !== key)) }
   function moveFile(index, direction) {
     setFiles(current => {
@@ -1343,12 +1295,13 @@ export function SchedulerPage({ onNavigate } = {}) {
     setCoverSourceKey('custom')
     setCoverTime(null)
   }
+  // Uma vez ao abrir: traz o rascunho que o Assistente deixou (imagem e texto) para o editor.
   useEffect(() => {
     let draft = window.__socialAiPostDraft || null
     try {
       if (!draft) draft = JSON.parse(sessionStorage.getItem(AI_POST_DRAFT_KEY) || 'null')
       sessionStorage.removeItem(AI_POST_DRAFT_KEY)
-    } catch {}
+    } catch { /* storage indisponível ou rascunho ilegível: segue sem ele */ }
     window.__socialAiPostDraft = null
     if (!draft?.image) return undefined
 
@@ -1360,6 +1313,7 @@ export function SchedulerPage({ onNavigate } = {}) {
       if (!cancelled) setError(error.message)
     })
     return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   function applyMediaSuggestion(suggestionOrSuggestions, options = {}) {
     const suggestions = Array.isArray(suggestionOrSuggestions) ? suggestionOrSuggestions : [suggestionOrSuggestions]
@@ -1471,11 +1425,11 @@ export function SchedulerPage({ onNavigate } = {}) {
     return notes
   }, [files, mediaMetaByKey, selected])
 
-  const validationInput = {
+  const validationInput = useMemo(() => ({
     textByPlatform, titleByPlatform, tiktokDescription: textByPlatform.tiktokDescription || '', platforms: selected, files: files.map(({ name, lastModified, size, type }) => ({ name, lastModified, size, type })),
     filesByPlatform: Object.fromEntries(Object.entries(filesByPlatform).map(([platform, platformFiles]) => [platform, platformFiles.map(({ name, lastModified, size, type }) => ({ name, lastModified, size, type }))])),
      publishNow, scheduledAt: date, youtubeTitle, youtubeMadeForKids, youtubeFormat, igFormat, facebookFormat, tiktokPrivacyLevel, videoMetaByKey, mediaMetaByKey
-  }
+  }), [textByPlatform, titleByPlatform, selected, files, filesByPlatform, publishNow, date, youtubeTitle, youtubeMadeForKids, youtubeFormat, igFormat, facebookFormat, tiktokPrivacyLevel, videoMetaByKey, mediaMetaByKey])
   useEffect(() => {
     const requestId = ++validationRequest.current
     if (!validationWorker) {
@@ -1483,7 +1437,7 @@ export function SchedulerPage({ onNavigate } = {}) {
       return
     }
     validationWorker.postMessage({ ...validationInput, requestId })
-  }, [validationWorker, textByPlatform, titleByPlatform, selected, files, filesByPlatform, publishNow, date, youtubeTitle, youtubeMadeForKids, youtubeFormat, igFormat, facebookFormat, tiktokPrivacyLevel, videoMetaByKey, mediaMetaByKey])
+  }, [validationWorker, validationInput])
   const issues = workerIssues
   const accountSelectionIssues = !accountsLoaded
     ? []
@@ -1593,10 +1547,8 @@ export function SchedulerPage({ onNavigate } = {}) {
     return value.trim() ? `${aiPlatformLabels[platform] || platform}: ${value.trim()}` : ''
   }).filter(Boolean).join('\n\n')
 
-  const tiktokPreviewAspect = resolvePreviewAspect({ platform: 'tiktok', mediaKind: mediaProfile?.kind, sourceRatio: mediaProfile?.ratio, requested: tiktokAspect, instagramFormat: igFormat })
   const carouselPlatforms = selected.filter(platform => platform === 'instagram' || platform === 'tiktok' || platform === 'facebook' && facebookFormat === 'post')
   const carouselLimit = selected.includes('instagram') || selected.includes('facebook') ? INSTAGRAM_CAROUSEL_MAX_ITEMS : TIKTOK_PHOTO_MAX_ITEMS
-  const carouselLabel = selected.includes('instagram') ? 'Feed do Instagram' : selected.includes('facebook') ? 'Feed do Facebook' : 'TikTok'
 
   // Qualquer forma de fechar o aviso (×, "Fechar aviso", Esc, fundo) mantém o
   // resultado por rede à vista, para não reenviar a quem já recebeu o post.

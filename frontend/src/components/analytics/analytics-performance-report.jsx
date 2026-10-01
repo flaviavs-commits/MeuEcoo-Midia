@@ -1,6 +1,5 @@
 import {
   accountAnalyticsPlatformTotals,
-  filterByPeriod,
   filterByPeriodOffset,
   filterTikTokVideosByPeriod,
   filterTikTokVideosByPeriodOffset,

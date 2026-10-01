@@ -152,7 +152,6 @@ export function buildValidationIssues({ text = '', textByPlatform = {}, titleByP
   if (platforms.includes('tiktok')) {
     const tiktokFiles = mediaForPlatform('tiktok')
     const videoFiles = tiktokFiles.filter(file => file.type.startsWith('video/'))
-    const hasVideo = videoFiles.length > 0
     if (!tiktokFiles.length)
       issues.push({ platform: 'tiktok', message: 'Falta imagem ou vídeo para publicar no TikTok — anexe uma mídia ou desmarque o TikTok.' })
     else if (videoFiles.length) {

@@ -45,7 +45,6 @@ export function timelineStepFrame(progress, index) {
   const phase = clamp(progress) * 6
   const local = phase - (index + 1)
   const arrival = smooth(-.42, -.24, local)
-  const departure = smooth(.26, .48, local)
   const overviewPresence = smooth(5.65, 6, phase)
   // Faint titles before scrolling; fades out before any step's own arrival.
   const ghost = 1 - smooth(0, .3, phase)

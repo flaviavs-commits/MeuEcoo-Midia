@@ -454,7 +454,7 @@ ${post.angulo || 'conteúdo educativo e relevante'}`
           tone: 'warning',
           icon: 'send',
         })
-        if (!approved) throw new Error('Publicação cancelada.')
+        if (!approved) throw new Error('Publicação cancelada.', { cause: confirmationError })
         data = await apiFetch('/api/ai/schedule', {
           method: 'POST',
           timeoutMs: 60_000,
