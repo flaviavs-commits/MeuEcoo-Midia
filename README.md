@@ -54,9 +54,10 @@ meuecoo-midia/
 │   └── services/
 │       ├── scheduler.js           # Cron jobs: publicação automática + renovação de tokens (ativo)
 │       └── mailer.js              # Envio de e-mail de redefinição de senha (Gmail SMTP)
-├── frontend/
-│   ├── src/pages/                 # Landing, autenticação, administração e módulos React
-│   └── src/lib/api.js             # Fronteira HTTP única do frontend
+├── frontend/                      # React + Vite (ver "Frontend (React + Vite)" abaixo)
+│   ├── src/                       # telas, componentes, hooks, lib e estilos
+│   ├── test/                      # Vitest + Testing Library
+│   └── e2e/                       # Playwright (E2E de fumaça)
 ├── public/
 │   ├── react/                     # Bundle gerado pelo Vite
 │   └── *.html                     # Páginas legais e suporte
@@ -82,6 +83,114 @@ nano .env
 npm start
 # Acesse: http://localhost:3000
 ```
+
+## Frontend (React + Vite)
+
+O frontend fica em `frontend/` e conversa com o backend só pela API HTTP
+(`frontend/src/lib/api.js`); nunca importa nada de `src/`. O que cada tela faz
+está em [`docs/PAGINAS-E-FUNCOES.md`](docs/PAGINAS-E-FUNCOES.md); o contrato
+entre front e back, em [`ARCHITECTURE.md`](ARCHITECTURE.md).
+
+### Rodar localmente
+
+```bash
+npm install            # uma vez, na raiz (backend e frontend usam o mesmo package.json)
+npm run dev            # backend em http://localhost:3000 (precisa do .env preenchido)
+npm run frontend:dev   # Vite em https://localhost:5173
+```
+
+Abra `https://localhost:5173/` (landing), `/login.html` ou `/app/dashboard`. O
+Vite faz proxy de `/api`, `/auth`, `/oauth` e `/media-proxy` para a porta 3000.
+Ele serve em HTTPS: sem os certificados do `mkcert` em `.certs/` (instruções em
+`frontend/vite.config.js`), o navegador mostra uma vez o aviso de certificado
+não confiável.
+
+### Scripts
+
+| Script | O que faz |
+|---|---|
+| `npm run frontend:dev` | servidor de desenvolvimento (HTTPS, porta 5173) |
+| `npm run frontend:build` (ou `npm run build`) | bundle de produção em `public/react/`, que é o que o Express e a Vercel publicam |
+| `npm run frontend:lint` | ESLint: regras recomendadas do JavaScript e regras de hooks do React |
+| `npm run test:components` | Vitest + Testing Library (`frontend/test/**/*.test.{js,jsx}`) |
+| `npm run frontend:e2e` | Playwright: E2E de fumaça (`frontend/e2e`), sem backend |
+
+Para conferir o build sem tocar em `public/react/`, gere numa pasta fora do
+repositório: `npx vite build --config frontend/vite.config.js --outDir <pasta> --emptyOutDir`.
+Em máquinas com pouca memória, rode o Vitest com `--maxWorkers=1`.
+
+O E2E sobe o próprio Vite na porta 5174 e usa o Microsoft Edge instalado na
+máquina (`channel: 'msedge'`). Sem o Edge, use o Chromium do Playwright:
+`npx playwright install chromium` e `E2E_BROWSER_CHANNEL=chromium npm run frontend:e2e`.
+
+### Estrutura
+
+```
+frontend/
+├── index.html                 # entrada única; main.jsx escolhe a tela pelo caminho
+├── src/
+│   ├── main.jsx               # roteamento por caminho (landing, login, /app/*, admin), sessão e CSS global
+│   ├── pages/                 # uma tela por arquivo (scheduler-page.jsx = Meu Post, drafts-page.jsx = Baú de Ideias…)
+│   ├── components/
+│   │   ├── ui/                # componentes compartilhados do design system (Select, Sheet, Icon, PlanGate, toasts…)
+│   │   ├── layout/            # AppShell (menus, topo, avisos) e o aviso de servidor fora do ar
+│   │   └── analytics/ library/ ai/ marketing/   # peças de uma área só
+│   ├── hooks/                 # useApiResource (carregar e recarregar), useMediaUpload, useAnalytics
+│   ├── lib/                   # lógica sem React: api.js, upload.js, platforms.js, storage.js, app-pages.js, validações…
+│   ├── workers/               # validação de mídia fora da thread principal
+│   └── styles/                # ds/ = design system atual; as demais folhas são legado, numa camada inferior
+├── test/                      # Vitest: components/ (telas e componentes) e lib/ (módulos puros)
+└── e2e/                       # Playwright: smoke.spec.js e fixtures/api.js
+```
+
+### Onde fica cada coisa
+
+- **Serviços (HTTP):** `src/lib/api.js` é a única fronteira com o backend:
+  `apiFetch` (sessão por cookie, token CSRF, tempo limite, volta ao login no
+  401), `publicApiFetch`, `ApiError` e `messageOf` (a mensagem da API ou a
+  frase da tela, nunca um erro técnico). O envio de arquivos ao armazenamento
+  fica em `src/lib/upload.js`.
+- **Mocks:** o app não tem dados falsos. Nos testes de componente, cada teste
+  simula `apiFetch` com `vi.mock`; no E2E, `frontend/e2e/fixtures/api.js`
+  responde às rotas da API com os formatos do backend.
+- **Componentes compartilhados:** `src/components/ui`. As classes `ds-*` ficam
+  em `src/styles/ds/components.css` e os tokens (cores, espaços, tipografia)
+  em `src/styles/ds/tokens.css` (ver [`docs/design-tokens.md`](docs/design-tokens.md)).
+  Cada página tem a sua folha em `src/styles/ds/pages/`.
+- **Rotas:** `src/lib/app-pages.js` (páginas existentes, 404 e a página de
+  volta depois do login), `src/main.jsx` (o que cada caminho abre),
+  `src/pages/module-page.jsx` (páginas carregadas sob demanda e bloqueio por
+  plano) e os menus em `src/components/layout/app-shell.jsx`.
+- **Estado na URL:** a página fica no caminho (`/app/<página>`) e a seção do
+  Perfil no hash (`/app/perfil#plano`). Preferências de tela (filtros, modo
+  do calendário) ficam no navegador por `src/lib/storage.js`.
+
+### Como adicionar uma página
+
+1. Crie `src/pages/<nome>-page.jsx` exportando o componente.
+2. Registre a chave em `APP_PAGES` (`src/lib/app-pages.js`) e o componente em
+   `src/pages/module-page.jsx`.
+3. Coloque o item no menu (`NAV_SECTIONS` em `src/components/layout/app-shell.jsx`).
+   Quais planos liberam a página vem de `config/plans.json` (`modules`), o
+   mesmo arquivo que o backend usa.
+4. Estilos em `src/styles/ds/pages/<nome>.css` (importado em `src/main.jsx`),
+   usando os tokens e as classes `ds-*`.
+5. O caminho `/app/<chave>` precisa ser servido pelo backend (lista de páginas
+   em `src/server.js` e rotas em `vercel.json`); essa parte é do backend.
+6. Escreva o teste em `frontend/test/components/<nome>-page.test.jsx` e
+   acrescente a página na lista de `frontend/e2e/smoke.spec.js`.
+
+### Variáveis de ambiente
+
+- `VITE_API_URL` (opcional): endereço público da API quando o frontend é
+  servido em outro domínio. Vazio (padrão) = mesma origem; no desenvolvimento,
+  o proxy do Vite cuida disso.
+- `E2E_PORT` (padrão `5174`) e `E2E_BROWSER_CHANNEL` (padrão `msedge`): só
+  para o E2E.
+
+O frontend não lê nenhum segredo; tudo o que é sensível fica no `.env` do
+backend. A tela de Equipe está atrás da constante `TEAM_APPROVAL_UI_ENABLED`
+em `src/lib/feature-flags.js` (desligada).
 
 ## CI/CD
 
@@ -529,9 +638,15 @@ Para produção, configure também:
 ## Testes
 
 ```bash
-npm test               # roda todos os testes
-npm run test:coverage  # com relatório de cobertura
+npm test                  # backend (Jest)
+npm run test:coverage     # backend, com relatório de cobertura
+npm run test:components   # frontend (Vitest + Testing Library)
+npm run frontend:lint     # frontend (ESLint)
+npm run frontend:e2e      # frontend (Playwright, E2E de fumaça)
 ```
+
+Os testes do frontend estão descritos em "Frontend (React + Vite)". A cobertura
+abaixo é a do backend.
 
 ### Cobertura de testes
 
