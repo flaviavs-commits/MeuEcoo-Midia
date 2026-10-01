@@ -14,6 +14,7 @@ import { createPostValidationWorker } from '../lib/postValidationWorker.js'
 import { findPublicationResult, latestPublicationEventId, processingPublicationMessage, scheduledPublicationDetails } from '../lib/publicationEvents.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { useConfirm } from '../components/ui/confirm-dialog.jsx'
+import { AI_POST_DRAFT_KEY, SCHEDULER_AUTOSAVE_KEY as AUTOSAVE_KEY, clearMediaSelection, readMediaSelection } from '../lib/composer-handoff.js'
 import { PLATFORM_TEXT_LIMITS, getPlatformTextLimit } from '../lib/platformTextLimits.js'
 import { TIKTOK_VIDEO_DIMENSIONS, mediaKindLabel, ratioLabel, resolvePreviewAspect, shouldUseFullBleedPreview, socialMediaLimitHint, socialMediaResolutionHint } from '../lib/mediaFormat.js'
 import { accountIdKey, accountsForPlatform, buildAccountSelectionIssues, groupAccountsByPerson, selectedAccountsForPost } from '../lib/account-selection.js'
@@ -22,8 +23,6 @@ import '../styles/scheduler-composer.css'
 
 const platforms = ['instagram', 'facebook', 'youtube', 'tiktok']
 const platformLabels = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
-const AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
-const AI_POST_DRAFT_KEY = 'meu-ecoo:ai-post-draft'
 const IMAGE_MIME_BY_EXTENSION = { heic: 'image/heic', heif: 'image/heif', avif: 'image/avif', tif: 'image/tiff', tiff: 'image/tiff', bmp: 'image/bmp' }
 const TOKEN_STATUS = { valid: ['ok', 'Token válido'], expiring: ['warning', 'Expirando'], expired: ['failed', 'Requer atenção'], error: ['failed', 'Requer atenção'] }
 const atHandle = value => (value.startsWith('@') ? value : `@${value}`)
@@ -976,6 +975,8 @@ export function SchedulerPage({ onNavigate } = {}) {
   const mountedRef = useRef(true)
   const publicationModalOpenRef = useRef(false)
   const sourceFailureId = useRef(null)
+  // Publicação com falha aberta em "Revisar no editor": ao publicar, ela sai do calendário (substituída).
+  const [replacingFailureId, setReplacingFailureId] = useState(null)
   const accountGroups = useMemo(() => groupAccountsByPerson(connectedAccounts), [connectedAccounts])
 
   useEffect(() => {
@@ -999,6 +1000,8 @@ export function SchedulerPage({ onNavigate } = {}) {
 
   function clearComposer() {
     setTextByPlatform({}); setTitleByPlatform({}); setDate(''); setFiles([]); setFilesByPlatform({}); setCoverFile(null); setCoverSourceKey(''); setCoverTime(null); setYoutubeTitle(''); setYoutubeMadeForKids(''); setYoutubeCategoryId(''); setYoutubeFormat(''); setIgFormat('post'); setIgAspect('auto'); setFacebookFormat('post'); setTiktokAspect('auto'); setTiktokDisableComment(false); setTiktokDisableDuet(false); setTiktokDisableStitch(false); setPublishNow(false); setApprovalWorkspaceId(''); setSavedMessage(null); localStorage.removeItem(AUTOSAVE_KEY); setDraftSavedAt(null); setServerDraftStatus('')
+    sourceFailureId.current = null
+    setReplacingFailureId(null)
   }
 
   function reviewError() {
@@ -1067,27 +1070,29 @@ export function SchedulerPage({ onNavigate } = {}) {
     return undefined
   }, [])
 
+  // Mídias deixadas por outra tela (Biblioteca, "Revisar no editor", Baú): uma ou várias, na ordem.
+  // A seleção só é consumida depois de baixada; em modo estrito o efeito roda duas vezes e, se ela
+  // fosse apagada antes, a segunda execução não teria o que anexar.
   useEffect(() => {
-    let selection = null
-    try {
-      selection = JSON.parse(sessionStorage.getItem('meu-ecoo:media-library-selection') || 'null')
-      sessionStorage.removeItem('meu-ecoo:media-library-selection')
-    } catch { selection = null }
-    if (!selection?.url) return undefined
+    const selection = readMediaSelection()
+    if (!selection.length) return undefined
 
     let cancelled = false
-    fetch(selection.url).then(response => {
+    Promise.all(selection.map(item => fetch(item.url).then(response => {
       if (!response.ok) throw new Error('A mídia salva não está disponível neste momento.')
       return response.blob()
-    }).then(blob => {
-      if (cancelled) return
-      const type = selection.mimeType || blob.type || 'application/octet-stream'
-      const file = new File([blob], selection.name || 'midia-da-biblioteca', { type, lastModified: Date.now() })
-      setFiles(current => [...current, file])
-      notify(`“${selection.name || 'Mídia'}” carregada do acervo.`)
-    }).catch(error => {
-      if (!cancelled) notify(error.message || 'Não foi possível carregar a mídia salva.', 'error')
-    })
+    }).then(blob => new File([blob], item.name || 'midia-da-biblioteca', { type: item.mimeType || blob.type || 'application/octet-stream', lastModified: Date.now() }))))
+      .then(loaded => {
+        if (cancelled) return
+        clearMediaSelection()
+        setFiles(current => [...current, ...loaded])
+        notify(loaded.length === 1 ? `“${selection[0].name || 'Mídia'}” carregada do acervo.` : `${loaded.length} mídias carregadas, na ordem.`)
+      })
+      .catch(error => {
+        if (cancelled) return
+        clearMediaSelection()
+        notify(error.message?.startsWith('A mídia salva') ? error.message : 'Não foi possível carregar a mídia salva. Anexe o arquivo de novo.', 'error')
+      })
     return () => { cancelled = true }
   }, [notify])
 
@@ -1105,6 +1110,7 @@ export function SchedulerPage({ onNavigate } = {}) {
       const savedDraft = JSON.parse(localStorage.getItem(AUTOSAVE_KEY) || 'null')
       if (savedDraft) {
         sourceFailureId.current = savedDraft.sourceFailureId || null
+        setReplacingFailureId(savedDraft.sourceFailureId || null)
         const savedSelected = savedDraft.selected?.length ? savedDraft.selected : ['instagram']
         const savedText = typeof savedDraft.text === 'string' ? savedDraft.text : ''
         const savedTexts = savedDraft.textByPlatform && typeof savedDraft.textByPlatform === 'object' ? savedDraft.textByPlatform : {}
@@ -1130,6 +1136,10 @@ export function SchedulerPage({ onNavigate } = {}) {
         setFacebookFormat(savedDraft.facebookFormat || 'post')
         setTiktokAspect(savedDraft.tiktokAspect || 'auto')
         setTiktokPrivacyLevel(savedDraft.tiktokPrivacyLevel || 'PUBLIC_TO_EVERYONE')
+        setYoutubeCategoryId(savedDraft.youtubeCategoryId ? String(savedDraft.youtubeCategoryId) : '')
+        setTiktokDisableComment(Boolean(savedDraft.tiktokDisableComment))
+        setTiktokDisableDuet(Boolean(savedDraft.tiktokDisableDuet))
+        setTiktokDisableStitch(Boolean(savedDraft.tiktokDisableStitch))
         setDraftSavedAt(savedDraft.savedAt ? new Date(savedDraft.savedAt) : null)
       }
     } catch {
@@ -1149,11 +1159,11 @@ export function SchedulerPage({ onNavigate } = {}) {
         return
       }
       const savedAt = new Date()
-      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ textByPlatform, titleByPlatform, date, publishNow, approvalWorkspaceId: TEAM_APPROVAL_UI_ENABLED ? approvalWorkspaceId : '', selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, youtubeFormat, igFormat, igAspect, facebookFormat, tiktokAspect, tiktokPrivacyLevel, sourceFailureId: sourceFailureId.current, savedAt: savedAt.toISOString() }))
+      localStorage.setItem(AUTOSAVE_KEY, JSON.stringify({ textByPlatform, titleByPlatform, date, publishNow, approvalWorkspaceId: TEAM_APPROVAL_UI_ENABLED ? approvalWorkspaceId : '', selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, youtubeFormat, igFormat, igAspect, facebookFormat, tiktokAspect, tiktokPrivacyLevel, youtubeCategoryId, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch, sourceFailureId: sourceFailureId.current, savedAt: savedAt.toISOString() }))
       setDraftSavedAt(savedAt)
     }, 700)
     return () => clearTimeout(timer)
-  }, [draftReady, textByPlatform, titleByPlatform, date, publishNow, approvalWorkspaceId, selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, youtubeFormat, igFormat, igAspect, facebookFormat, tiktokAspect, tiktokPrivacyLevel, files.length])
+  }, [draftReady, textByPlatform, titleByPlatform, date, publishNow, approvalWorkspaceId, selected, youtubeTitle, youtubeVisibility, youtubeMadeForKids, youtubeFormat, igFormat, igAspect, facebookFormat, tiktokAspect, tiktokPrivacyLevel, files.length, youtubeCategoryId, tiktokDisableComment, tiktokDisableDuet, tiktokDisableStitch])
 
   // Só os textos das redes vão para a conta (o backend não guarda títulos nem mídia):
   // sem texto, nada é sincronizado e o status volta a ser o do rascunho local.
@@ -1524,6 +1534,7 @@ export function SchedulerPage({ onNavigate } = {}) {
       if (sourceFailureId.current) {
         const replacedFailureId = sourceFailureId.current
         sourceFailureId.current = null
+        setReplacingFailureId(null)
         apiFetch(`/api/posts/${replacedFailureId}`, { method: 'DELETE' }).catch(() => {})
       }
       if (serverDraftId.current) { apiFetch(`/api/drafts/${serverDraftId.current}`, { method: 'DELETE' }).catch(() => {}); serverDraftId.current = null }
@@ -1888,6 +1899,11 @@ export function SchedulerPage({ onNavigate } = {}) {
 
         <fieldset className="mp-step">
           <legend className="mp-step__legend"><span className="mp-step__num" aria-hidden="true">4</span>Publicação</legend>
+          {replacingFailureId && <div className="ds-alert ds-alert--quiet mp-replace" data-tone="info" role="status">
+            <Icon name="refresh" className="ds-alert__icon" />
+            <p className="ds-alert__text">Você está revisando uma publicação que falhou. Ao publicar, ela sai do calendário e fica só esta.</p>
+            <div className="ds-alert__actions"><button type="button" className="ds-btn ds-btn--quiet ds-btn--sm" onClick={() => { sourceFailureId.current = null; setReplacingFailureId(null) }}>Manter as duas</button></div>
+          </div>}
           {TEAM_APPROVAL_UI_ENABLED && workspaces.length > 0 && <div className="mp-approval">
             <label className="ds-check"><input type="checkbox" className="ds-switch" checked={Boolean(approvalWorkspaceId)} onChange={event => { setApprovalWorkspaceId(event.target.checked ? String(workspaces[0].id) : ''); if (event.target.checked) setPublishNow(false) }} /><span className="ds-check__text"><span>Revisar antes de publicar</span><span className="ds-check__hint">O post ficará bloqueado até um aprovador aceitar.</span></span></label>
             {approvalWorkspaceId && <SelectField id="mp-approval-space" label="Espaço de aprovação" value={approvalWorkspaceId} onChange={value => { setApprovalWorkspaceId(value); setPublishNow(false) }} options={workspaces.map(workspace => [String(workspace.id), workspace.name])} />}

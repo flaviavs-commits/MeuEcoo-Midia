@@ -201,3 +201,22 @@ describe('SchedulerPage — contas que não publicam', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })
+
+describe('SchedulerPage — mídias vindas de outra tela', () => {
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); sessionStorage.clear(); localStorage.clear() })
+
+  it('anexa todas as mídias deixadas (carrossel), na ordem, e só então limpa a seleção', async () => {
+    sessionStorage.setItem('meu-ecoo:media-library-selection', JSON.stringify([
+      { url: 'https://cdn.example/a.png', name: 'a.png', mimeType: 'image/png' },
+      { url: 'https://cdn.example/b.png', name: 'b.png', mimeType: 'image/png' },
+    ]))
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, blob: () => Promise.resolve(new Blob(['x'], { type: 'image/png' })) })))
+    vi.spyOn(api, 'apiFetch').mockImplementation(path => path === '/api/accounts' ? Promise.resolve({ data: ACCOUNTS }) : Promise.resolve({}))
+    render(<ToastProvider><SchedulerPage onNavigate={vi.fn()} /></ToastProvider>)
+
+    const list = await screen.findByRole('list', { name: 'Arquivos selecionados' })
+    await waitFor(() => expect(within(list).getAllByRole('img').map(image => image.getAttribute('alt'))).toEqual(['Prévia de a.png', 'Prévia de b.png']))
+    expect(sessionStorage.getItem('meu-ecoo:media-library-selection')).toBeNull()
+  })
+})
+

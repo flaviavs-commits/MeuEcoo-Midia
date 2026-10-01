@@ -4,9 +4,9 @@ import { OnboardingChecklist } from '../components/ui/onboarding-checklist.jsx'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { useConfirm } from '../components/ui/confirm-dialog.jsx'
+import { composerDraftFromPost, mediaItemsOf, mediaSelectionOf, openInComposer } from '../lib/composer-handoff.js'
 import { useServerDown } from '../components/layout/connection-banner.jsx'
 
-const SCHEDULER_AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
 const DASHBOARD_PLATFORMS = [['instagram', 'Instagram'], ['facebook', 'Facebook'], ['youtube', 'YouTube'], ['tiktok', 'TikTok']]
 const SUMMARY_DAYS = 7
 // A lista geral de posts vem paginada (100 por vez, dos mais antigos para os mais novos) e inclui os
@@ -284,41 +284,11 @@ export function DashboardPage({ onNavigate }) {
   }
 
   function reviewFailure(post) {
-    const selected = Array.isArray(post.platforms) && post.platforms.length ? post.platforms : ['instagram']
-    const textByPlatform = post.textByPlatform && typeof post.textByPlatform === 'object'
-      ? post.textByPlatform
-      : Object.fromEntries(selected.map(platform => [platform, post.text || '']))
-    const titleByPlatform = post.titleByPlatform && typeof post.titleByPlatform === 'object' ? post.titleByPlatform : {}
-    const mediaItems = Array.isArray(post.mediaItems) ? post.mediaItems : []
-    const media = mediaItems[0]
-    const mediaPath = media?.path || media?.url || post.mediaPath
-    if (mediaPath) {
-      sessionStorage.setItem('meu-ecoo:media-library-selection', JSON.stringify({
-        url: mediaPath,
-        name: media?.name || 'Mídia da publicação',
-        mimeType: media?.type || media?.mimetype || post.mediaType || 'application/octet-stream'
-      }))
-    } else sessionStorage.removeItem('meu-ecoo:media-library-selection')
-    localStorage.setItem(SCHEDULER_AUTOSAVE_KEY, JSON.stringify({
-      text: post.text || '',
-      textByPlatform,
-      titleByPlatform,
-      selected,
-      publishNow: true,
-      date: '',
-      youtubeTitle: post.youtubeTitle || '',
-      youtubeVisibility: post.youtubeVisibility || 'public',
-      youtubeMadeForKids: post.youtubeMadeForKids == null ? '' : String(post.youtubeMadeForKids),
-      youtubeCategoryId: post.youtubeCategoryId || '',
-      youtubeFormat: post.youtubeFormat || '',
-      igFormat: post.igFormat || 'post',
-      tiktokPrivacyLevel: post.tiktokPrivacyLevel || 'PUBLIC_TO_EVERYONE',
-      tiktokDisableComment: Boolean(post.tiktokDisableComment),
-      tiktokDisableDuet: Boolean(post.tiktokDisableDuet),
-      tiktokDisableStitch: Boolean(post.tiktokDisableStitch),
-      sourceFailureId: post.id,
-      savedAt: new Date().toISOString()
-    }))
+    const opened = openInComposer({
+      draft: composerDraftFromPost(post, { publishNow: true, sourceFailureId: post.id }),
+      media: mediaItemsOf(post).map(item => mediaSelectionOf(item)),
+    })
+    if (!opened) { setAlertError('O navegador não deixou guardar o rascunho. Libere espaço do site e tente de novo.'); return }
     onNavigate('agendador')
   }
 

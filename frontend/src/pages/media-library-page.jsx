@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MEDIA_LIBRARY_SELECTION_KEY } from '../lib/composer-handoff.js'
 import { apiFetch } from '../lib/api.js'
 import { useToast } from '../components/ui/toast.jsx'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
@@ -22,7 +23,7 @@ const platforms = [
 const suggestionExamples = ['Educação financeira', 'Bastidores do negócio', 'Dicas para iniciantes']
 const SUGGESTION_PERIODS = [{ value: 7, label: 'Últimos 7 dias' }, { value: 30, label: 'Últimos 30 dias' }, { value: 90, label: 'Últimos 90 dias' }]
 
-export const MEDIA_LIBRARY_SELECTION_KEY = 'meu-ecoo:media-library-selection'
+export { MEDIA_LIBRARY_SELECTION_KEY }
 
 function platformLabel(platform) {
   return platforms.find(([id]) => id === platform)?.[1] || platform

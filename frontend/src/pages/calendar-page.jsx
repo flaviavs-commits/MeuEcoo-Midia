@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
+import { blankComposerDraft, composerDraftFromPost, mediaItemsOf, mediaSelectionOf, openInComposer } from '../lib/composer-handoff.js'
 import { apiFetch } from '../lib/api.js'
 import { useApiResource } from '../hooks/use-api-resource.js'
 import { useToast } from '../components/ui/toast.jsx'
@@ -12,7 +13,6 @@ import { useIsPhone } from '../lib/breakpoints.js'
 
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 const CALENDAR_VIEW_KEY = 'meu-ecoo:calendar-view'
-const SCHEDULER_AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
 const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro']
 const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb']
 // Tipo da mensagem de status -> tom visual e ícone usados no calendário.
@@ -139,17 +139,6 @@ function postFailureKind(post) {
   return 'unknown'
 }
 
-function parseMediaItems(post) {
-  const rawItems = Array.isArray(post.mediaItems)
-    ? post.mediaItems
-    : typeof post.mediaItems === 'string'
-      ? (() => { try { return JSON.parse(post.mediaItems) } catch { return [] } })()
-      : []
-  const items = rawItems.filter(item => item && (item.path || item.url))
-  if (items.length) return items
-  return post.mediaPath ? [{ path: post.mediaPath, type: post.mediaType || 'image' }] : []
-}
-
 function postText(post, platform = platformsOf(post)[0]) {
   const textByPlatform = post.textByPlatform && typeof post.textByPlatform === 'object' ? post.textByPlatform : {}
   return textByPlatform[platform] || post.text || post.title || post.youtubeTitle || 'Publicação'
@@ -188,7 +177,7 @@ function CalendarStatus({ post }) {
 }
 
 function CalendarMediaPreview({ post, compact = false }) {
-  const item = parseMediaItems(post)[0]
+  const item = mediaItemsOf(post)[0]
   const source = item?.path || item?.url
   const [failed, setFailed] = useState(false)
 
@@ -605,25 +594,10 @@ export function CalendarPage({ onNavigate }) {
   }
 
   function openPostComposer(day, schedule = false) {
-    const savedAt = new Date().toISOString()
-    localStorage.setItem(SCHEDULER_AUTOSAVE_KEY, JSON.stringify({
-      textByPlatform: {},
-      titleByPlatform: {},
-      date: schedule ? calendarDayDateValue(year, month, day) : '',
-      publishNow: false,
-      approvalWorkspaceId: '',
-      selected: ['instagram'],
-      youtubeTitle: '',
-      youtubeVisibility: 'public',
-      youtubeMadeForKids: '',
-      youtubeFormat: '',
-      igFormat: 'post',
-      igAspect: 'auto',
-      facebookFormat: 'post',
-      tiktokAspect: 'auto',
-      tiktokPrivacyLevel: 'PUBLIC_TO_EVERYONE',
-      savedAt
-    }))
+    if (!openInComposer({ draft: blankComposerDraft({ date: schedule ? calendarDayDateValue(year, month, day) : '' }) })) {
+      notify('O navegador não deixou guardar o rascunho. Libere espaço do site e tente de novo.', 'error')
+      return
+    }
     setSelectedDay(null)
     onNavigate('agendador')
   }
@@ -635,40 +609,11 @@ export function CalendarPage({ onNavigate }) {
   }
 
   function reviewFailure(post) {
-    const selected = Array.isArray(post.platforms) && post.platforms.length ? post.platforms : ['instagram']
-    const textByPlatform = post.textByPlatform && typeof post.textByPlatform === 'object'
-      ? post.textByPlatform
-      : Object.fromEntries(selected.map(platform => [platform, post.text || '']))
-    const media = parseMediaItems(post)[0]
-    const mediaPath = media?.path || media?.url
-    if (mediaPath) {
-      sessionStorage.setItem('meu-ecoo:media-library-selection', JSON.stringify({
-        url: mediaPath,
-        name: media?.name || 'Mídia da publicação',
-        mimeType: media?.type || media?.mimetype || post.mediaType || 'application/octet-stream'
-      }))
-    } else sessionStorage.removeItem('meu-ecoo:media-library-selection')
-    localStorage.setItem(SCHEDULER_AUTOSAVE_KEY, JSON.stringify({
-      text: post.text || '',
-      textByPlatform,
-      titleByPlatform: post.titleByPlatform && typeof post.titleByPlatform === 'object' ? post.titleByPlatform : {},
-      selected,
-      publishNow: true,
-      date: '',
-      youtubeTitle: post.youtubeTitle || '',
-      youtubeVisibility: post.youtubeVisibility || 'public',
-      youtubeMadeForKids: post.youtubeMadeForKids == null ? '' : String(post.youtubeMadeForKids),
-      youtubeCategoryId: post.youtubeCategoryId || '',
-      youtubeFormat: post.youtubeFormat || '',
-      igFormat: post.igFormat || 'post',
-      facebookFormat: post.facebookFormat || 'post',
-      tiktokPrivacyLevel: post.tiktokPrivacyLevel || 'PUBLIC_TO_EVERYONE',
-      tiktokDisableComment: Boolean(post.tiktokDisableComment),
-      tiktokDisableDuet: Boolean(post.tiktokDisableDuet),
-      tiktokDisableStitch: Boolean(post.tiktokDisableStitch),
-      sourceFailureId: post.id,
-      savedAt: new Date().toISOString()
-    }))
+    const opened = openInComposer({
+      draft: composerDraftFromPost(post, { publishNow: true, sourceFailureId: post.id }),
+      media: mediaItemsOf(post).map(item => mediaSelectionOf(item)),
+    })
+    if (!opened) { notify('O navegador não deixou guardar o rascunho. Libere espaço do site e tente de novo.', 'error'); return }
     onNavigate('agendador')
   }
 

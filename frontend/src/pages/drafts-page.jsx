@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { composerDraftFromPost, mediaItemsOf, mediaSelectionOf, openInComposer } from '../lib/composer-handoff.js'
 import { apiFetch } from '../lib/api.js'
 import { useApiResource } from '../hooks/use-api-resource.js'
 import { useToast } from '../components/ui/toast.jsx'
@@ -8,7 +9,6 @@ import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { FilterGroup, FilterOption, FilterSheet, FiltersButton } from '../components/ui/filters.jsx'
 import { useIsPhone } from '../lib/breakpoints.js'
 
-const SCHEDULER_AUTOSAVE_KEY = 'meu-ecoo:scheduler-autosave'
 const AI_GENERATION_TIMEOUT_MS = 60_000
 // O /api/ai/generate recusa instruções com mais de 4000 caracteres (o mesmo limite do Assistente).
 const THEME_MAX_LENGTH = 4000
@@ -16,12 +16,6 @@ const THEME_MAX_LENGTH = 4000
 const THEME_MAX_HEIGHT = 240
 const PLATFORM_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }
 const IDEA_FILTERS = [['all', 'Todas'], ['drafts', 'Em andamento'], ['templates', 'Modelos']]
-
-function mediaItemsOf(draft) {
-  if (Array.isArray(draft.mediaItems) && draft.mediaItems.length) return draft.mediaItems
-  if (Array.isArray(draft.media_items) && draft.media_items.length) return draft.media_items
-  return draft.mediaPath || draft.media_path ? [{ path: draft.mediaPath || draft.media_path, type: draft.mediaType || draft.media_type }] : []
-}
 
 function platformsOf(draft) {
   return Array.isArray(draft.platforms) ? draft.platforms.filter(Boolean) : []
@@ -204,25 +198,13 @@ export function DraftsPage({ onNavigate }) {
 
   function startPostFromDraft(draft) {
     const platforms = inferredPlatformsOf(draft)
-    const textByPlatform = objectField(draft.text_by_platform || draft.textByPlatform)
-    const titleByPlatform = objectField(draft.title_by_platform || draft.titleByPlatform)
-    localStorage.setItem(SCHEDULER_AUTOSAVE_KEY, JSON.stringify({
-      text: textOf(draft),
-      selected: platforms.length ? platforms : ['instagram'],
-      publishNow: false,
-      date: '',
-      textByPlatform,
-      titleByPlatform,
-      youtubeTitle: draft.youtube_title || draft.youtubeTitle || '',
-      youtubeVisibility: draft.youtube_visibility || draft.youtubeVisibility || 'public',
-      youtubeMadeForKids: draft.youtube_made_for_kids == null ? '' : String(draft.youtube_made_for_kids),
-      youtubeFormat: draft.youtube_format || draft.youtubeFormat || '',
-      igFormat: draft.ig_format || draft.igFormat || 'post',
-      facebookFormat: draft.facebook_format || draft.facebookFormat || 'post',
-      tiktokPrivacyLevel: draft.tiktok_privacy_level || draft.tiktokPrivacyLevel || 'PUBLIC_TO_EVERYONE',
-      savedAt: new Date().toISOString()
-    }))
-    notify('Ideia carregada no Meu Post. Adicione sua mídia e publique.')
+    const media = mediaItemsOf(draft)
+    const opened = openInComposer({
+      draft: composerDraftFromPost({ ...draft, platforms, text: textOf(draft) }),
+      media: media.map(item => mediaSelectionOf(item, 'Mídia da ideia')),
+    })
+    if (!opened) { notify('O navegador não deixou guardar o rascunho. Libere espaço do site e tente de novo.', 'error'); return }
+    notify(media.length ? 'Ideia carregada no Meu Post, com a mídia dela.' : 'Ideia carregada no Meu Post. Adicione sua mídia e publique.')
     onNavigate?.('agendador')
   }
 

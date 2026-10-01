@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { AI_POST_DRAFT_KEY } from '../../lib/composer-handoff.js'
 import { apiFetch } from '../../lib/api.js'
 import { MEDIA, mediaMatches, useIsPhone } from '../../lib/breakpoints.js'
 import { Sheet } from '../ui/floating.jsx'
@@ -8,7 +9,6 @@ function persistMessage(contexto, role, conteudo) {
   apiFetch('/api/ai/chat-messages', { method: 'POST', body: JSON.stringify({ contexto, role, conteudo }) }).catch(() => {})
 }
 
-const AI_POST_DRAFT_KEY = 'meu-ecoo:ai-post-draft'
 const AI_REQUEST_TIMEOUT_MS = 120_000
 
 function processingMessageFor(text) {
