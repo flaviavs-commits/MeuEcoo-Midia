@@ -8,6 +8,17 @@ export const APP_PAGES = new Set([
 
 const ADMIN_PAGE = 'admin'
 
+// Página aberta por um endereço do app. /app.html e /app/ abrem o Início; uma página fora da lista
+// (ou desligada por feature flag) abre 'notfound', em vez de mostrar o Início sem avisar.
+export const NOT_FOUND_PAGE = 'notfound'
+
+export function pageFromPath(pathname = '', { teamEnabled = false } = {}) {
+  const segment = pathname.startsWith('/app/') ? pathname.slice('/app/'.length).split('/')[0] : ''
+  if (!segment) return 'dashboard'
+  if (segment === 'equipe' && !teamEnabled) return NOT_FOUND_PAGE
+  return APP_PAGES.has(segment) ? segment : NOT_FOUND_PAGE
+}
+
 export function isReturnPage(value) {
   return value === ADMIN_PAGE || APP_PAGES.has(value)
 }

@@ -34,14 +34,14 @@ describe('PlanGate', () => {
     render(<PlanGate currentPlan="basico" moduleName="ai" planActive={false} />)
 
     expect(screen.getByRole('heading', { level: 1, name: 'Escolha um plano para começar' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Escolher plano' })).toHaveAttribute('href', '/app/perfil')
+    expect(screen.getByRole('link', { name: 'Escolher plano' })).toHaveAttribute('href', '/app/perfil#plano')
   })
 
   it('explica o upgrade quando o plano atual não inclui o módulo', () => {
     render(<PlanGate currentPlan="basico" moduleName="smartlinks" planActive />)
 
     expect(screen.getByRole('heading', { level: 1, name: 'Smartlinks' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Conhecer os planos' })).toHaveAttribute('href', '/app/perfil')
+    expect(screen.getByRole('link', { name: 'Conhecer os planos' })).toHaveAttribute('href', '/app/perfil#plano')
   })
 })
 

@@ -11,7 +11,7 @@ const MODULE_LABELS = {
   relatorios: 'Relatórios avançados',
 }
 
-export function PlanGate({ currentPlan, moduleName, planActive = true }) {
+export function PlanGate({ currentPlan, moduleName, planActive = true, onNavigate }) {
   const current = getPlan(currentPlan)
   const required = minimumPlanForModule(moduleName)
   const label = MODULE_LABELS[moduleName] || 'Este módulo'
@@ -23,7 +23,8 @@ export function PlanGate({ currentPlan, moduleName, planActive = true }) {
       <p className="ds-eyebrow">{paymentPending ? 'Pagamento pendente' : `Recurso do plano ${required.name}`}</p>
       <h1 className="gate-title" id="gate-title">{paymentPending ? 'Escolha um plano para começar' : label}</h1>
       <p className="gate-text">{paymentPending ? 'Seu perfil está pronto. Escolha o plano Básico, Pro ou Premium e conclua o pagamento para liberar os recursos da plataforma.' : `O plano ${current.name} não inclui este recurso. Faça upgrade para o plano ${required.name} e libere ${label.toLowerCase()}.`}</p>
-      <a className="ds-btn ds-btn--primary" href="/app/perfil">{paymentPending ? 'Escolher plano' : 'Conhecer os planos'}<Icon name="arrow" size={16} /></a>
+      {/* Abre a aba de planos do Perfil; sem onNavigate (fora do app), cai no link comum. */}
+      <a className="ds-btn ds-btn--primary" href="/app/perfil#plano" onClick={event => { if (!onNavigate) return; event.preventDefault(); onNavigate('perfil'); window.history.replaceState(window.history.state, '', '/app/perfil#plano') }}>{paymentPending ? 'Escolher plano' : 'Conhecer os planos'}<Icon name="arrow" size={16} /></a>
     </section>
   </div>
 }

@@ -1,5 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { PageSkeleton } from '../components/ui/loading-state.jsx'
+import { NotFoundPage } from './not-found-page.jsx'
 import { PlanGate } from '../components/ui/plan-gate.jsx'
 import { hasActivePlanModule } from '../lib/plans.js'
 
@@ -35,29 +36,12 @@ const PAGES_BY_TYPE = {
   equipe: WorkspacePage,
 }
 
-const descriptions = {
-  agendador: ['Novo post', 'Crie uma publicação para suas redes conectadas.'],
-  calendario: ['Calendário', 'Visualize suas publicações agendadas.'],
-  rascunhos: ['Baú de Ideias', 'Gere e continue trabalhando nas ideias de publicações salvas.'],
-  analytics: ['Analytics', 'Acompanhe o desempenho das suas publicações.'],
-  inbox: ['Inbox', 'Gerencie comentários e interações em um só lugar.'],
-  integracoes: ['Contas conectadas', 'Conecte e gerencie suas redes sociais.'],
-  seguranca: ['Segurança', 'Proteja sua conta e gerencie a autenticação em 2 fatores.'],
-  atividade: ['Atividades', 'Consulte o histórico recente da sua conta.'],
-  ai: ['Assistente inteligente', 'Use o assistente para planejar e revisar conteúdos.'],
-  biblioteca: ['Sua biblioteca de mídia', 'Organize fotos e vídeos reutilizáveis.'],
- filas: ['Repetidor de posts', 'Automatize publicações que se repetem.'],
-  smartlinks: ['Smartlinks', 'Converta links da bio em oportunidades.'],
-  equipe: ['Equipe', 'Aprove conteúdos e organize sua operação.'],
-}
-
 export function ModulePage({ type, onNavigate, user, onUserChange }) {
   // O perfil é a área onde a pessoa escolhe e paga o plano, portanto precisa
   // continuar acessível antes da ativação. Os demais módulos dependem do
   // pagamento confirmado.
-  if (type !== 'perfil' && user && !hasActivePlanModule(user.plan, type, user.planActive, user.planUnrestricted)) return <PlanGate currentPlan={user.plan} moduleName={type} planActive={user.planActive} />
+  if (type !== 'perfil' && user && !hasActivePlanModule(user.plan, type, user.planActive, user.planUnrestricted)) return <PlanGate currentPlan={user.plan} moduleName={type} planActive={user.planActive} onNavigate={onNavigate} />
   const Page = PAGES_BY_TYPE[type]
-  if (Page) return <Suspense fallback={<PageSkeleton label="Carregando módulo..." />}><Page onNavigate={onNavigate} user={user} onUserChange={onUserChange}/></Suspense>
-  const [title, description] = descriptions[type] || ['Módulo', 'Área da aplicação']
-  return <section className="page-view"><section className="panel module-placeholder"><p className="eyebrow">MÓDULO REACT</p><h2>{title}</h2><p>{description}</p><span className="status-badge">Migração em andamento</span></section></section>
+  if (!Page) return <NotFoundPage onNavigate={onNavigate} />
+  return <Suspense fallback={<PageSkeleton label="Carregando módulo..." />}><Page onNavigate={onNavigate} user={user} onUserChange={onUserChange} /></Suspense>
 }

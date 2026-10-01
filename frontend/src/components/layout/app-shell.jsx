@@ -94,6 +94,7 @@ function isLocked(user, key) {
 
 function pageContext(page) {
   if (page === 'perfil') return { label: 'Perfil', group: 'Conta' }
+  if (page === 'notfound') return { label: 'Página não encontrada', group: null }
   const item = ITEM_BY_KEY.get(page)
   return item ? { label: item.label, group: item.group } : { label: 'Início', group: null }
 }
@@ -608,15 +609,15 @@ function ShortcutHelp({ open, onClose }) {
   </Sheet>
 }
 
-export function AppShell({ page, onPageChange, children, user }) {
+export function AppShell({ page, onPageChange, children, user, contentKey = 0 }) {
   return (
     <ToastProvider>
-      <AppShellBody page={page} onPageChange={onPageChange} user={user}>{children}</AppShellBody>
+      <AppShellBody page={page} onPageChange={onPageChange} user={user} contentKey={contentKey}>{children}</AppShellBody>
     </ToastProvider>
   )
 }
 
-function AppShellBody({ page, onPageChange, children, user }) {
+function AppShellBody({ page, onPageChange, children, user, contentKey }) {
   const phone = useMediaQuery(MEDIA.phone)
   const tablet = useMediaQuery(MEDIA.tablet)
   const laptop = useMediaQuery('(max-width: 1279px)')
@@ -761,7 +762,7 @@ function AppShellBody({ page, onPageChange, children, user }) {
           onOpenShortcutHelp={() => setShortcutHelpOpen(true)}
         />
         <main id="main-content" tabIndex="-1" className="ds-shell__content">
-          <PageErrorBoundary resetKey={page}>{children}</PageErrorBoundary>
+          <PageErrorBoundary resetKey={`${page}:${contentKey}`}>{children}</PageErrorBoundary>
         </main>
         <footer className="ds-foot" data-ds-root>
           <CopyrightNotice />
