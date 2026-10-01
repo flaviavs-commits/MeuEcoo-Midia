@@ -63,19 +63,22 @@ describe('DashboardPage', () => {
     expect(JSON.parse(localStorage.getItem('meu-ecoo:scheduler-autosave'))).toMatchObject({ sourceFailureId: 262, publishNow: true, selected: ['instagram'] })
   })
 
-  it('keeps the performance, period and search names and the "Agendar agora" call', async () => {
+  it('keeps the "Agendar agora" call and sends the performance details to Relatórios', async () => {
     vi.spyOn(api, 'apiFetch').mockImplementation(path => {
       if (path === '/api/posts') return Promise.resolve({ posts: [{ id: 5, text: 'Publicado ontem', status: 'published' }] })
       if (path === '/api/accounts') return Promise.resolve({ accounts: [{ id: 1, platform: 'instagram' }] })
       return Promise.resolve({ metrics: [] })
     })
+    const onNavigate = vi.fn()
 
-    render(<DashboardPage onNavigate={() => {}} />)
+    render(<DashboardPage onNavigate={onNavigate} />)
 
-    expect(await screen.findByRole('group', { name: 'Filtrar performance por rede social' })).toBeInTheDocument()
-    expect(screen.getByRole('group', { name: 'Período da performance' })).toBeInTheDocument()
-    expect(screen.getByRole('searchbox', { name: 'Buscar publicação no dashboard' })).toBeInTheDocument()
     expect(await screen.findByRole('button', { name: 'Agendar agora' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Abrir Relatórios' }))
+    expect(onNavigate).toHaveBeenCalledWith('analytics')
+    // the summary keeps only what matters: no performance filters, charts or post search here
+    expect(screen.queryByRole('group', { name: 'Filtrar performance por rede social' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument()
   })
 
   it('does not say there are no failures while the posts are still loading', async () => {
@@ -103,9 +106,9 @@ describe('DashboardPage', () => {
     expect(screen.queryByText(/Nenhum agendamento próximo/)).not.toBeInTheDocument()
   })
 
-  it('shows the period readings only after the metrics arrive', async () => {
+  it('shows the 7-day figures only after the metrics arrive', async () => {
     let resolveMetrics
-    vi.spyOn(api, 'apiFetch').mockImplementation(path => {
+    const apiFetch = vi.spyOn(api, 'apiFetch').mockImplementation(path => {
       if (path === '/api/posts') return Promise.resolve({ posts: [{ id: 5, text: 'Publicado ontem', status: 'published' }] })
       if (path === '/api/accounts') return Promise.resolve({ accounts: [{ id: 1, platform: 'instagram' }] })
       if (path.startsWith('/api/posts/analytics')) return new Promise(resolve => { resolveMetrics = resolve })
@@ -114,12 +117,13 @@ describe('DashboardPage', () => {
 
     render(<DashboardPage onNavigate={() => {}} />)
 
-    expect(await screen.findByText('Publicado ontem')).toBeInTheDocument()
-    expect(screen.queryByText('Leituras do período')).not.toBeInTheDocument()
-    expect(screen.queryByText(/Ainda não há dados suficientes/)).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Últimos 7 dias' })).toBeInTheDocument()
+    expect(screen.queryByText('Visualizações')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Nenhuma publicação com métricas/)).not.toBeInTheDocument()
 
     resolveMetrics({ metrics: [] })
-    expect(await screen.findByText('Leituras do período')).toBeInTheDocument()
+    expect(await screen.findByText('Nenhuma publicação com métricas nos últimos 7 dias.')).toBeInTheDocument()
+    expect(apiFetch).toHaveBeenCalledWith('/api/posts/analytics?days=7', { timeoutMs: 45_000 })
   })
 
   it('separates the metrics error from the retry sentence', async () => {
@@ -148,13 +152,13 @@ describe('DashboardPage', () => {
     expect(within(alertTitle.closest('li')).getByText('Instagram e Facebook')).toBeInTheDocument()
   })
 
-  it('charts every publishing day of a longer period, one column per week', async () => {
-    const metrics = Array.from({ length: 10 }, (_, index) => ({
+  it('sums the last 7 days into views, interactions and interaction rate', async () => {
+    const metrics = [100, 200, 300].map((views, index) => ({
       postId: index + 1,
       platform: 'instagram',
       text: `Post ${index + 1}`,
-      publishedAt: new Date(2026, 8, 1 + index * 2, 12).toISOString(),
-      metrics: { views: 100, likes: 10 },
+      publishedAt: new Date(2026, 8, 20 + index, 12).toISOString(),
+      metrics: { views, likes: views / 20, comments: views / 20 },
     }))
     vi.spyOn(api, 'apiFetch').mockImplementation(path => {
       if (path === '/api/posts') return Promise.resolve({ posts: [{ id: 5, text: 'Publicado ontem', status: 'published' }] })
@@ -165,10 +169,10 @@ describe('DashboardPage', () => {
 
     render(<DashboardPage onNavigate={() => {}} />)
 
-    expect(await screen.findByRole('img', { name: /Visualizações por semana de publicação/ })).toBeInTheDocument()
-    const rows = screen.getAllByRole('row', { hidden: true }).slice(1)
-    expect(rows).toHaveLength(3)
-    expect(rows.reduce((total, row) => total + Number(row.cells[1].textContent.replace(/\D/g, '')), 0)).toBe(1000)
+    const views = await screen.findByText('Visualizações')
+    expect(views.nextElementSibling).toHaveTextContent('600')
+    expect(screen.getByText('Interações').nextElementSibling).toHaveTextContent('60')
+    expect(screen.getByText('Taxa de interação').nextElementSibling).toHaveTextContent('10%')
   })
 
   it('keeps keyboard focus in the attention list after deleting an alert', async () => {
