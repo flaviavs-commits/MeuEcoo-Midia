@@ -55,12 +55,6 @@ export function MusicNoteIcon(props) {
   </svg>
 }
 
-export function PlayGlyphIcon(props) {
-  return <svg {...base} fill="currentColor" {...props}>
-    <path d="M8 5.3v13.4a1 1 0 0 0 1.53.85l10.7-6.7a1 1 0 0 0 0-1.7L9.53 4.45A1 1 0 0 0 8 5.3Z"/>
-  </svg>
-}
-
 export function DislikeIcon(props) {
   return <svg {...base} fill="currentColor" {...props} style={{ transform: 'scaleY(-1)', ...(props.style || {}) }}>
     <path d="M2 21h3V10H2v11Zm19-10.3a2 2 0 0 0-2-2h-5.4l.8-3.9A1.6 1.6 0 0 0 12.9 3c-.4 0-.8.2-1.1.6L7 10v11h10.7a2 2 0 0 0 1.9-1.4l1.3-5.4c.06-.25.1-.5.1-.75v-.65Z"/>

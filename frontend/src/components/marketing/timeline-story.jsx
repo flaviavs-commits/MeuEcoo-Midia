@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { TIMELINE_POINTS, timelineFrame, timelineStepFrame, timelineSegmentPath } from './timeline-motion.js'
 import '../../styles/timeline-story.css'
 
-export { timelineFrame } from './timeline-motion.js'
 export const TIMELINE_STEPS = [
   ['Conecte suas redes', 'Reúna Instagram, Facebook, TikTok e YouTube com autorização oficial.'],
   ['Crie com sistemas inteligentes', 'Transforme ideias em posts e legendas com sugestões no seu jeito.'],

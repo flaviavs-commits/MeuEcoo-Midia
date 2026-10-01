@@ -1,6 +1,6 @@
 # Timeline de cinco etapas
 
-A seção de recursos da landing usa `TimelineStory`. A narrativa anterior de seis recursos em `product-story.md` pertence ao componente legado `ProductStory`.
+A seção de recursos da landing usa `TimelineStory`. O componente anterior, `ProductStory` (narrativa de seis recursos), ficou sem uso e foi apagado na auditoria de 01/10/2026; o histórico do git guarda o código e a documentação dele.
 
 ## Composição
 

@@ -4,9 +4,7 @@
 // continua sendo a fonte da verdade (ver comentário lá); ao mudar uma regra
 // nesses arquivos, atualize aqui também.
 import { PLATFORM_TEXT_LIMITS, getPlatformTextLimit } from './platformTextLimits.js'
-import { MEDIA_LIMITS, formatMediaLimitViolation, mediaKindFromMime, validateMediaMetadata } from './mediaLimits.js'
-
-export { MEDIA_LIMITS, formatMediaLimitViolation, mediaKindFromMime, validateMediaMetadata }
+import { formatMediaLimitViolation, mediaKindFromMime, validateMediaMetadata } from './mediaLimits.js'
 
 const TIKTOK_PRIVACY_LEVELS = ['PUBLIC_TO_EVERYONE', 'MUTUAL_FOLLOW_FRIENDS', 'FOLLOWER_OF_CREATOR', 'SELF_ONLY']
 const INSTAGRAM_MIN_ANTECEDENCIA_MIN = 20

@@ -42,10 +42,6 @@ export function markTutorialCompleted() {
   return saveStatus({ seen: true, completed: true, completedAt: new Date().toISOString() })
 }
 
-export function resetTutorialStatus() {
-  return saveStatus({ ...DEFAULT_STATUS })
-}
-
 // Dispara a abertura do tutorial a partir de qualquer parte do app (ex.:
 // botão "Rever tutorial" no Perfil), sem precisar repassar estado via props.
 export function requestTutorialOpen() {

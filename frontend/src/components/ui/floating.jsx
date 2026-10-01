@@ -302,5 +302,3 @@ export function Sheet({
     container || document.body,
   )
 }
-
-export { Sheet as Dialog }

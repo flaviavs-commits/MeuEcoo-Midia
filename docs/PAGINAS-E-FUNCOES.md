@@ -409,27 +409,7 @@ Arquivo: `frontend/src/pages/accounts-page.jsx`
 
 ### 7.2 Tokens
 
-Arquivo: `frontend/src/pages/tokens-page.jsx`
-
-**Para que serve:** dar visibilidade e controle sobre credenciais de integração sem exibir o segredo completo.
-
-**Funções:**
-
-- Listar tokens por conta e rede.
-- Buscar por conta ou plataforma.
-- Filtrar por rede.
-- Filtrar por status: válido, expirando, expirado ou com erro.
-- Renovar um token.
-- Renovar todos os tokens.
-- Revogar um token.
-- Mostrar última utilização e vencimento.
-
-**APIs:**
-
-- `GET /api/tokens`
-- `POST /api/tokens/renew/:id`
-- `POST /api/tokens/renew-all`
-- `DELETE /api/tokens/:id`
+A tela de Tokens saiu do app em 31/08/2026 (commit `9326eb3`): a rota `/app/tokens` deixou de existir e o arquivo `tokens-page.jsx`, que tinha ficado sem uso, foi apagado na auditoria de 01/10/2026. A situação de cada conexão aparece em Contas (7.1). Endereços antigos como `/app/tokens` caem na página "Página não encontrada", e o assistente leva para Contas quando sugere "tokens". As rotas `/api/tokens*` continuam no backend, sem tela que as use.
 
 ### 7.3 Segurança
 

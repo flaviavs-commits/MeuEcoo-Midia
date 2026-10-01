@@ -173,12 +173,6 @@ export function buildPerformanceReport(data, tiktokVideos, periodDays, activeNet
   return { platforms, totals, previousViews, previousInteractions, bestContent }
 }
 
-function changeText(current, previous, label) {
-  if (current == null || previous == null || previous === 0) return `Sem comparação de ${label} disponível.`
-  const change = (current - previous) / previous * 100
-  return `${change >= 0 ? '+' : ''}${change.toFixed(1)}% em relação ao período anterior.`
-}
-
 export function performanceReportConclusion(report) {
   const { totals } = report
   if (!totals.content && totals.views == null) return 'Ainda não há dados suficientes para explicar o desempenho. Publique ou conecte uma conta para formar a primeira base de comparação.'
@@ -214,80 +208,4 @@ export function performanceReportActions(report) {
   if (totals.growth != null && totals.growth < 0) actions.push('Revise os conteúdos que coincidiram com a queda de audiência e teste temas ou horários diferentes.')
   if (!actions.length) actions.push('Repita os temas e formatos que trouxeram mais interações, acompanhando a taxa para validar a evolução.')
   return actions.slice(0, 3)
-}
-
-function value(value) {
-  return value == null ? '—' : fmtNum(Math.round(value))
-}
-
-export function AnalyticsPerformanceReport({ data, tiktokVideos, periodDays, activeNet = null }) {
-  const report = buildPerformanceReport(data, tiktokVideos, periodDays, activeNet)
-  const { totals } = report
-  const scope = activeNet ? PLAT_LABELS[activeNet] || activeNet : 'todas as redes'
-
-  return <section className="analytics-performance-report" aria-labelledby="analytics-performance-report-title">
-    <div className="analytics-performance-report-heading">
-      <div>
-        <p className="analytics-kicker">RELATÓRIO INTERPRETATIVO</p>
-        <h3 id="analytics-performance-report-title">Desempenho explicado</h3>
-        <p>Uma leitura do que aconteceu, do que isso significa e qual deve ser o próximo teste.</p>
-      </div>
-      <span className="analytics-performance-report-scope">{scope} · {periodDays} dias</span>
-    </div>
-
-    <div className="analytics-performance-report-summary">
-      <span className="analytics-performance-report-mark" aria-hidden="true">✓</span>
-      <p>{performanceReportConclusion(report)}</p>
-    </div>
-
-    <div className="analytics-performance-report-facts">
-      <article><strong>{value(totals.views)}</strong><span>Alcance / visualizações</span><p>Indica quantas vezes o conteúdo foi visto. Não significa necessariamente pessoas únicas.</p></article>
-      <article><strong>{value(totals.interactions)}</strong><span>Interações</span><p>Soma de curtidas, comentários, compartilhamentos e salvamentos quando a rede fornece esses dados.</p></article>
-      <article><strong>{totals.rate == null ? '—' : `${totals.rate.toFixed(1)}%`}</strong><span>Taxa de interação</span><p>Interações divididas pelas visualizações. Ajuda a medir a reação proporcional ao alcance.</p></article>
-      <article><strong>{value(totals.growth)}</strong><span>Crescimento da audiência</span><p>Variação de seguidores ou inscritos. A soma entre redes não representa pessoas únicas.</p></article>
-      <article><strong>{value(totals.impressions)}</strong><span>Impressões</span><p>Quantidade de vezes que o conteúdo apareceu, quando a rede disponibiliza essa métrica.</p></article>
-      <article><strong>{value(totals.saves)}</strong><span>Salvamentos</span><p>Sinal de que a audiência considerou o conteúdo útil para consultar novamente.</p></article>
-    </div>
-
-    <div className="analytics-performance-report-grid">
-      <div className="analytics-performance-report-table-wrap">
-        <div className="analytics-performance-report-section-heading"><div><strong>Leitura por rede</strong><span>Onde o conteúdo encontrou mais alcance e reação.</span></div><b>{totals.content} conteúdos</b></div>
-        <div className="analytics-performance-report-table-scroll"><table>
-          <thead><tr><th>Rede</th><th>Conteúdos</th><th>Visualizações</th><th>Interações</th><th>Taxa</th></tr></thead>
-          <tbody>{report.platforms.map(item => <tr key={item.platform}><td>{PLAT_LABELS[item.platform] || item.platform}</td><td>{item.content}</td><td>{value(item.views)}</td><td>{value(item.interactions)}</td><td>{item.rate == null ? '—' : `${item.rate.toFixed(1)}%`}</td></tr>)}</tbody>
-        </table></div>
-      </div>
-      <div className="analytics-performance-report-reading">
-        <strong>O que mudou</strong>
-        <p>Visualizações: {changeText(totals.views, report.previousViews, 'visualizações')}</p>
-        <p>Interações: {changeText(totals.interactions, report.previousInteractions, 'interações')}</p>
-      </div>
-    </div>
-
-    <div className="analytics-performance-report-network-highlights">
-      <div className="analytics-performance-report-section-heading">
-        <div><strong>Melhor conteúdo por rede</strong><span>O destaque é escolhido dentro de cada plataforma pelo maior número de interações no período.</span></div>
-        <b>{report.platforms.length} redes</b>
-      </div>
-      <div className="analytics-performance-report-network-highlights-grid">
-        {report.platforms.map(item => {
-          const bestContent = item.bestContent
-          const interactions = bestContent ? interactionTotal(bestContent) : null
-          return <article key={item.platform} className="analytics-performance-report-network-highlight">
-            <div className="analytics-performance-report-network-highlight-heading">
-              <strong>{PLAT_LABELS[item.platform] || item.platform}</strong>
-              <span className={bestContent ? 'has-data' : ''}>{bestContent ? 'Métricas confirmadas' : 'Sem dados confirmados'}</span>
-            </div>
-            {bestContent ? <>
-              <p className="analytics-performance-report-network-highlight-title">{contentTitle(bestContent)}</p>
-              <small>{bestContent.publishedAt ? new Date(bestContent.publishedAt).toLocaleDateString('pt-BR') : 'Data não informada'}</small>
-              <div className="analytics-performance-report-network-highlight-metrics"><span><b>{value(interactions)}</b> interações</span><span><b>{value(numberValue(bestContent.metrics?.views))}</b> visualizações</span></div>
-            </> : <p className="analytics-performance-report-network-highlight-empty">Nenhum post com visualizações e interações confirmadas desta rede no período.</p>}
-          </article>
-        })}
-      </div>
-    </div>
-
-    <p className="analytics-performance-report-note"><b>Fonte e limites:</b> o relatório usa os dados retornados pelas integrações conectadas e os conteúdos carregados no período selecionado. Algumas redes não fornecem todas as métricas; nesses casos, o campo aparece como “—” e não é estimado.</p>
-  </section>
 }

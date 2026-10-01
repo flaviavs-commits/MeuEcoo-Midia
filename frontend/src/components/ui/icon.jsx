@@ -170,5 +170,3 @@ export function NetworkGlyph({ network, size = 18, className = '', title, tone =
     <path fill={BRAND_COLORS[key]} d={brandPath} />
   </svg>
 }
-
-export const NETWORK_LABELS = { instagram: 'Instagram', facebook: 'Facebook', youtube: 'YouTube', tiktok: 'TikTok' }

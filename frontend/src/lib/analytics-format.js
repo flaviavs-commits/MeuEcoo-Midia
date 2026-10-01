@@ -1,6 +1,4 @@
 export const PLAT_LABELS = { facebook: 'Facebook', instagram: 'Instagram', youtube: 'YouTube', tiktok: 'TikTok' }
-export const PLAT_COLORS = { facebook: '#5b8def', instagram: '#e94f8a', youtube: '#ff5c5c', tiktok: '#a0a0b0' }
-export const NET_ICONS = { instagram: '📸', facebook: '📘', youtube: '▶️', tiktok: '🎵' }
 export const DEMO_COLORS = ['#d1993e', '#e94f8a', '#34d399', '#fbbf24', '#5b8def', '#f97316', '#a78bfa', '#22d3ee']
 export const GENDER_COLORS = { M: '#5b8def', F: '#e94f8a', U: '#8b8fa3', male: '#5b8def', female: '#e94f8a' }
 export const NETWORK_ORDER = ['instagram', 'facebook', 'youtube', 'tiktok']
@@ -52,18 +50,6 @@ export function labelForMetric(name) {
     .replaceAll('_', ' ')
     .replace(/^page /, 'Página ')
     .replace(/\b\w/g, letter => letter.toUpperCase())
-}
-
-export const METRIC_HELP = {
-  views: 'Quantidade de vezes que o conteúdo foi visualizado.',
-  likes: 'Reações de “curtir” recebidas pelo conteúdo.',
-  comments: 'Comentários deixados pela audiência.',
-  shares: 'Vezes em que o conteúdo foi compartilhado.',
-  saves: 'Vezes em que o conteúdo foi salvo para ver depois.',
-  page_follows: 'Novas pessoas que começaram a seguir a página no período.',
-  followerCount: 'Total atual de seguidores registrado pela rede.',
-  subscriberCount: 'Total atual de inscritos registrado pelo YouTube.',
-  watchTimeSeconds: 'Tempo médio que as pessoas assistiram a cada vídeo.',
 }
 
 export const NET_TABS = {
