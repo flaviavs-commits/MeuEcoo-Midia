@@ -196,14 +196,18 @@ export function ProfilePage({ user, onNavigate, onUserChange }) {
 
   async function changePassword(event) {
     event.preventDefault()
+    if (!password.newPassword) return setPasswordError('Informe a nova senha.')
     if (password.newPassword !== password.confirmation) return setPasswordError('A confirmação da nova senha não confere.')
-    if (password.newPassword && !Object.values(passwordRules(password.newPassword)).every(Boolean)) return setPasswordError('A senha precisa ter de 8 a 72 caracteres, uma maiúscula, um número e um caractere especial.')
+    if (!Object.values(passwordRules(password.newPassword)).every(Boolean)) return setPasswordError('A senha precisa ter de 8 a 72 caracteres, uma maiúscula, um número e um caractere especial.')
     setPasswordSaving(true)
     setPasswordError('')
     try {
-      await apiFetch('/api/me/password', { method: 'POST', body: JSON.stringify({ currentPassword: password.currentPassword, newPassword: password.newPassword }) })
+      // "Senha atual incorreta." chega como 401: aqui não é sessão vencida, então não desloga.
+      await apiFetch('/api/me/password', { method: 'POST', keepSessionOn401: true, body: JSON.stringify({ currentPassword: password.currentPassword, newPassword: password.newPassword }) })
       setPassword({ currentPassword: '', newPassword: '', confirmation: '' })
       notify('Senha alterada com sucesso. Entre de novo com a nova senha.')
+      // O servidor encerra todas as sessões ao trocar a senha: leva direto ao login.
+      window.setTimeout(() => logout({ returnPage: 'perfil' }), 1500)
     } catch (caught) {
       setPasswordError(messageOf(caught, 'Não foi possível alterar a senha agora. Tente de novo.'))
     } finally { setPasswordSaving(false) }

@@ -51,26 +51,36 @@ export async function logout(options) {
   }
 }
 
-async function ensureCsrfToken(timeoutMs = 15_000, externalSignal) {
+// Um único pedido do token por vez: escritas paralelas (vários envios, por exemplo) esperam o
+// mesmo token em vez de cada uma gerar o seu.
+let csrfRequest = null
+
+async function ensureCsrfToken(timeoutMs = 15_000) {
   if (csrfToken) return csrfToken
-  const controller = new AbortController()
-  const abortFromCaller = () => controller.abort()
-  if (externalSignal) {
-    if (externalSignal.aborted) controller.abort()
-    else externalSignal.addEventListener('abort', abortFromCaller, { once: true })
+  if (!csrfRequest) {
+    csrfRequest = (async () => {
+      const controller = new AbortController()
+      const timer = setTimeout(() => controller.abort(), timeoutMs)
+      try {
+        const response = await fetch(`${API_URL}/auth/csrf`, { credentials: 'include', signal: controller.signal })
+        const body = await response.json()
+        csrfToken = body?.token || null
+      } catch {
+        csrfToken = null
+      } finally {
+        clearTimeout(timer)
+        csrfRequest = null
+      }
+      return csrfToken
+    })()
   }
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const response = await fetch(`${API_URL}/auth/csrf`, { credentials: 'include', signal: controller.signal })
-    const body = await response.json()
-    csrfToken = body?.token || null
-  } catch {
-    csrfToken = null
-  } finally {
-    clearTimeout(timer)
-    externalSignal?.removeEventListener('abort', abortFromCaller)
-  }
-  return csrfToken
+  return csrfRequest
+}
+
+// O cookie do token dura 8 horas e não é renovado no login: quando ele vence com a sessão ainda
+// válida, o servidor recusa a escrita com 403. Nesse caso o token é buscado de novo, uma vez.
+function isCsrfRejection(response, body) {
+  return response.status === 403 && /csrf/i.test(String(body?.erro || body?.message || ''))
 }
 
 // Corpo que não é JSON (a página HTML de um proxy num 502, por exemplo): o
@@ -98,7 +108,7 @@ function errorMessage(body, fallback) {
 }
 
 async function request(path, options = {}) {
-  const { headers = {}, timeoutMs = 15_000, signal: externalSignal, ...requestOptions } = options
+  const { headers = {}, timeoutMs = 15_000, signal: externalSignal, csrfRetried, keepSessionOn401, ...requestOptions } = options
   const controller = new AbortController()
   const abortFromCaller = () => controller.abort()
   if (externalSignal) {
@@ -109,7 +119,7 @@ async function request(path, options = {}) {
 
   try {
     const method = String(requestOptions.method || 'GET').toUpperCase()
-    const token = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) ? await ensureCsrfToken(timeoutMs, externalSignal) : null
+    const token = ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) ? await ensureCsrfToken(timeoutMs) : null
     const response = await fetch(`${API_URL}${path}`, {
       ...requestOptions,
       credentials: 'include',
@@ -122,8 +132,14 @@ async function request(path, options = {}) {
     })
 
     const body = response.status === 204 ? null : parseBody(await response.text())
+    if (token && !options.csrfRetried && isCsrfRejection(response, body)) {
+      csrfToken = null
+      clearTimeout(timer)
+      return request(path, { ...options, csrfRetried: true })
+    }
     return { response, body }
   } catch (error) {
+    if (error instanceof ApiError) throw error
     if (error.name === 'AbortError') throw new ApiError('Tempo esgotado. Verifique sua conexão e tente novamente.', 408)
     throw new ApiError('Não foi possível conectar ao servidor.', 0)
   } finally {
@@ -138,11 +154,25 @@ export async function publicApiFetch(path, options = {}) {
   return body
 }
 
+// Várias requisições podem receber 401 juntas quando a sessão expira: só a primeira leva ao login.
+let redirectingToLogin = false
+
+/*
+ * Chamada autenticada. Um 401 encerra a sessão e leva ao login, a menos que a rota use 401 para
+ * outra coisa (ex.: "Senha atual incorreta." ao trocar a senha): aí passe { keepSessionOn401: true }.
+ */
 export async function apiFetch(path, options = {}) {
   const { response, body } = await request(path, options)
 
+  if (response.status === 401 && options.keepSessionOn401) {
+    throw new ApiError(errorMessage(body, 'Não autorizado.'), 401, body)
+  }
+
   if (response.status === 401) {
-    logout({ returnPage: returnPageFor(window.location.pathname) })
+    if (!redirectingToLogin) {
+      redirectingToLogin = true
+      logout({ returnPage: returnPageFor(window.location.pathname) })
+    }
     throw new ApiError('Sessão expirada', response.status)
   }
 

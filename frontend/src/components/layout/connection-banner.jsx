@@ -4,7 +4,7 @@ import { Icon } from '../ui/icon.jsx'
 
 /*
  * The signed-in session (/api/me) and whether the server answers. A 401 is handled by apiFetch
- * (back to the login); any other failure means the server did not answer as expected, and the
+ * (back to the login); no connection, a timeout or a 5xx means the server did not answer, and the
  * app says so once, at the top, instead of every block repeating a generic error.
  *   status: 'checking' | 'ok' | 'down' | 'retrying' (asking again after 'down')
  * retry() asks again; when the server is back, `generation` changes so the page can remount
@@ -27,7 +27,11 @@ export function useSession() {
       if (wasDown.current) setGeneration(value => value + 1)
       wasDown.current = false
     }).catch(error => {
-      if (!active.current || error?.status === 401) return
+      if (!active.current) return
+      // Só é "servidor fora" quando ele não respondeu: sem conexão (0), tempo esgotado (408) ou 5xx.
+      // Um 401 já leva ao login; 403/429 são respostas do servidor e não acendem o aviso.
+      const status = Number(error?.status)
+      if (status !== 0 && status !== 408 && !(status >= 500)) { setStatus('ok'); return }
       wasDown.current = true
       setStatus('down')
     })

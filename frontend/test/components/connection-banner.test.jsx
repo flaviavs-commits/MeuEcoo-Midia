@@ -58,4 +58,13 @@ describe('useSession + ConnectionBanner', () => {
     await waitFor(() => expect(api.apiFetch).toHaveBeenCalled())
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
+
+  it('a server answer such as 403 or 429 is not "server down"', async () => {
+    vi.spyOn(api, 'apiFetch').mockRejectedValue(new api.ApiError('Muitas tentativas.', 429))
+
+    render(<Harness />)
+
+    await waitFor(() => expect(api.apiFetch).toHaveBeenCalled())
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
 })
