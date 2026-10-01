@@ -237,4 +237,22 @@ describe('AccountsPage', () => {
     expect(apiFetchMock.mock.calls.some(([, options]) => options?.method === 'DELETE')).toBe(false)
     expect(screen.getByRole('button', { name: 'Desconectar @meuecoomidia' })).toBeInTheDocument()
   })
+
+  it('diz que a conta foi desconectada mesmo se a lista não recarregar depois', async () => {
+    let deleted = false
+    vi.spyOn(api, 'apiFetch').mockImplementation((path, options = {}) => {
+      if (path === '/api/accounts/113' && options.method === 'DELETE') { deleted = true; return Promise.resolve({ deleted: true }) }
+      if (path === '/api/accounts') return deleted ? Promise.reject(new api.ApiError('Tempo esgotado.', 408)) : Promise.resolve({ data: [{ id: 113, platform: 'instagram', handle: '@meuecoomidia', tokens: [{ status: 'valid' }] }] })
+      if (path === '/api/platform-health') return Promise.resolve({ platforms: {} })
+      return Promise.resolve({})
+    })
+
+    render(<ToastProvider><AccountsPage user={{ planUnrestricted: true }} /></ToastProvider>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Desconectar @meuecoomidia' }))
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Desconectar @meuecoomidia?' })).getByRole('button', { name: 'Desconectar' }))
+
+    expect(await screen.findByText('Conta desconectada.')).toBeInTheDocument()
+    expect(screen.queryByText('Tempo esgotado.', { selector: '.ds-toast *' })).not.toBeInTheDocument()
+  })
 })
+

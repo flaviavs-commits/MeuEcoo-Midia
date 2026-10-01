@@ -125,7 +125,10 @@ export function ContentQueuesPage() {
   async function toggle(queue) {
     if (busyId !== null) return
     setBusyId(queue.id)
-    try { await apiFetch(`/api/content-queues/${queue.id}`, { method: 'PATCH', body: JSON.stringify({ active: !queue.active, recurrence: queue.recurrence }) }); await load() }
+    try {
+      await apiFetch(`/api/content-queues/${queue.id}`, { method: 'PATCH', body: JSON.stringify({ active: !queue.active, recurrence: queue.recurrence }) })
+      await load().catch(() => notify(queue.active ? 'Rotina pausada. A lista não recarregou; atualize para ver.' : 'Rotina ativada. A lista não recarregou; atualize para ver.', 'error'))
+    }
     catch (error) { notify(messageOf(error, queue.active ? 'Não foi possível pausar a rotina agora.' : 'Não foi possível ativar a rotina agora.'), 'error') }
     finally { setBusyId(null) }
   }

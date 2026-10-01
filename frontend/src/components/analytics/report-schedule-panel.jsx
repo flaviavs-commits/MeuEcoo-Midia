@@ -36,8 +36,8 @@ export function ReportSchedulePanel() {
         })
       })
       setForm(current => ({ ...current, email: '' }))
-      await load()
       notify('Agendamento salvo. O primeiro envio foi iniciado para os destinatários.')
+      load().catch(() => {})
     } catch (error) {
       notify(error.message, 'error')
       // O servidor salva antes de enviar: recarregar evita duplicar um

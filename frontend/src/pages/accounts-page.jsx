@@ -270,7 +270,13 @@ export function AccountsPage({ onNavigate, user }) {
     if (!ok) return
     setDisconnectingId(id)
     setActionError('')
-    try { await apiFetch(`/api/accounts/${id}`, { method: 'DELETE' }); await reload(); await loadHealth(); notify('Conta desconectada.') }
+    try {
+      await apiFetch(`/api/accounts/${id}`, { method: 'DELETE' })
+      notify('Conta desconectada.')
+      // A desconexão já valeu: se a lista não recarregar, o aviso de carga da página cuida disso.
+      reload().catch(() => {})
+      loadHealth().catch(() => {})
+    }
     catch (e) { setActionError(e.message); notify(e.message, 'error') }
     finally { setDisconnectingId(null) }
   }

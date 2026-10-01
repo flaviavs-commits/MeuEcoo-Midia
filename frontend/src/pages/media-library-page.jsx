@@ -163,12 +163,18 @@ export function MediaLibraryPage({ onNavigate }) {
   }
 
   async function loadMore() {
+    // A busca ou a pasta podem mudar enquanto a próxima página chega: a resposta só entra se a
+    // lista ainda é a mesma (o contador de pedidos é o mesmo da carga principal).
+    const requestId = requestRef.current
     setLoadingMore(true)
     try {
       const data = await apiFetch(`/api/media-assets?search=${encodeURIComponent(search)}&folder=${encodeURIComponent(folder)}&offset=${assets.length}`)
+      if (requestId !== requestRef.current) return
       setAssets(current => [...current, ...(data.assets || []).filter(item => !current.some(existing => existing.id === item.id))])
       setHasMore(Boolean(data.hasMore))
-    } catch (error) { notify(error.message, 'error') } finally { setLoadingMore(false) }
+    } catch (error) {
+      if (requestId === requestRef.current) notify(error.message, 'error')
+    } finally { setLoadingMore(false) }
   }
 
   async function createFolder(name) {

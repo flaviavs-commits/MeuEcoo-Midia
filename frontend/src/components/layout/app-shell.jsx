@@ -411,6 +411,10 @@ function AccountSheet({ open, onClose, user, onNavigate, page }) {
 }
 
 function useNotifications(user) {
+  // As preferências são lidas na hora do aviso: trocar o objeto do usuário (perfil, 2FA, foto) não
+  // reinicia o acompanhamento nem pula avisos que chegaram nesse meio-tempo.
+  const userRef = useRef(user)
+  useEffect(() => { userRef.current = user }, [user])
   const [notifications, setNotifications] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
@@ -457,7 +461,7 @@ function useNotifications(user) {
         if (!active || !bellLogs.length) return
 
         setNotifications(current => mergeNotifications(current, bellLogs))
-        const visible = bellLogs.filter(item => notificationPreferenceEnabled(item, user))
+        const visible = bellLogs.filter(item => notificationPreferenceEnabled(item, userRef.current))
         if (!visible.length) return
         setUnread(current => current + visible.length)
         visible.forEach(item => {
@@ -481,7 +485,7 @@ function useNotifications(user) {
       active = false
       window.clearInterval(interval)
     }
-  }, [notify, user])
+  }, [notify])
 
   async function refresh() {
     setUnread(0)

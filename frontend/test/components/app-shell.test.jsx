@@ -283,4 +283,16 @@ describe('AppShell on phones', () => {
     expect(within(panel).queryByText(/Novo comentário/)).not.toBeInTheDocument()
     vi.restoreAllMocks()
   })
+
+  it('trocar o objeto do usuário (perfil, 2FA, foto) não reinicia o sino', async () => {
+    const apiFetch = vi.spyOn(api, 'apiFetch').mockResolvedValue({ logs: [] })
+    const { rerender } = render(<AppShell page="dashboard" onPageChange={() => {}} user={{ name: 'Tiago' }}>x</AppShell>)
+    await vi.waitFor(() => expect(apiFetch.mock.calls.filter(([path]) => path === '/api/logs?limit=30')).toHaveLength(1))
+
+    rerender(<AppShell page="dashboard" onPageChange={() => {}} user={{ name: 'Tiago', totpEnabled: true }}>x</AppShell>)
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(apiFetch.mock.calls.filter(([path]) => path === '/api/logs?limit=30')).toHaveLength(1)
+    vi.restoreAllMocks()
+  })
 })
+

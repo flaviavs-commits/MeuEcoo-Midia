@@ -110,7 +110,7 @@ function readImageMeta(file) {
 }
 
 async function imageSourceToFile(source, fileName = 'imagem-gerada-ia.png') {
-  const response = await fetch(source)
+  const response = await fetch(source).catch(() => { throw new Error('Não foi possível carregar a imagem gerada pelo sistema inteligente.') })
   if (!response.ok) throw new Error('Não foi possível carregar a imagem gerada pelo sistema inteligente.')
   const blob = await response.blob()
   const extension = blob.type.split('/')[1] || 'png'
@@ -1484,8 +1484,13 @@ export function SchedulerPage({ onNavigate } = {}) {
 
   async function uploadFile(file) {
     const data = await apiFetch('/api/posts/upload-url', { method: 'POST', body: JSON.stringify({ filename: file.name, mimetype: file.type }) })
-    const response = await fetch(data.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
-    if (!response.ok) throw new Error(`Falha ao enviar ${file.name}`)
+    let response
+    try {
+      response = await fetch(data.uploadUrl, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file })
+    } catch {
+      throw new Error(`Não foi possível enviar ${file.name}. Verifique a conexão e tente de novo.`)
+    }
+    if (!response.ok) throw new Error(`O armazenamento recusou ${file.name}. Tente de novo.`)
     const uploaded = await response.json().catch(() => null)
     // Em modo privado o backend fornece uma URL proxy assinada; no modo
     // público preservamos a URL final devolvida pelo Blob.

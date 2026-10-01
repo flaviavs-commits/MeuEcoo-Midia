@@ -258,6 +258,8 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
   // Uma atualização silenciosa (60 s, foco da janela, depois de responder) só troca a
   // conversa quando dá certo; se falhar, a última versão boa fica na tela com um aviso
   // discreto, e os rascunhos e respostas recém-enviadas continuam onde estavam.
+  // Recarga com controle de versão do efeito abaixo (também usada depois de responder).
+  const refreshRef = useRef(null)
   const load = useCallback((silent = false, signal) => {
     const source = initialPostRef.current
     if (!silent) {
@@ -322,10 +324,12 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
     }
 
     const onFocus = () => refresh(true)
+    refreshRef.current = refresh
     refresh()
     window.addEventListener('focus', onFocus)
     return () => {
       active = false
+      refreshRef.current = null
       if (timer) window.clearTimeout(timer)
       controller.abort()
       window.removeEventListener('focus', onFocus)
@@ -357,7 +361,7 @@ export function CommentsModal({ postId, initialPost = null, onClose, onReplySent
       {!error && !loading && !comments.length && waitingForComments && <p className="cm-state" role="status" aria-live="polite">Aguardando a sincronização dos comentários… verificando novamente.</p>}
       {!error && !loading && !comments.length && !waitingForComments && <p className="cm-state">Nenhum comentário ainda.</p>}
       {!loading && topLevelComments.length > 0 && <div className={`cm-thread cm-thread--${platformClass}`} aria-label="Comentários da publicação">
-        {topLevelComments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={() => load(true)} onReplySent={onReplySent} onSavedText={loadSavedTexts} savedTexts={savedTexts} remoteReplies={repliesFor(comment.id)} replies={repliesFor(comment.id)} repliesFor={repliesFor} />)}
+        {topLevelComments.map(comment => <CommentRow key={comment.id} comment={comment} postId={postId} post={visiblePost} platform={visiblePost?.platform} replySupported={visiblePost?.replySupported} onReplied={() => refreshRef.current?.(true)} onReplySent={onReplySent} onSavedText={loadSavedTexts} savedTexts={savedTexts} remoteReplies={repliesFor(comment.id)} replies={repliesFor(comment.id)} repliesFor={repliesFor} />)}
       </div>}
     </div>
   </>
