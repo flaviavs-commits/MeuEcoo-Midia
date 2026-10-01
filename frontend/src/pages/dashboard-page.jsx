@@ -150,6 +150,20 @@ function statFigure(loading, error, value) {
   return { text: String(value), state: undefined }
 }
 
+// Cada parte do Início abre com um ícone e a área a que pertence (Calendário, Relatórios…),
+// num painel próprio, para ficar bem separada das outras.
+function SectionHead({ icon, area, tone = 'neutral', titleId, title, description, actions, focusable = false }) {
+  return <div className="ds-head dash-sechead">
+    <span className="dash-sechead__icon" data-tone={tone} aria-hidden="true"><Icon name={icon} size={20} /></span>
+    <div className="ds-head__text">
+      <p className="dash-sechead__area">{area}</p>
+      <h2 className="ds-head__title" id={titleId} tabIndex={focusable ? -1 : undefined}>{title}</h2>
+      {description && <p className="ds-head__desc">{description}</p>}
+    </div>
+    {actions && <div className="ds-head__actions">{actions}</div>}
+  </div>
+}
+
 // O Início é um resumo: números da conta, o que precisa de atenção, o que vem a seguir e
 // três números dos últimos 7 dias. Gráficos e leituras ficam em Relatórios, o histórico em
 // Atividades e as conexões em Contas.
@@ -358,7 +372,8 @@ export function DashboardPage({ onNavigate }) {
       : <>
         {onboardingIncomplete && <OnboardingChecklist accounts={data.accounts} posts={data.posts} onNavigate={onNavigate} />}
 
-        <section className="dash-status" aria-label="Resumo da conta" aria-busy={postsLoading || accountsLoading}>
+        <section className="dash-panel dash-status" aria-labelledby="dash-status-title" aria-busy={postsLoading || accountsLoading}>
+          <SectionHead icon="user" area="Visão geral" titleId="dash-status-title" title="Resumo da conta" />
           <div className="ds-stats">
             <div className="ds-stat">
               <p className="ds-stat__label">Publicações</p>
@@ -387,12 +402,9 @@ export function DashboardPage({ onNavigate }) {
           </div>
         </section>
 
-        {attentionCount > 0 && <section className="ds-block dash-attn" id="dash-atencao" aria-labelledby="dash-atencao-title">
-          <div className="ds-head">
-            <div className="ds-head__text">
-              <h2 className="ds-head__title" id="dash-atencao-title" tabIndex={-1}>Precisa de atenção <span className="ds-badge" data-tone="danger">{attentionCount} {attentionCount === 1 ? 'item' : 'itens'}</span></h2>
-            </div>
-          </div>
+        {attentionCount > 0 && <section className="dash-panel dash-attn" data-tone="danger" id="dash-atencao" aria-labelledby="dash-atencao-title">
+          <SectionHead icon="alertTriangle" area="Atenção" tone="danger" titleId="dash-atencao-title" focusable
+            title={<>Precisa de atenção <span className="ds-badge" data-tone="danger">{attentionCount} {attentionCount === 1 ? 'item' : 'itens'}</span></>} />
           <ul className="ds-list" ref={attentionListRef}>
             {shownAlerts.map(({ post, diagnosis }) => {
               const deleting = deletingPostId === post.id
@@ -431,11 +443,9 @@ export function DashboardPage({ onNavigate }) {
           <p className="dash-attn__note" role="status">{alertError ? `Não foi possível excluir o alerta. ${alertError === DEFAULT_API_MESSAGE ? 'Tente de novo.' : sentence(alertError)}` : ''}</p>
         </section>}
 
-        <section className="ds-block dash-next" aria-labelledby="dash-next-title">
-          <div className="ds-head">
-            <div className="ds-head__text"><h2 className="ds-head__title" id="dash-next-title" tabIndex={-1}>Próximos agendamentos</h2></div>
-            <div className="ds-head__actions"><button type="button" className="ds-go" onClick={() => onNavigate('calendario')}>Ver calendário<Icon name="arrow" /></button></div>
-          </div>
+        <section className="dash-panel dash-next" aria-labelledby="dash-next-title">
+          <SectionHead icon="calendar" area="Calendário" tone="gold" titleId="dash-next-title" focusable title="Próximos agendamentos"
+            actions={<button type="button" className="ds-go" onClick={() => onNavigate('calendario')}>Ver calendário<Icon name="arrow" /></button>} />
           {postsLoading
             ? <div aria-busy="true">
               <p className="ds-sr-only" aria-live="polite">Carregando publicações...</p>
@@ -472,14 +482,10 @@ export function DashboardPage({ onNavigate }) {
                 </div>}
         </section>
 
-        <section className="ds-block dash-week" aria-labelledby="dash-week-title" aria-busy={analyticsLoading || undefined}>
-          <div className="ds-head">
-            <div className="ds-head__text">
-              <h2 className="ds-head__title" id="dash-week-title">Últimos {SUMMARY_DAYS} dias</h2>
-              <p className="ds-head__desc">Publicações com métricas disponíveis nas redes conectadas.</p>
-            </div>
-            <div className="ds-head__actions"><button type="button" className="ds-go" onClick={() => onNavigate('analytics')}>Abrir Relatórios<Icon name="arrow" /></button></div>
-          </div>
+        <section className="dash-panel dash-week" aria-labelledby="dash-week-title" aria-busy={analyticsLoading || undefined}>
+          <SectionHead icon="chart" area="Relatórios" tone="info" titleId="dash-week-title" title={`Últimos ${SUMMARY_DAYS} dias`}
+            description="Publicações com métricas disponíveis nas redes conectadas."
+            actions={<button type="button" className="ds-go" onClick={() => onNavigate('analytics')}>Abrir Relatórios<Icon name="arrow" /></button>} />
           {analyticsLoading && !analytics
             ? <div className="dash-week__figs"><p className="ds-sr-only" aria-live="polite">Carregando métricas…</p>{[1, 2, 3].map(item => <span className="ds-skel" key={item} style={{ height: 52 }} />)}</div>
             : analyticsError && !analytics
