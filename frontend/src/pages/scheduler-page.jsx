@@ -6,7 +6,7 @@ import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { Sheet } from '../components/ui/floating.jsx'
 import { Select } from '../components/ui/select.jsx'
-import { DateTimeField, localTimeZoneName } from '../components/ui/date-time-field.jsx'
+import { DateTimeField, localTimeZoneName, toApiDateTime } from '../components/ui/date-time-field.jsx'
 import { useIsCompact, useIsPhone } from '../lib/breakpoints.js'
 import { PlatformIcon } from '../components/ui/platform-icon.jsx'
 import { PublicationResultGroups, PublicationStatusModal } from '../components/ui/publication-status-modal.jsx'
@@ -1512,7 +1512,7 @@ export function SchedulerPage({ onNavigate } = {}) {
         .map(([platform, platformFiles]) => [platform, uploadedItems(platformFiles)]))
       const uploadedCover = coverFile ? uploadedByKey.get(mediaFileKey(coverFile)) : null
       const cover = uploadedCover ? { url: uploadedCover.url, mimetype: uploadedCover.mimetype, name: uploadedCover.name, time: Number.isFinite(coverTime) ? coverTime : null } : null
-      const scheduledAt = publishNow ? new Date().toISOString() : date
+      const scheduledAt = publishNow ? new Date().toISOString() : toApiDateTime(date)
       const platformTexts = textsForSelectedPlatforms(textByPlatform, selected)
       const accountIds = selectedAccountsForPost(connectedAccounts, selected, selectedAccountIds)
       setProgress(requestingApproval ? 'Salvando para aprovação...' : publishNow ? 'Preparando publicação imediata...' : 'Processando e salvando agendamento...')

@@ -25,6 +25,17 @@ function parseValue(value) {
   return { year: Number(year), month: Number(month) - 1, day: Number(day), hour, minute }
 }
 
+/*
+ * O campo guarda o horário escolhido no relógio de quem usa ("2026-10-02T14:30", sem fuso). Ao enviar
+ * para a API, vira um instante em UTC: sem fuso, o servidor lê o texto como horário de Brasília, e quem
+ * está em outro fuso (Manaus, Acre, exterior) veria o post sair na hora errada.
+ */
+export function toApiDateTime(value) {
+  if (!value) return value
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toISOString()
+}
+
 export function localTimeZoneName() {
   try {
     const part = new Intl.DateTimeFormat('pt-BR', { timeZoneName: 'long' }).formatToParts(new Date()).find(item => item.type === 'timeZoneName')

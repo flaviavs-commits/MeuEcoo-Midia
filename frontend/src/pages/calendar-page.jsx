@@ -6,7 +6,7 @@ import { useConfirm } from '../components/ui/confirm-dialog.jsx'
 import { Icon, NetworkGlyph } from '../components/ui/icon.jsx'
 import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { Sheet } from '../components/ui/floating.jsx'
-import { DateTimeField } from '../components/ui/date-time-field.jsx'
+import { DateTimeField, toApiDateTime } from '../components/ui/date-time-field.jsx'
 import { FilterGroup, FilterOption, FilterSheet, FiltersButton } from '../components/ui/filters.jsx'
 import { useIsPhone } from '../lib/breakpoints.js'
 
@@ -432,7 +432,7 @@ export function CalendarPage({ onNavigate }) {
     event.preventDefault()
     if (!beginAction('reschedule')) return
     try {
-      const result = await apiFetch(`/api/posts/${editing.id}`, { method: 'PATCH', body: JSON.stringify({ scheduledAt: date }) })
+      const result = await apiFetch(`/api/posts/${editing.id}`, { method: 'PATCH', body: JSON.stringify({ scheduledAt: toApiDateTime(date) }) })
       const savedAt = result.post?.scheduledAt || result.post?.scheduled_at || date
       const targetMonth = brazilMonthOf(savedAt)
       if (targetMonth.year && targetMonth.month) {
@@ -477,7 +477,7 @@ export function CalendarPage({ onNavigate }) {
     event.preventDefault()
     if (!beginAction('repeat')) return
     try {
-      await apiFetch(`/api/posts/${repeating.id}/repeat`, { method: 'POST', body: JSON.stringify({ scheduledAt: repeatDate }) })
+      await apiFetch(`/api/posts/${repeating.id}/repeat`, { method: 'POST', body: JSON.stringify({ scheduledAt: toApiDateTime(repeatDate) }) })
       setRepeating(null)
       setSelectedDay(null)
       setMessage('Nova publicação agendada.')
@@ -511,7 +511,7 @@ export function CalendarPage({ onNavigate }) {
     event.preventDefault()
     if (!copiedPost || !beginAction('paste')) return
     try {
-      await apiFetch(`/api/posts/${copiedPost.id}/repeat`, { method: 'POST', body: JSON.stringify({ scheduledAt: pasteDate }) })
+      await apiFetch(`/api/posts/${copiedPost.id}/repeat`, { method: 'POST', body: JSON.stringify({ scheduledAt: toApiDateTime(pasteDate) }) })
       setPasting(false)
       setCopiedPost(null)
       setMessage('Agendamento colado como uma nova publicação.')
