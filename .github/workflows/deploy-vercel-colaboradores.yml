@@ -1,0 +1,56 @@
+name: Publicar commits de colaboradores na Vercel
+
+# A Vercel (plano Hobby) bloqueia o deploy automático quando o autor do commit
+# não é a dona do projeto ("Git author ... must have access to the project").
+# Commits da Flávia continuam publicados pela integração Git da Vercel; este
+# workflow publica os dos colaboradores (ex.: André) criando o deploy pela API
+# com o token da Flávia, que é o mesmo caminho que funciona manualmente.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: vercel-colaborador-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publicar:
+    if: github.event_name == 'workflow_dispatch' || github.event.head_commit.author.username != 'flaviavs-commits'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      VERCEL_TEAM_ID: team_mg8vPLFfX35F85dfXtH6G6Wh
+      VERCEL_PROJECT: meuecoo-midia
+      VERCEL_REPO_ID: "1263269497"
+    steps:
+      - name: Criar o deploy de produção na Vercel
+        env:
+          VERCEL_DEPLOY_TOKEN: ${{ secrets.VERCEL_DEPLOY_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_DEPLOY_TOKEN:-}" ]; then
+            echo "::error::Secret VERCEL_DEPLOY_TOKEN não configurado neste repositório."
+            exit 1
+          fi
+          corpo=$(jq -n --arg p "$VERCEL_PROJECT" --arg r "$VERCEL_REPO_ID" --arg s "$GITHUB_SHA" \
+            '{name: $p, project: $p, target: "production", gitSource: {type: "github", repoId: $r, ref: "main", sha: $s}}')
+          resposta=$(curl -sS -X POST "https://api.vercel.com/v13/deployments?teamId=$VERCEL_TEAM_ID" \
+            -H "Authorization: Bearer $VERCEL_DEPLOY_TOKEN" -H "Content-Type: application/json" -d "$corpo")
+          id=$(echo "$resposta" | jq -r '.id // empty')
+          if [ -z "$id" ]; then
+            echo "::error::A Vercel recusou o deploy: $(echo "$resposta" | jq -c '.error // .')"
+            exit 1
+          fi
+          echo "Deploy $id criado para ${GITHUB_SHA:0:8}: https://$(echo "$resposta" | jq -r .url)"
+          for i in $(seq 1 90); do
+            estado=$(curl -sS "https://api.vercel.com/v13/deployments/$id?teamId=$VERCEL_TEAM_ID" \
+              -H "Authorization: Bearer $VERCEL_DEPLOY_TOKEN" | jq -r '.readyState')
+            case "$estado" in
+              READY) echo "Publicado em produção."; exit 0 ;;
+              ERROR|CANCELED|BLOCKED) echo "::error::Deploy terminou como $estado."; exit 1 ;;
+            esac
+            sleep 10
+          done
+          echo "::error::Deploy não terminou em 15 minutos (último estado: $estado)."
+          exit 1
