@@ -3,6 +3,7 @@ const express  = require('express')
 const path     = require('path')
 const cors     = require('cors')
 const rateLimit = require('express-rate-limit')
+const { chavePorIp, chavePorUsuario } = require('./infra/http/chavesRateLimit')
 const { createRateLimitStore } = require('./infra/http/postgresRateLimitStore')
 
 const compression    = require('compression')
@@ -67,33 +68,14 @@ function sendReactShell(_req, res) {
 // validar ou armazenaria credenciais sem a proteção esperada.
 assertProductionSecrets()
 
-// O app fica atrás do túnel ngrok (HTTPS termina no ngrok, e o tráfego chega
-// ao processo Node como HTTP puro com o header X-Forwarded-Proto/X-Forwarded-For).
-// Sem isso, o Express não confia nesses headers: req.secure fica sempre false
-// (quebrando cookies com secure:true) e o express-rate-limit rejeita a
-// requisição inteira por ver X-Forwarded-For sem confiar nele
-// (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR). trust proxy = 1 confia no primeiro
-// proxy na frente (o ngrok), que é a única camada entre o cliente e este processo.
+// Em produção o app roda no Railway: o HTTPS termina na borda dele e o tráfego
+// chega ao processo como HTTP com X-Forwarded-Proto/X-Forwarded-For. O navegador
+// passa antes pela Vercel (rewrite de /api e /auth). trust proxy = 1 serve para
+// req.secure (cookies com secure:true) e para o express-rate-limit aceitar o
+// X-Forwarded-For (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR). Com ele, req.ip é o salto
+// interno do Railway, igual para todos — os limites de tentativas não usam
+// req.ip direto: as chaves ficam em src/infra/http/chavesRateLimit.js.
 app.set('trust proxy', config.trustProxy)
-
-// DIAGNÓSTICO TEMPORÁRIO (02/10/2026): mede quais headers de IP chegam pela
-// Vercel e pelo Railway, para escolher a chave dos rate limits. Só registra com
-// o marcador abaixo, grava nomes de headers e IPs em hash, e sai no commit seguinte.
-app.use((req, res, next) => {
-  if (req.query?.['diag-ip'] !== 'f8f45d205cdefcd22744bd02') return next()
-  const hash = v => require('node:crypto').createHash('sha256').update('f8f45d205cdefcd22744bd02:' + String(v).trim()).digest('hex').slice(0, 10)
-  const lista = v => String(v || '').split(',').filter(Boolean).map(hash)
-  console.log('[diag-ip]', JSON.stringify({
-    via: req.query['via'],
-    headers: Object.keys(req.headers).sort(),
-    xff: lista(req.headers['x-forwarded-for']),
-    xRealIp: lista(req.headers['x-real-ip']),
-    xVercelForwardedFor: lista(req.headers['x-vercel-forwarded-for']),
-    reqIp: hash(req.ip),
-    socket: hash(req.socket?.remoteAddress)
-  }))
-  next()
-})
 
 // Frontend e backend podem estar em origens diferentes. A sessão viaja em
 // cookie HttpOnly; CORS precisa ser explícito e nunca pode cair em `true`.
@@ -384,7 +366,7 @@ const apiV1IpLimiter = rateLimit({
   limit: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: req => `ip:${rateLimit.ipKeyGenerator(req.ip)}`,
+  keyGenerator: chavePorIp,
   store: createRateLimitStore('api-v1-ip'),
   message: { erro: 'Muitas requisições na API. Aguarde alguns minutos e tente novamente.' }
 })
@@ -396,7 +378,7 @@ const apiV1KeyLimiter = rateLimit({
   limit: 300,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: req => `api-key:${req.apiKeyId || rateLimit.ipKeyGenerator(req.ip)}`,
+  keyGenerator: req => (req.apiKeyId ? `api-key:${req.apiKeyId}` : chavePorIp(req)),
   store: createRateLimitStore('api-v1-key'),
   message: { erro: 'Limite da API key atingido. Aguarde alguns minutos e tente novamente.' }
 })
@@ -419,6 +401,7 @@ app.use(requireAuth)
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 300,
+  keyGenerator: chavePorUsuario,
   standardHeaders: true,
   legacyHeaders: false,
   store: createRateLimitStore('api'),

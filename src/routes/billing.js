@@ -1,5 +1,6 @@
 const { Router } = require('express')
 const rateLimit = require('express-rate-limit')
+const { chavePorUsuario } = require('../infra/http/chavesRateLimit')
 const { createRateLimitStore } = require('../infra/http/postgresRateLimitStore')
 const { addLog } = require('../middleware/logger')
 const paymentGateway = require('../services/billing/paymentGateway')
@@ -8,6 +9,7 @@ const billingService = require('../services/billing/billingService')
 const router = Router()
 const planChangeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
+  keyGenerator: chavePorUsuario,
   limit: 6,
   standardHeaders: true,
   legacyHeaders: false,
@@ -19,6 +21,7 @@ const planChangeLimiter = rateLimit({
 // cliente de efetivamente trocar de plano em seguida.
 const planLinkLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
+  keyGenerator: chavePorUsuario,
   limit: 30,
   standardHeaders: true,
   legacyHeaders: false,
@@ -70,6 +73,7 @@ router.post('/plan-change', planChangeLimiter, async (req, res) => {
 // para ter orçamento próprio em vez de compartilhar o de plan-change.
 const portalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
+  keyGenerator: chavePorUsuario,
   limit: 10,
   standardHeaders: true,
   legacyHeaders: false,

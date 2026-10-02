@@ -3,6 +3,7 @@ const router = express.Router()
 const bcrypt = require('bcrypt')
 const rateLimit = require('express-rate-limit')
 const { createRateLimitStore } = require('../infra/http/postgresRateLimitStore')
+const { chavePorIp, chavePorEmail, chavePorSegredo } = require('../infra/http/chavesRateLimit')
 const usersRepo = require('../repositories/usersRepository')
 const credentialsRepo = require('../repositories/credentialsRepository')
 const mailer = require('../services/mailer')
@@ -58,29 +59,51 @@ async function revokeSessions(userId) {
   }
 }
 
-// Limita tentativas por IP para dificultar brute-force de senha e abuso do
-// envio de e-mails de redefinição. Mensagem amigável, sem detalhes técnicos.
-const loginLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  limit: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: createRateLimitStore('auth-login'),
-  message: { erro: 'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.' }
-})
+// Cada fluxo tem dois limites. O da conta (e-mail ou token) segura força
+// bruta e envio de e-mails para uma pessoa, venha de onde vier. O teto por IP
+// é alto porque o navegador chega pela Vercel e vários usuários dividem o
+// mesmo IP de saída dela (ver src/infra/http/chavesRateLimit.js); ele só barra
+// varredura de muitas contas a partir de um endereço.
+const MSG_TENTATIVAS = { erro: 'Muitas tentativas. Aguarde alguns minutos antes de tentar novamente.' }
+const MSG_REDEFINICAO = { erro: 'Muitos pedidos de redefinição de senha. Aguarde antes de tentar novamente.' }
 
-const forgotPasswordLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000,
-  limit: 5,
-  standardHeaders: true,
-  legacyHeaders: false,
-  store: createRateLimitStore('auth-forgot'),
-  message: { erro: 'Muitos pedidos de redefinição de senha. Aguarde antes de tentar novamente.' }
+function limitador({ windowMs, limit, prefixo, keyGenerator, message }) {
+  return rateLimit({
+    windowMs,
+    limit,
+    keyGenerator,
+    standardHeaders: true,
+    legacyHeaders: false,
+    store: createRateLimitStore(prefixo),
+    message
+  })
+}
+
+const QUINZE_MINUTOS = 15 * 60 * 1000
+const UMA_HORA = 60 * 60 * 1000
+
+const loginIpLimiter = limitador({ windowMs: QUINZE_MINUTOS, limit: 100, prefixo: 'auth-login-ip', keyGenerator: chavePorIp, message: MSG_TENTATIVAS })
+const loginContaLimiter = limitador({ windowMs: QUINZE_MINUTOS, limit: 10, prefixo: 'auth-login', keyGenerator: chavePorEmail, message: MSG_TENTATIVAS })
+const verify2faLimiter = limitador({
+  windowMs: QUINZE_MINUTOS,
+  limit: 10,
+  prefixo: 'auth-2fa',
+  keyGenerator: chavePorSegredo(req => req.body?.pendingToken || readCookie(req, PENDING_2FA_COOKIE)),
+  message: MSG_TENTATIVAS
 })
+const resetSenhaLimiter = limitador({
+  windowMs: QUINZE_MINUTOS,
+  limit: 10,
+  prefixo: 'auth-reset',
+  keyGenerator: chavePorSegredo(req => req.body?.token),
+  message: MSG_TENTATIVAS
+})
+const forgotIpLimiter = limitador({ windowMs: UMA_HORA, limit: 30, prefixo: 'auth-forgot-ip', keyGenerator: chavePorIp, message: MSG_REDEFINICAO })
+const forgotContaLimiter = limitador({ windowMs: UMA_HORA, limit: 5, prefixo: 'auth-forgot', keyGenerator: chavePorEmail, message: MSG_REDEFINICAO })
 
 // ─── Login com e-mail e senha ──────────────────────────────────────────────
 
-router.post('/login', loginLimiter, async (req, res) => {
+router.post('/login', loginIpLimiter, loginContaLimiter, async (req, res) => {
   const { email, password } = req.body || {}
   if (!email || !password) {
     return res.status(400).json({ erro: 'Preencha o e-mail e a senha.' })
@@ -151,7 +174,7 @@ router.post('/login', loginLimiter, async (req, res) => {
   }
 })
 
-router.post('/register', loginLimiter, async (req, res) => {
+router.post('/register', loginIpLimiter, loginContaLimiter, async (req, res) => {
   const { email, password, fullName, plan: requestedPlan } = req.body || {}
   if (!email || !password) {
     return res.status(400).json({ erro: 'Preencha o e-mail e a senha.' })
@@ -236,7 +259,7 @@ router.post('/logout', async (req, res) => {
 // Completa o login depois que a senha já foi confirmada e a conta tem 2FA
 // ativo (ver pendingToken em /login). Reaproveita o mesmo rate limit do
 // login para não abrir uma porta de brute-force separada no código TOTP.
-router.post('/verify-2fa', loginLimiter, async (req, res) => {
+router.post('/verify-2fa', loginIpLimiter, verify2faLimiter, async (req, res) => {
   const { code } = req.body || {}
   const pendingToken = req.body?.pendingToken || readCookie(req, PENDING_2FA_COOKIE)
   let userId
@@ -267,7 +290,7 @@ router.post('/verify-2fa', loginLimiter, async (req, res) => {
 
 // ─── Esqueci minha senha ────────────────────────────────────────────────────
 
-router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
+router.post('/forgot-password', forgotIpLimiter, forgotContaLimiter, async (req, res) => {
   const { email } = req.body || {}
   if (!email) {
     return res.status(400).json({ erro: 'Informe seu e-mail.' })
@@ -308,7 +331,7 @@ router.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
 // Anti-enumeração: a resposta NÃO revela se a conta existe nem se tem 2FA —
 // só diferencia "código aceito" de "não foi possível", para um atacante não
 // conseguir mapear quais e-mails têm conta/2FA. O rate limit reforça isso.
-router.post('/reset-2fa', forgotPasswordLimiter, async (req, res) => {
+router.post('/reset-2fa', forgotIpLimiter, forgotContaLimiter, async (req, res) => {
   const { email, code } = req.body || {}
   if (!email || !code) return res.status(400).json({ erro: 'Informe o e-mail e o código do aplicativo.' })
   if (!isValidEmail(email)) return res.status(400).json({ erro: 'Informe um e-mail válido.' })
@@ -361,7 +384,7 @@ router.post('/reset-password/validar', async (req, res) => {
   }
 })
 
-router.post('/reset-password', loginLimiter, async (req, res) => {
+router.post('/reset-password', loginIpLimiter, resetSenhaLimiter, async (req, res) => {
   const { token, password } = req.body || {}
   if (!token || !password) {
     return res.status(400).json({ erro: 'Preencha a nova senha.' })

@@ -1,6 +1,7 @@
 const { Router } = require('express')
 const crypto = require('crypto')
 const rateLimit = require('express-rate-limit')
+const { chavePorUsuario } = require('../infra/http/chavesRateLimit')
 const { createRateLimitStore } = require('../infra/http/postgresRateLimitStore')
 const { serverError, isAdminRole } = require('../utils/http')
 const { encrypt, decrypt } = require('../services/tokenCrypto')
@@ -36,6 +37,7 @@ function getGeminiApiKey() {
 const aiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 60,
+  keyGenerator: chavePorUsuario,
   standardHeaders: true,
   legacyHeaders: false,
   store: createRateLimitStore('ai'),

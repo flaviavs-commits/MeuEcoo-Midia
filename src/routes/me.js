@@ -1,5 +1,6 @@
 const { Router } = require('express')
 const rateLimit = require('express-rate-limit')
+const { chavePorUsuario } = require('../infra/http/chavesRateLimit')
 const { createRateLimitStore } = require('../infra/http/postgresRateLimitStore')
 const bcrypt = require('bcrypt')
 const QRCode = require('qrcode')
@@ -36,6 +37,7 @@ async function avatarValido(url) {
 const totpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
+  keyGenerator: chavePorUsuario,
   standardHeaders: true,
   legacyHeaders: false,
   store: createRateLimitStore('totp'),

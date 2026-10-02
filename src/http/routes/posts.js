@@ -1,5 +1,6 @@
 const { Router } = require('express')
 const rateLimit = require('express-rate-limit')
+const { chavePorUsuario } = require('../../infra/http/chavesRateLimit')
 const { createRateLimitStore } = require('../../infra/http/postgresRateLimitStore')
 const controller = require('../controllers/postsController')
 const { requirePlanModule, requirePaidPlan } = require('../../config/plans')
@@ -9,7 +10,7 @@ const requireInboxPlan = requirePlanModule('inbox')
 const uploadLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
   limit: 30,
-  keyGenerator: req => req.user?.id ? `user:${req.user.id}` : rateLimit.ipKeyGenerator(req.ip),
+  keyGenerator: chavePorUsuario,
   standardHeaders: true,
   legacyHeaders: false,
   store: createRateLimitStore('uploads'),
