@@ -181,6 +181,17 @@ Ordem de resolução em `checkout.session.completed`:
 | 3 | `customer_details.email` | link cru (fallback) | idem, se o e-mail bater com uma conta ativa |
 | 4 | nada bate | — | `unlinked` + log de erro para reconciliação manual |
 
+Eventos de fatura e reembolso (`invoice.*`, `charge.refunded`) só trazem o
+`customer`, então dependem de `users.stripe_customer_id`. Como o primeiro
+checkout vai com `customer_email` (a conta ainda não tem Customer), esse campo
+é preenchido pelo webhook: `checkout.session.completed` e os eventos
+`customer.subscription.*` gravam o `customer` na conta resolvida por
+`metadata.user_id` (`billingService.vincularStripeCustomer`). Nunca sobrescreve
+um Customer diferente já gravado — só registra log. Até 02/10/2026 ninguém
+gravava esse campo no primeiro pagamento: o e2e contra produção mostrou o
+`invoice.paid` caindo como não vinculado e o portal respondendo
+`400 no_stripe_customer` para um cliente pagante.
+
 O **plano** de um pagamento por link é identificado pelo valor pago
 (`findPlanByAmount`), já que cada plano tem um `priceCents` distinto. Se o valor
 não bater com nenhum plano exatamente, o sistema **não adivinha**: registra como
@@ -307,22 +318,44 @@ a verificação de assinatura, que exige os bytes exatos.
 https://social-api-manager-production.up.railway.app/api/billing/stripe/webhook
 ```
 
-Eventos a habilitar no endpoint (os 4):
+Eventos a habilitar no endpoint (os 11 — conferidos no endpoint de teste
+`we_1UDp4tDRwXiBR0NCKfoVXrin` em 02/10/2026):
 `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
-`checkout.session.async_payment_failed`, `checkout.session.expired`.
+`checkout.session.async_payment_failed`, `checkout.session.expired`,
+`customer.subscription.created`, `customer.subscription.updated`,
+`customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`,
+`charge.refunded`, `charge.dispute.created`.
+
+Esta lista dizia "os 4" (só `checkout.session.*`) até 02/10/2026, defasada
+desde a migração para assinatura. Um endpoint live criado com só esses 4
+cobraria a primeira mensalidade mas nunca saberia de renovação, falha de
+cobrança, cancelamento, reembolso ou disputa.
 
 ### ⚠️ Para entrar em produção de verdade (trocar teste → live)
 
 Hoje o Railway está com chaves de **teste** (`sk_test_`/`whsec_` de modo teste).
 Com elas o site **não cobra de verdade**: cartão real é recusado, só cartão de
-teste (4242…) passa. Para começar a cobrar:
+teste (4242…) passa. A conta Stripe (`acct_1TGgsPDRwXiBR0NC`) já está habilitada
+a cobrar (`charges_enabled: true`, sem pendências de cadastro, conferido em
+02/10/2026). Para começar a cobrar:
 
-1. Stripe em **modo live** → Developers → API keys → copiar a `sk_live_`.
-2. Developers → Webhooks → **Add endpoint** (o endpoint de teste não vale em
-   live) com a URL acima e os 4 eventos → copiar o `whsec_` do endpoint live.
-3. No Railway, substituir `STRIPE_SECRET_KEY` e `STRIPE_WEBHOOK_SECRET` pelos
-   valores live. O redeploy é automático.
-4. Conferir com um pagamento real de valor baixo.
+1. Stripe em **modo live** → Developers → API keys → copiar a `sk_live_` e
+   colar direto em `STRIPE_SECRET_KEY` no Railway (a chave não deve passar
+   por chat nem print).
+2. Criar o endpoint live com a URL acima e **os 11 eventos** — o endpoint de
+   teste não vale em live. Pode ser pelo painel (Developers → Webhooks → Add
+   endpoint) ou pela API com a própria `sk_live_` (`POST /v1/webhook_endpoints`,
+   que devolve o `secret` só nessa resposta). O `whsec_` vai em
+   `STRIPE_WEBHOOK_SECRET`. O redeploy do Railway é automático.
+3. Configurar o **Customer Portal em modo live** (Settings → Billing →
+   Customer portal): a configuração do modo teste não vale em live, e sem ela
+   `POST /api/billing/portal` falha.
+4. Zerar `users.stripe_customer_id` das contas que têm Customer de modo
+   teste (em 02/10/2026: 3 contas, todas inativas). Em live esses IDs não
+   existem, e o checkout de quem tem um falharia com "No such customer".
+5. Conferir com um pagamento real de valor baixo: `billing_plan_changes`
+   `paid`, `users.plan_active = TRUE`, `users.stripe_customer_id` preenchido,
+   `subscriptions` `active` e o portal abrindo. Depois, cancelar e reembolsar.
 
 ### Cadastro público
 
