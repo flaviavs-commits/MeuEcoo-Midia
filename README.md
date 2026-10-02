@@ -644,6 +644,36 @@ Para produção, configure também:
 - **Variáveis de ambiente** no servidor (não usar `.env` em produção)
 - **`DATABASE_URL`** apontando para o PostgreSQL de produção
 
+### Acesso ao PostgreSQL de produção (Railway)
+
+O Postgres de produção (`meuecoo-midia-postgres`) **não tem proxy TCP público**:
+ele foi removido em 02/10/2026 (achado S-01 da auditoria de 23/09/2026). A API
+fala com o banco só pela rede privada do Railway (`postgres.railway.internal`),
+via `DATABASE_URL`, que referencia a variável do serviço do banco.
+
+- **SQL pontual de manutenção:** entre no contêiner do banco e use o socket
+  local, sem expor a senha nem abrir porta pública:
+
+  ```bash
+  railway ssh -p <projeto> -e <ambiente> -s meuecoo-midia-postgres
+  psql -h /var/run/postgresql -U "$PGUSER" -d "$PGDATABASE"
+  ```
+
+  Use `-h /var/run/postgresql`: as variáveis `PG*` do contêiner só são
+  atualizadas quando o serviço do banco é redeployado, e podem carregar uma
+  senha antiga depois de uma rotação.
+- **`DATABASE_PUBLIC_URL` / `railway connect` / `railway run` com a URL pública
+  não funcionam mais.** Se um uso externo surgir, recrie o proxy de forma
+  temporária (`railway tcp-proxy create --port 5432`), use e apague em seguida —
+  o Railway não oferece allowlist de IP para proxy TCP.
+- **Rotação de senha:** gere a senha nova, aplique no banco com
+  `ALTER ROLE postgres PASSWORD ...` (de preferência com o verificador SCRAM já
+  calculado, para o texto puro não trafegar), atualize `POSTGRES_PASSWORD` no
+  serviço do banco e faça redeploy da API. `DATABASE_URL` do banco é montada a
+  partir de `POSTGRES_PASSWORD`, então basta trocar essa variável. Entre o
+  `ALTER ROLE` e a API nova subir, conexões novas da réplica antiga falham com
+  `password authentication failed`.
+
 ## Testes
 
 ```bash
