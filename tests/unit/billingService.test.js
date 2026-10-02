@@ -564,6 +564,43 @@ describe('billingService.handleWebhook — ciclo de vida da assinatura', () => {
     expect(usersRepo.atualizarPlanoPorAssinatura).toHaveBeenCalledWith(7, { plan: 'pro', planActive: true })
   })
 
+  // Formato das versões recentes da API (2026-03-25.dahlia, medido numa fatura
+  // real de modo teste): sem `subscription` no topo, tudo em
+  // parent.subscription_details. É a primeira fatura chegando antes do
+  // Customer estar vinculado à conta.
+  test('invoice.paid no formato novo resolve a conta pela metadata da assinatura e vincula o Customer', async () => {
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue(null)
+    usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', stripeCustomerId: null })
+    subscriptionsRepo.buscarPorStripeSubscriptionId.mockResolvedValue({ id: 1, userId: 7, plan: 'pro' })
+
+    const result = await billingService.handleWebhook({
+      type: 'invoice.paid',
+      data: { object: {
+        id: 'in_123', customer: 'cus_novo', billing_reason: 'subscription_create',
+        parent: { type: 'subscription_details', subscription_details: { subscription: 'sub_123', metadata: { user_id: '7', to_plan: 'pro' } } },
+      } },
+    })
+
+    expect(result).toEqual({ status: 'paid' })
+    expect(usersRepo.salvarStripeCustomerId).toHaveBeenCalledWith(7, 'cus_novo')
+    expect(subscriptionsRepo.buscarPorStripeSubscriptionId).toHaveBeenCalledWith('sub_123')
+    expect(usersRepo.atualizarPlanoPorAssinatura).toHaveBeenCalledWith(7, { plan: 'pro', planActive: true })
+    expect(mailer.enviarEmailAlertaPagamentoNaoVinculado).not.toHaveBeenCalled()
+  })
+
+  test('invoice.payment_failed no formato novo usa o plano da assinatura em parent.subscription_details', async () => {
+    usersRepo.buscarPorStripeCustomerId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', plan: 'basico' })
+    subscriptionsRepo.buscarPorStripeSubscriptionId.mockResolvedValue({ id: 1, userId: 7, plan: 'premium' })
+
+    await billingService.handleWebhook({
+      type: 'invoice.payment_failed',
+      data: { object: { id: 'in_falha', customer: 'cus_123', parent: { subscription_details: { subscription: 'sub_123', metadata: {} } } } },
+    })
+
+    expect(subscriptionsRepo.buscarPorStripeSubscriptionId).toHaveBeenCalledWith('sub_123')
+    expect(mailer.enviarEmailFalhaCobrancaAssinatura).toHaveBeenCalledWith('cliente@allowed.test', expect.objectContaining({ planName: 'EcooMidia Premium' }))
+  })
+
   test('invoice.paid sem conta identificada vira unlinked e avisa os admins', async () => {
     usersRepo.buscarPorStripeCustomerId.mockResolvedValue(null)
     usersRepo.listarEmailsAdmins.mockResolvedValue(['admin@vitissouls.com'])

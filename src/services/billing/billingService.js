@@ -623,15 +623,18 @@ async function vincularStripeCustomer(user, stripeCustomerId) {
 // resolver pelo Customer. O Customer é o fallback para eventos em que a
 // metadata não sobrevive (ex.: assinatura editada manualmente no dashboard
 // da Stripe, sem passar pelo nosso checkout).
+async function resolveUserByMetadata(metadata, stripeCustomerId) {
+  const metadataUserId = Number(metadata?.user_id)
+  if (!Number.isInteger(metadataUserId) || metadataUserId <= 0) return null
+  const user = await usersRepo.buscarPorId(metadataUserId)
+  if (!user?.id) return null
+  await vincularStripeCustomer(user, stripeCustomerId)
+  return user
+}
+
 async function resolveSubscriptionUser(object) {
-  const metadataUserId = Number(object?.metadata?.user_id)
-  if (Number.isInteger(metadataUserId) && metadataUserId > 0) {
-    const user = await usersRepo.buscarPorId(metadataUserId)
-    if (user?.id) {
-      await vincularStripeCustomer(user, object?.customer)
-      return user
-    }
-  }
+  const byMetadata = await resolveUserByMetadata(object?.metadata, object?.customer)
+  if (byMetadata) return byMetadata
   if (object?.customer) {
     const user = await usersRepo.buscarPorStripeCustomerId(object.customer)
     if (user?.id) return user
@@ -724,14 +727,46 @@ async function handleSubscriptionDeleted(object) {
   return { status: 'ok' }
 }
 
-// invoice.paid não carrega a metadata do checkout (metadata é da assinatura,
-// não da fatura) — resolve pelo Customer, plano igual ao já salvo em
-// `subscriptions` (a fonte de verdade do plano contratado).
+// Nas versões recentes da API da Stripe a Invoice não tem mais `subscription`
+// no topo: a assinatura e a metadata dela moram em
+// `parent.subscription_details` (os eventos desta conta chegam na versão
+// 2026-03-25.dahlia, conferido numa fatura real de modo teste em 02/10/2026).
+// Lê os dois formatos para não depender da versão configurada no endpoint.
+function invoiceSubscription(object) {
+  const details = object?.parent?.subscription_details || object?.subscription_details || null
+  const subscription = object?.subscription || details?.subscription || null
+  return {
+    subscriptionId: typeof subscription === 'string' ? subscription : subscription?.id || null,
+    metadata: details?.metadata || null,
+  }
+}
+
+// Resolve pelo Customer; se ele ainda não foi vinculado, pela metadata da
+// assinatura que a fatura carrega. A primeira fatura pode chegar antes de
+// checkout.session.completed e de customer.subscription.created (a Stripe não
+// garante ordem) — sem esse fallback ela cairia como não vinculada e
+// alertaria os admins à toa em toda assinatura nova (medido no e2e de
+// 02/10/2026).
+async function resolveInvoiceUser(object) {
+  if (object?.customer) {
+    const user = await usersRepo.buscarPorStripeCustomerId(object.customer)
+    if (user?.id) return user
+  }
+  return resolveUserByMetadata(invoiceSubscription(object).metadata, object?.customer)
+}
+
+async function buscarAssinaturaDaFatura(object) {
+  const { subscriptionId } = invoiceSubscription(object)
+  return subscriptionId ? subscriptionsRepo.buscarPorStripeSubscriptionId(subscriptionId) : null
+}
+
+// Plano igual ao já salvo em `subscriptions` (a fonte de verdade do plano
+// contratado).
 async function handleInvoicePaid(object) {
-  const user = object?.customer ? await usersRepo.buscarPorStripeCustomerId(object.customer) : null
+  const user = await resolveInvoiceUser(object)
   if (!user?.id) return logUnlinkedSubscriptionEvent(object, 'não foi possível identificar a conta da fatura paga')
 
-  const subscription = object?.subscription ? await subscriptionsRepo.buscarPorStripeSubscriptionId(object.subscription) : null
+  const subscription = await buscarAssinaturaDaFatura(object)
   await usersRepo.atualizarPlanoPorAssinatura(user.id, { plan: subscription?.plan || null, planActive: true })
   return { status: 'paid' }
 }
@@ -746,7 +781,7 @@ async function handleInvoicePaid(object) {
 // Gmail fora do ar) vira log de erro e não derruba o webhook, mesmo padrão já
 // usado no alerta de pagamento não vinculado.
 async function handleInvoicePaymentFailed(object) {
-  const user = object?.customer ? await usersRepo.buscarPorStripeCustomerId(object.customer) : null
+  const user = await resolveInvoiceUser(object)
   await addLog(
     'err',
     `Falha de cobrança recorrente da assinatura (invoice.payment_failed). ` +
@@ -755,7 +790,7 @@ async function handleInvoicePaymentFailed(object) {
   )
 
   if (user?.email) {
-    const subscription = object?.subscription ? await subscriptionsRepo.buscarPorStripeSubscriptionId(object.subscription) : null
+    const subscription = await buscarAssinaturaDaFatura(object)
     const plan = PLANS[canonicalPlanId(subscription?.plan || user.plan)]
     try {
       await mailer.enviarEmailFalhaCobrancaAssinatura(user.email, {
@@ -864,10 +899,7 @@ async function handleWebhook(event) {
         // A Stripe não garante a ordem dos eventos: vincular aqui também evita
         // que um invoice.paid chegado antes de customer.subscription.created
         // caia como não vinculado.
-        const metadataUserId = Number(metadata.user_id)
-        if (object.customer && Number.isInteger(metadataUserId) && metadataUserId > 0) {
-          await vincularStripeCustomer(await usersRepo.buscarPorId(metadataUserId), object.customer)
-        }
+        if (object.customer) await resolveUserByMetadata(metadata, object.customer)
         await sendMeuEcooAccessEmail(confirmed, object, metadata)
         return { status: 'paid' }
       }
