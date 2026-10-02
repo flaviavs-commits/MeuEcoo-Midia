@@ -302,21 +302,30 @@ para que webhooks repetidos não dupliquem a mensagem.
 ### Esqueci minha senha
 
 Fluxo completo em `/login.html` → `/reset-password.html`: gera um token de
-uso único (validade de 1 hora) e envia um link por e-mail via Gmail SMTP
+uso único (validade de 1 hora) e envia um link por e-mail via SMTP
 (`src/services/mailer.js`). Requer configurar no `.env`:
 
 ```env
 SESSION_SECRET=defina_um_valor_aleatorio_longo
 GOOGLE_LOGIN_REDIRECT_URI=http://localhost:3000/auth/login/google/callback
-GMAIL_USER=seu_email@gmail.com
-GMAIL_APP_PASSWORD=senha_de_app_de_16_caracteres
+SMTP_HOST=smtp-relay.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_FROM=contato@seu-dominio.com.br
+# opcionais — necessários se o servidor SMTP exigir login:
+SMTP_USER=contato@seu-dominio.com.br
+SMTP_PASS=senha_de_app
 ```
 
-> `GMAIL_APP_PASSWORD` é uma "senha de app" gerada em
-> https://myaccount.google.com/apppasswords — não é a senha normal da conta
-> Google. Sem essa configuração, o link de redefinição não é enviado (o
-> restante do fluxo, incluindo a troca de senha em si, continua funcionando
-> caso o token seja obtido por outro meio).
+> Todo e-mail do sistema (redefinição de senha, acesso ao MeuEcoo, relatórios
+> agendados, alertas de cobrança) sai por esta configuração. Produção usa o
+> relay SMTP do Google Workspace com o remetente institucional. Sem
+> `SMTP_USER`/`SMTP_PASS`, o relay só aceita o envio se o admin do Workspace
+> autorizar o IP de saída do servidor. O par legado
+> `GMAIL_USER`/`GMAIL_APP_PASSWORD` (senha de app de uma conta Google) só é
+> usado quando `SMTP_HOST` não está definido. Sem nenhuma das duas
+> configurações, o envio falha com "E-mail não configurado para …" no log, e
+> o restante do fluxo continua funcionando.
 
 ### Multi-tenancy (isolamento por usuário)
 
@@ -718,7 +727,7 @@ As migrations `045_priority_features.sql` a `048_api_keys.sql` adicionam:
 
 - Biblioteca de mídia em `/app/biblioteca` (`/api/media-assets`), com upload direto, pastas e busca.
 - Filas recorrentes em `/app/filas` (`/api/content-queues`), que criam posts agendados nos dias e horários configurados.
-- Relatórios por e-mail configuráveis dentro de Relatórios (`/api/report-schedules`). O envio exige `GMAIL_USER` e `GMAIL_APP_PASSWORD`.
+- Relatórios por e-mail configuráveis dentro de Relatórios (`/api/report-schedules`). O envio usa a configuração de SMTP descrita em "Esqueci minha senha".
 - Smartlinks em `/app/smartlinks` (`/api/smartlinks`), com páginas públicas em `/go/:slug` e contagem de cliques.
 - Espaços de trabalho, membros, identidade visual e aprovação de posts em `/app/equipe` (`/api/workspaces`).
 - Webhooks assinados em `/app/automacoes` (`/api/webhooks`) para eventos `post_published` e `approval_updated`.

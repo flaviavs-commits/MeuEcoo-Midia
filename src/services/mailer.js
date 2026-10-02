@@ -1,12 +1,42 @@
 const nodemailer = require('nodemailer')
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD
+// Dois jeitos de enviar. O principal (02/10/2026) é um SMTP genérico
+// (SMTP_HOST/SMTP_PORT/SMTP_SECURE/SMTP_FROM) — hoje o relay do Google
+// Workspace com o remetente institucional, depois que a conta pessoal de um
+// ex-colaborador saiu de GMAIL_USER (entrada LGPD do IA.md de 01/10/2026).
+// SMTP_USER/SMTP_PASS são opcionais: o relay do Workspace pode autorizar por
+// IP em vez de login. GMAIL_USER/GMAIL_APP_PASSWORD ficam só como fallback.
+function mailConfig() {
+  const env = process.env
+  if (env.SMTP_HOST) {
+    const from = env.SMTP_FROM || env.SMTP_USER
+    if (!from) return null
+    const port = Number(env.SMTP_PORT) || 587
+    const secure = env.SMTP_SECURE ? String(env.SMTP_SECURE).toLowerCase() === 'true' : port === 465
+    const transport = { host: env.SMTP_HOST, port, secure }
+    // O relay do Google recusa EHLO genérico (nome do contêiner); o domínio
+    // do remetente identifica o servidor de quem envia.
+    const ehloName = env.SMTP_EHLO_NAME || String(from).split('@')[1]
+    if (ehloName) transport.name = ehloName
+    if (env.SMTP_USER && env.SMTP_PASS) transport.auth = { user: env.SMTP_USER, pass: env.SMTP_PASS }
+    return { key: `smtp:${env.SMTP_HOST}:${port}:${secure}:${ehloName}:${env.SMTP_USER || ''}`, transport, from }
   }
-})
+  if (env.GMAIL_USER && env.GMAIL_APP_PASSWORD) {
+    return { key: `gmail:${env.GMAIL_USER}`, transport: { service: 'gmail', auth: { user: env.GMAIL_USER, pass: env.GMAIL_APP_PASSWORD } }, from: env.GMAIL_USER }
+  }
+  return null
+}
+
+let cachedTransporter = null
+
+async function sendMail(contexto, message) {
+  const config = mailConfig()
+  if (!config) throw new Error(`E-mail não configurado para ${contexto}`)
+  if (cachedTransporter?.key !== config.key) {
+    cachedTransporter = { key: config.key, transporter: nodemailer.createTransport(config.transport) }
+  }
+  return cachedTransporter.transporter.sendMail({ from: `"Meu Ecoo Mídia" <${config.from}>`, ...message })
+}
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -17,15 +47,8 @@ function escapeHtml(value) {
     .replace(/'/g, '&#39;')
 }
 
-function ensureEmailConfigured() {
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) {
-    throw new Error('E-mail não configurado para liberação do MeuEcoo')
-  }
-}
-
 async function enviarEmailRedefinicaoSenha(email, resetLink) {
-  await transporter.sendMail({
-    from: `"Meu Ecoo Mídia" <${process.env.GMAIL_USER}>`,
+  await sendMail('redefinição de senha', {
     to: email,
     subject: 'Redefinição de senha — Meu Ecoo Mídia',
     html: `
@@ -44,14 +67,12 @@ async function enviarEmailRedefinicaoSenha(email, resetLink) {
 }
 
 async function enviarEmailAcessoMeuEcoo(email, { fullName, planName, offer, accessUrl }) {
-  ensureEmailConfigured()
   const safeName = escapeHtml(fullName || 'Olá')
   const safePlanName = escapeHtml(planName || 'seu plano')
   const safeOffer = escapeHtml(offer || 'Seu plano inclui acesso ao MeuEcoo.')
   const safeAccessUrl = escapeHtml(accessUrl)
 
-  await transporter.sendMail({
-    from: `"Meu Ecoo Mídia" <${process.env.GMAIL_USER}>`,
+  await sendMail('liberação do MeuEcoo', {
     to: email,
     subject: 'Seu acesso ao MeuEcoo está liberado',
     html: `
@@ -73,11 +94,9 @@ async function enviarEmailAcessoMeuEcoo(email, { fullName, planName, offer, acce
 }
 
 async function enviarRelatorioAgendado(recipients, name, periodDays, summary, { pdf, filename } = {}) {
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) throw new Error('E-mail não configurado para relatórios agendados')
   const safeName = escapeHtml(name || 'Relatório operacional')
   const subjectName = String(name || 'Relatório operacional').replace(/[\r\n]+/g, ' ').trim().slice(0, 120)
-  await transporter.sendMail({
-    from: `"Meu Ecoo Mídia" <${process.env.GMAIL_USER}>`,
+  await sendMail('relatórios agendados', {
     to: recipients.join(', '),
     subject: `${subjectName} — relatório dos últimos ${periodDays} dias`,
     html: `<div style="font-family:sans-serif;max-width:620px;margin:0 auto"><h2>${safeName}</h2><p>Resumo operacional dos últimos ${periodDays} dias:</p><ul>${summary}</ul><p style="color:#777">O relatório completo está anexado em PDF.</p></div>`,
@@ -86,7 +105,6 @@ async function enviarRelatorioAgendado(recipients, name, periodDays, summary, { 
 }
 
 async function enviarEmailAlertaPagamentoNaoVinculado(recipients, { reason, sessionId, amountCents, currency, clientReferenceId, customerEmail, adminUrl }) {
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) throw new Error('E-mail não configurado para o alerta de cobrança')
   const safeReason = escapeHtml(reason || 'motivo não informado')
   const safeSessionId = escapeHtml(sessionId || 'desconhecida')
   const valor = Number.isFinite(Number(amountCents)) ? `${(Number(amountCents) / 100).toFixed(2)} ${String(currency || '').toUpperCase()}` : 'valor desconhecido'
@@ -94,8 +112,7 @@ async function enviarEmailAlertaPagamentoNaoVinculado(recipients, { reason, sess
   const safeCustomerEmail = escapeHtml(customerEmail || 'ausente')
   const safeAdminUrl = escapeHtml(adminUrl)
 
-  await transporter.sendMail({
-    from: `"Meu Ecoo Mídia" <${process.env.GMAIL_USER}>`,
+  await sendMail('o alerta de cobrança', {
     to: recipients.join(', '),
     subject: '⚠️ Pagamento confirmado sem conta vinculada',
     html: `
@@ -127,15 +144,13 @@ async function enviarEmailAlertaPagamentoNaoVinculado(recipients, { reason, sess
 // que muda é o que aconteceu com o dinheiro). Decisão registrada no IA.md de
 // 11/09/2026 (task "decidir o que fazer em reembolso e disputa").
 async function enviarEmailAlertaEventoStripe(recipients, { title, description, rows = [], adminUrl }) {
-  if (!process.env.GMAIL_USER || !process.env.GMAIL_APP_PASSWORD) throw new Error('E-mail não configurado para o alerta de cobrança')
   const safeTitle = escapeHtml(title)
   const safeDescription = escapeHtml(description)
   const safeAdminUrl = escapeHtml(adminUrl)
   const rowsHtml = rows.map(([label, value]) => `<tr><td style="padding: 4px 8px; color: #888;">${escapeHtml(label)}</td><td style="padding: 4px 8px;">${escapeHtml(value ?? 'não informado')}</td></tr>`).join('')
   const rowsText = rows.map(([label, value]) => `${label}: ${value ?? 'não informado'}`).join('. ')
 
-  await transporter.sendMail({
-    from: `"Meu Ecoo Mídia" <${process.env.GMAIL_USER}>`,
+  await sendMail('o alerta de cobrança', {
     to: recipients.join(', '),
     subject: `⚠️ ${title}`,
     html: `
@@ -161,12 +176,10 @@ async function enviarEmailAlertaEventoStripe(recipients, { title, description, r
 // atualização de forma de pagamento, porque isso depende do Customer Portal
 // (task ainda não feita).
 async function enviarEmailFalhaCobrancaAssinatura(email, { fullName, planName }) {
-  ensureEmailConfigured()
   const safeName = escapeHtml(fullName || 'Olá')
   const safePlanName = escapeHtml(planName || 'sua assinatura')
 
-  await transporter.sendMail({
-    from: `"Meu Ecoo Mídia" <${process.env.GMAIL_USER}>`,
+  await sendMail('o aviso de falha de cobrança', {
     to: email,
     subject: 'Não conseguimos processar a cobrança da sua assinatura',
     html: `
