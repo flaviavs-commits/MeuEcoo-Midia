@@ -440,6 +440,23 @@ Cada publicação enviada à Zernio leva um `metadata` com `clienteId`, `postId`
 exata da publicação no banco; eventos antigos sem metadata continuam usando o
 ID do post da Zernio como fallback.
 
+Em produção (desde 02/10/2026) o webhook da Zernio aponta **direto para o
+Railway** (`https://social-api-manager-production.up.railway.app/webhooks/zernio`,
+o mesmo valor de `ZERNIO_WEBHOOK_URL`), sem passar pelo domínio da Vercel.
+Cuidados que já derrubaram essa integração:
+
+- **Nome da variável sem espaço.** Em produção ela chegou a estar cadastrada como
+  `" ZERNIO_WEBHOOK_SECRET"` (espaço no início); o processo recebia a variável
+  certa vazia e o endpoint respondia `503 Webhook da Zernio não configurado.`
+  para toda entrega. Teste rápido depois de qualquer mudança: um `POST` sem
+  assinatura deve responder `401`, não `503`.
+- **Desativação automática.** A Zernio desliga o endpoint depois de 3 dias sem
+  entrega bem-sucedida (`disabledReason: auto:sustained_failure`) e os eventos
+  desse período não são reenviados. Para reativar: `PUT /v1/webhooks/settings`
+  com `_id` e `isActive: true`; para conferir: `POST /v1/webhooks/test` com
+  `webhookId` e `GET /v1/webhooks/logs?webhookId=...` (o teste deve voltar
+  `200 {"received":true}`).
+
 Consulte a documentação oficial em:
 https://docs.zernio.com/webhooks
 
