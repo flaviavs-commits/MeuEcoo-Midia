@@ -1,5 +1,43 @@
 # Resumo da Auditoria de Segurança e Saúde Técnica
 
+## Estado em 02/10/2026
+
+> Atualização medida em 02/10/2026 sobre o código de `main` (`755e969e`) e a
+> produção. O resumo abaixo é o registro histórico de 14/08/2026 e foi mantido
+> como estava. Detalhe completo em `AUDITORIA-SEGURANCA.md`, seção "Estado em
+> 02/10/2026", e na [Auditoria completa — 23/09/2026](https://app.notion.com/p/Auditoria-completa-MeuEcoo-Midia-23-09-2026-3e491f95497e8192b5bff760ea7fd5fe).
+
+**Dos 5 achados altos de agosto, os 5 estão resolvidos:** SSRF em webhooks
+(`src/utils/outboundUrl.js`), associação OAuth sem correlação
+(`src/routes/oauth.js:348-353`), replay de aprovação da IA (`consumirAprovacao`),
+IA fora das regras centrais de publicação (`criarPost`) e posts presos em
+`processing` (0 em produção em 02/10).
+
+**Dos médios, resolvidos:** CSRF (token de duplo envio), token de reset fora da
+query string, reautenticação para configurar 2FA, migrations fail-closed, rate
+limit compartilhado no Postgres (o achado S-02 da auditoria de 23/09 não procede), aprovação restrita a `owner`/`admin`/`reviewer`
+e tokens OAuth temporários cifrados. **Não reverificados em 02/10:** limites
+agregados de upload, paginação em todas as listagens, quota diária da IA
+atômica, transações/idempotência nas operações de negócio e o envio de senha ao
+Meu Ecoo no login (`src/routes/auth.js:112`, comportamento ainda presente).
+
+**Dos baixos:** `Content-Security-Policy` já é aplicada em produção.
+
+**Infraestrutura:** o proxy TCP público do Postgres foi removido e a senha do
+banco rotacionada em 02/10; o webhook da Zernio voltou a funcionar em 02/10
+(estava desativado desde 14/09 por um espaço no nome da variável). O domínio
+`meuecoomidia.com.br` não respondeu nos testes de 02/10 (DNS aponta para um IP
+que recusa conexão) — task urgente aberta.
+
+**Testes e dependências em 02/10:** 67 suítes / 717 testes backend aprovados;
+`npm audit --omit=dev` passou a acusar 2 vulnerabilidades altas (`nodemailer`,
+`undici`) e 1 moderada (`ip-address`), todas com correção disponível.
+
+**Em aberto:** Row-Level Security (0 de 50 tabelas), dependências vulneráveis,
+DNS do domínio, segredos copiados no serviço do banco, `OPENAI_API_KEY` com
+quebra de linha, erros `Account not found` da Zernio, validação da réplica
+única e redução do volume do Postgres — todos com task no Notion.
+
 ## Escopo
 
 Auditoria ampla do backend Express/Node, frontend React/Vite, PostgreSQL, autenticação, OAuth, uploads, integrações sociais, deploy Vercel/Railway, dependências, portas locais, produção e logs disponíveis.

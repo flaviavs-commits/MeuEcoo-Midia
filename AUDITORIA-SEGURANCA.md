@@ -3,6 +3,53 @@
 Data da análise: 2026-08-09  
 Escopo: backend Node/Express, frontend React, PostgreSQL, autenticação, OAuth, tokens de redes sociais, uploads, IA, webhooks e implantação Vercel/Railway/Docker.
 
+## Estado em 02/10/2026
+
+> Esta seção atualiza o plano abaixo com o que foi **medido** em 02/10/2026 no
+> código de `main` (`755e969e`) e na produção (Railway). O restante do documento
+> é o registro histórico de 09–10/08/2026 e foi mantido como estava. Fonte
+> complementar: [Auditoria completa — 23/09/2026](https://app.notion.com/p/Auditoria-completa-MeuEcoo-Midia-23-09-2026-3e491f95497e8192b5bff760ea7fd5fe).
+
+### Já corrigido (conferido no código ou em produção)
+
+| Item do plano | Evidência em 02/10/2026 |
+| --- | --- |
+| P0.1 bypass global de autenticação | `src/middleware/requireAuth.js:13` só aceita `REVIEW_MODE_NO_AUTH` com `NODE_ENV=development`; a variável não existe no serviço de produção |
+| P0.2 sessão fora do `localStorage` | cookie de sessão `HttpOnly` em `src/utils/authCookie.js`; Bearer legado só fora de produção (`requireAuth.js:30`) |
+| P0.4 SSRF em mídia e webhooks | `src/utils/outboundUrl.js` usado por `src/routes/webhooks.js` e `src/services/webhookService.js` (bloqueio de redes privadas e IP fixado contra DNS rebinding) |
+| P0.5 CORS e CSRF | allowlist exata em `src/server.js:82-84`; mutações autenticadas exigem token CSRF de duplo envio (`src/server.js`, bloco de `mutating`) |
+| P1.1 reset de senha | link usa fragmento (`#token=`), não query string (`src/routes/auth.js:294`) |
+| P1.2 2FA | configurar o 2FA exige a senha atual (`src/routes/me.js:162-167`) |
+| P1.3 aprovação da IA | aprovação de uso único (`consumirAprovacao`, `src/routes/ai.js:1825`); a IA cria posts pelo mesmo caso de uso do agendador (`criarPost`, `src/routes/ai.js:17`); só `owner`/`admin`/`reviewer` aprovam conteúdo (`src/routes/workspaces.js:63`) |
+| P1.4 rate limiting compartilhado | os 11 limitadores de `server.js`, `auth.js`, `me.js`, `ai.js`, `billing.js` e `http/routes/posts.js` usam `createRateLimitStore` (contadores no Postgres, `src/infra/http/postgresRateLimitStore.js`), desde 17/08 (`bc86eeef`); em produção `rate_limit_counters` tinha 75 chaves de 9 limitadores. O achado S-02 da auditoria de 23/09 ("rate limiting em memória") não procede: ele procurou só por `RedisStore` |
+| P1.5 OAuth | sem escolha da "conta mais recente" (`src/routes/oauth.js:348-353`); tokens temporários de pendência cifrados (`src/routes/oauth.js:188`) |
+| P2 cabeçalhos | `Content-Security-Policy` aplicada em produção (`src/server.js:100`) |
+| P3 banco e execução | TLS com `rejectUnauthorized: true` (`src/db/pool.js:35`); migrations de runtime falham fechado (`src/db/runtimeMigrations.js:11`, `bestEffort = requiredQuery`) |
+| P3 exposição do banco | **proxy TCP público do Postgres removido e senha do banco rotacionada em 02/10/2026** (achado S-01 de 23/09) |
+| Webhook da Zernio | variável `ZERNIO_WEBHOOK_SECRET` corrigida e webhook reativado em 02/10/2026 (achado E-01 de 23/09); nenhum post em `processing` |
+
+### Ainda em aberto
+
+| Item | Estado medido | Task |
+| --- | --- | --- |
+| Row-Level Security (P1.3) | 0 de 50 tabelas de `public` com RLS; nenhuma migration cria política | [Ativar RLS](https://app.notion.com/p/3e491f95497e8194a5d1d1fe2abc52d5) |
+| Dependências de produção | `npm audit --omit=dev`: 2 altas (`nodemailer` 9.1.1, `undici` 6.28.0) e 1 moderada (`ip-address`, via `express-rate-limit`), todas com correção disponível | [Atualizar nodemailer e undici](https://app.notion.com/p/3ed91f95497e81bdb2cadc5ef5b7dc9c) |
+| Domínio público | `meuecoomidia.com.br` resolve para `216.198.79.1`, que recusou conexão na 443 nos testes de 02/10; o projeto Vercel responde em `76.76.21.21` | [Corrigir o DNS](https://app.notion.com/p/3ed91f95497e81be889ce994ee6cfbff) |
+| Segredos fora do lugar | o serviço do Postgres no Railway guarda cópias de segredos da aplicação (`TOKEN_ENCRYPTION_KEY`, `AUTH_TOKEN_SECRET`, segredos OAuth) | [Tirar os segredos do serviço do banco](https://app.notion.com/p/3ed91f95497e81c88795cef99272e88e) |
+| Variáveis com espaço | `OPENAI_API_KEY` termina com quebra de linha e `src/routes/ai.js` não faz `trim()` | [Corrigir a OPENAI_API_KEY](https://app.notion.com/p/3ed91f95497e8143acc8ec0346c4d689) |
+| Erros `ZernioError: Account not found` | não reverificado em 02/10 | [Investigar causa raiz](https://app.notion.com/p/3e491f95497e81359925c8fb81264c23) |
+| Réplica única + Sleep | serviço com `numReplicas: 1` e `sleepApplication: true`; efeito sob pico ainda não medido | [Validar réplica única](https://app.notion.com/p/3e491f95497e81419ab0d71bf55a603c) |
+| Volume do Postgres | 50 GB provisionados; banco com 26 MB | [Avaliar reduzir o volume](https://app.notion.com/p/3e491f95497e81bcb3badc8d2235cc2f) |
+| Recovery codes/WebAuthn, storage privado, assinatura mágica no upload, pentest/DAST | não reverificados em 02/10; seguem como pendências do plano original | — |
+
+### Testes em 02/10/2026
+
+`npm ci` + `npx jest --ci` em `755e969e` (Node 25.8.2): **67 suítes, 717 testes, todos aprovados**. Os testes de componentes do frontend (`npm run test:components`) não foram rodados nesta atualização.
+
+### Tasks abertas em 02/10/2026
+
+As pendências acima estão no To Do List da HOME (Notion), cada uma ligada à [auditoria de 23/09/2026](https://app.notion.com/p/Auditoria-completa-MeuEcoo-Midia-23-09-2026-3e491f95497e8192b5bff760ea7fd5fe).
+
 ## Resumo executivo
 
 A aplicação já possui bons controles: queries parametrizadas, separação de credenciais, bcrypt, TOTP, PKCE para TikTok, assinatura de webhooks, criptografia AES-256-GCM para tokens, filtros de multi-tenancy e cabeçalhos básicos.
