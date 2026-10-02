@@ -76,6 +76,25 @@ assertProductionSecrets()
 // proxy na frente (o ngrok), que é a única camada entre o cliente e este processo.
 app.set('trust proxy', config.trustProxy)
 
+// DIAGNÓSTICO TEMPORÁRIO (02/10/2026): mede quais headers de IP chegam pela
+// Vercel e pelo Railway, para escolher a chave dos rate limits. Só registra com
+// o marcador abaixo, grava nomes de headers e IPs em hash, e sai no commit seguinte.
+app.use((req, res, next) => {
+  if (req.query?.['diag-ip'] !== 'f8f45d205cdefcd22744bd02') return next()
+  const hash = v => require('node:crypto').createHash('sha256').update('f8f45d205cdefcd22744bd02:' + String(v).trim()).digest('hex').slice(0, 10)
+  const lista = v => String(v || '').split(',').filter(Boolean).map(hash)
+  console.log('[diag-ip]', JSON.stringify({
+    via: req.query['via'],
+    headers: Object.keys(req.headers).sort(),
+    xff: lista(req.headers['x-forwarded-for']),
+    xRealIp: lista(req.headers['x-real-ip']),
+    xVercelForwardedFor: lista(req.headers['x-vercel-forwarded-for']),
+    reqIp: hash(req.ip),
+    socket: hash(req.socket?.remoteAddress)
+  }))
+  next()
+})
+
 // Frontend e backend podem estar em origens diferentes. A sessão viaja em
 // cookie HttpOnly; CORS precisa ser explícito e nunca pode cair em `true`.
 app.use(cors({
