@@ -29,7 +29,9 @@ jobs:
           VERCEL_DEPLOY_TOKEN: ${{ secrets.VERCEL_DEPLOY_TOKEN }}
         run: |
           set -euo pipefail
-          if [ -z "${VERCEL_DEPLOY_TOKEN:-}" ]; then
+          # Remove espaços e quebras de linha que vêm junto ao colar o token.
+          VERCEL_DEPLOY_TOKEN=$(printf '%s' "${VERCEL_DEPLOY_TOKEN:-}" | tr -d '[:space:]')
+          if [ -z "$VERCEL_DEPLOY_TOKEN" ]; then
             echo "::error::Secret VERCEL_DEPLOY_TOKEN não configurado neste repositório."
             exit 1
           fi
