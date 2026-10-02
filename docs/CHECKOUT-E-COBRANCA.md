@@ -187,7 +187,13 @@ checkout vai com `customer_email` (a conta ainda não tem Customer), esse campo
 é preenchido pelo webhook: `checkout.session.completed` e os eventos
 `customer.subscription.*` gravam o `customer` na conta resolvida por
 `metadata.user_id` (`billingService.vincularStripeCustomer`). Nunca sobrescreve
-um Customer diferente já gravado — só registra log. Até 02/10/2026 ninguém
+um Customer diferente já gravado — só registra log. Os eventos `invoice.*`
+também caem na `metadata.user_id` da assinatura quando o Customer ainda não
+está vinculado, porque a primeira fatura pode chegar antes dos outros eventos
+(a Stripe não garante ordem). Nas versões recentes da API (os eventos desta
+conta chegam em `2026-03-25.dahlia`), a Invoice não tem mais `subscription` no
+topo: a assinatura e a metadata ficam em `parent.subscription_details`, e
+`billingService.invoiceSubscription` lê os dois formatos. Até 02/10/2026 ninguém
 gravava esse campo no primeiro pagamento: o e2e contra produção mostrou o
 `invoice.paid` caindo como não vinculado e o portal respondendo
 `400 no_stripe_customer` para um cliente pagante.
