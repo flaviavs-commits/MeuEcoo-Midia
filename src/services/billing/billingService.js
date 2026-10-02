@@ -595,6 +595,29 @@ async function linkPaymentManually({ gatewaySessionId, userId, toPlan, adminId }
 const SUBSCRIPTION_STATUSES_GRANT_ACCESS = ['trialing', 'active']
 const SUBSCRIPTION_STATUSES_REVOKE_ACCESS = ['canceled', 'unpaid']
 
+// O primeiro checkout vai com customer_email (a conta ainda não tem
+// Customer), e a Stripe só cria o Customer quando o pagamento conclui — a
+// sessão devolvida na criação vem com customer=null, então requestPlanChange
+// não tem o que salvar. Sem gravar aqui, invoice.paid/payment_failed,
+// charge.refunded (que só resolvem a conta pelo Customer) e o Customer Portal
+// nunca encontrariam o cliente. Achado no e2e de 02/10/2026 contra produção.
+// Só preenche quando a conta ainda não tem Customer: um Customer diferente
+// já gravado não é sobrescrito em silêncio, só registrado.
+async function vincularStripeCustomer(user, stripeCustomerId) {
+  if (!user?.id || typeof stripeCustomerId !== 'string' || !stripeCustomerId) return
+  if (user.stripeCustomerId === stripeCustomerId) return
+  if (user.stripeCustomerId) {
+    await addLog('err', `Customer da Stripe divergente para a conta: salvo=${user.stripeCustomerId} recebido=${stripeCustomerId}. Nada foi alterado.`, null, null, user.id)
+    return
+  }
+  try {
+    await usersRepo.salvarStripeCustomerId(user.id, stripeCustomerId)
+    user.stripeCustomerId = stripeCustomerId
+  } catch (error) {
+    await addLog('err', `Falha ao vincular o Customer da Stripe ${stripeCustomerId} à conta: ${error.message}`, null, null, user.id)
+  }
+}
+
 // user_id vem em subscription_data.metadata (gravado na criação do checkout,
 // task "checkout em modo assinatura") — é a via principal, mais direta que
 // resolver pelo Customer. O Customer é o fallback para eventos em que a
@@ -604,7 +627,10 @@ async function resolveSubscriptionUser(object) {
   const metadataUserId = Number(object?.metadata?.user_id)
   if (Number.isInteger(metadataUserId) && metadataUserId > 0) {
     const user = await usersRepo.buscarPorId(metadataUserId)
-    if (user?.id) return user
+    if (user?.id) {
+      await vincularStripeCustomer(user, object?.customer)
+      return user
+    }
   }
   if (object?.customer) {
     const user = await usersRepo.buscarPorStripeCustomerId(object.customer)
@@ -835,6 +861,13 @@ async function handleWebhook(event) {
         throw error
       }
       if (confirmed?.status === 'paid') {
+        // A Stripe não garante a ordem dos eventos: vincular aqui também evita
+        // que um invoice.paid chegado antes de customer.subscription.created
+        // caia como não vinculado.
+        const metadataUserId = Number(metadata.user_id)
+        if (object.customer && Number.isInteger(metadataUserId) && metadataUserId > 0) {
+          await vincularStripeCustomer(await usersRepo.buscarPorId(metadataUserId), object.customer)
+        }
         await sendMeuEcooAccessEmail(confirmed, object, metadata)
         return { status: 'paid' }
       }

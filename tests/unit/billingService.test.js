@@ -424,6 +424,56 @@ describe('billingService.handleWebhook — ciclo de vida da assinatura', () => {
     expect(usersRepo.atualizarPlanoPorAssinatura).toHaveBeenCalledWith(7, { plan: 'pro', planActive: true })
   })
 
+  // Primeiro checkout vai com customer_email: a conta só conhece o Customer
+  // quando o webhook chega. Sem isso, invoice.paid e o portal não acham a conta.
+  test('customer.subscription.created vincula o Customer à conta que ainda não tem um', async () => {
+    usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', plan: 'basico', stripeCustomerId: null })
+
+    await billingService.handleWebhook({
+      type: 'customer.subscription.created',
+      data: { object: { id: 'sub_123', customer: 'cus_novo', status: 'active', metadata: { user_id: '7', to_plan: 'pro' } } },
+    })
+
+    expect(usersRepo.salvarStripeCustomerId).toHaveBeenCalledWith(7, 'cus_novo')
+  })
+
+  test('customer.subscription.created não regrava o Customer que a conta já tem', async () => {
+    usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', plan: 'basico', stripeCustomerId: 'cus_123' })
+
+    await billingService.handleWebhook({
+      type: 'customer.subscription.created',
+      data: { object: { id: 'sub_123', customer: 'cus_123', status: 'active', metadata: { user_id: '7', to_plan: 'pro' } } },
+    })
+
+    expect(usersRepo.salvarStripeCustomerId).not.toHaveBeenCalled()
+  })
+
+  test('customer.subscription.created não sobrescreve um Customer diferente já gravado', async () => {
+    usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', plan: 'basico', stripeCustomerId: 'cus_antigo' })
+
+    const result = await billingService.handleWebhook({
+      type: 'customer.subscription.created',
+      data: { object: { id: 'sub_123', customer: 'cus_outro', status: 'active', metadata: { user_id: '7', to_plan: 'pro' } } },
+    })
+
+    expect(result).toEqual({ status: 'ok' })
+    expect(usersRepo.salvarStripeCustomerId).not.toHaveBeenCalled()
+  })
+
+  test('checkout.session.completed pago vincula o Customer pela metadata.user_id', async () => {
+    billingRepo.confirmarPagamento.mockResolvedValue({ id: 12, status: 'paid', toPlan: 'basico', meuEcooSelected: false })
+    usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', plan: 'basico', stripeCustomerId: null })
+
+    const result = await billingService.handleWebhook({
+      type: 'checkout.session.completed',
+      data: { object: { id: 'cs_123', payment_status: 'paid', amount_total: 8750, currency: 'brl', customer: 'cus_novo', metadata: { to_plan: 'basico', user_id: '7' } } },
+    })
+
+    expect(result).toEqual({ status: 'paid' })
+    expect(usersRepo.buscarPorId).toHaveBeenCalledWith(7)
+    expect(usersRepo.salvarStripeCustomerId).toHaveBeenCalledWith(7, 'cus_novo')
+  })
+
   test('customer.subscription.created com status incomplete não concede acesso ainda', async () => {
     usersRepo.buscarPorId.mockResolvedValue({ id: 7, email: 'cliente@allowed.test', plan: 'basico' })
 
