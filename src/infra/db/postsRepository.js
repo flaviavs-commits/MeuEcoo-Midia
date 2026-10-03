@@ -201,6 +201,36 @@ async function marcarContaPublicada(postAccountId) {
   await pool.query('UPDATE post_accounts SET publication_confirmed = TRUE WHERE id = $1', [postAccountId])
 }
 
+// Critérios compartilhados com o detector de trabalho do agendador externo
+// (src/services/agendadorTrabalho.js): a consulta barata e a reserva real
+// precisam concordar sobre o que é "trabalho", senão a API acorda à toa ou
+// deixa post vencido parado.
+//
+// Post agendado vencido: horário normal ou retry de erro transitório (ver
+// reagendarParaRetry, migrations/036 — o segundo caso sempre tem
+// next_retry_at, então uma condição não interfere na outra). Posts aceitos na
+// fila externa da Zernio são publicados por ela e ficam de fora. NÃO inclui a
+// trava por platform_health, que fica só na reserva: o detector precisa
+// acordar a API para rechecar a saúde mesmo com um "down" antigo gravado.
+function predicadoPostAgendadoVencido(alias = 'p') {
+  return `${alias}.status = 'scheduled' AND (${alias}.scheduled_at <= NOW() OR ${alias}.next_retry_at <= NOW())
+         AND NOT EXISTS (
+           SELECT 1 FROM post_accounts pa_scheduled
+           WHERE pa_scheduled.post_id = ${alias}.id
+             AND pa_scheduled.instagram_pending->>'provider' = 'zernio'
+             AND pa_scheduled.instagram_pending->>'scheduled' = 'true'
+         )`
+}
+
+// Reserva que sobreviveu a uma queda/redeploy sem confirmação externa.
+function predicadoProcessingParado(alias = 'p') {
+  return `${alias}.status = 'processing'
+       AND ${alias}.criado_em < NOW() - INTERVAL '6 hours'
+       AND NOT EXISTS (SELECT 1 FROM post_accounts pa WHERE pa.post_id = ${alias}.id AND pa.instagram_pending IS NOT NULL)
+       AND NOT EXISTS (SELECT 1 FROM post_accounts pa WHERE pa.post_id = ${alias}.id AND pa.instagram_pending->>'provider' = 'zernio' AND pa.instagram_pending->>'scheduled' = 'true')
+       AND NOT EXISTS (SELECT 1 FROM post_publications pp WHERE pp.post_id = ${alias}.id)`
+}
+
 // Marca atomicamente os posts agendados como "processing" antes de publicar,
 // para que dois ciclos do cron sobrepostos (ex: publicação lenta do Instagram)
 // nunca peguem e publiquem o mesmo post duas vezes.
@@ -210,19 +240,7 @@ async function reservarPostsPendentes() {
       UPDATE posts SET status = 'processing'
       WHERE id IN (
         SELECT p.id FROM posts p
-        -- Pega tanto posts agendados no horário normal quanto posts que
-        -- falharam por erro transitório e estão aguardando o retry (ver
-        -- reagendarParaRetry, migrations/036) — o segundo caso sempre tem
-        -- next_retry_at preenchido, então uma condição não interfere na outra.
-         WHERE p.status = 'scheduled' AND (p.scheduled_at <= NOW() OR p.next_retry_at <= NOW())
-         -- Posts aceitos na fila externa da Zernio são publicados por ela;
-         -- o cron local não pode dispará-los novamente no mesmo horário.
-         AND NOT EXISTS (
-           SELECT 1 FROM post_accounts pa_scheduled
-           WHERE pa_scheduled.post_id = p.id
-             AND pa_scheduled.instagram_pending->>'provider' = 'zernio'
-             AND pa_scheduled.instagram_pending->>'scheduled' = 'true'
-         )
+         WHERE ${predicadoPostAgendadoVencido('p')}
         -- Segura o post se TODAS as suas plataformas estiverem fora do ar;
         -- volta a tentar no próximo tick do cron (1 min depois) até
         -- alguma plataforma voltar a responder ('up' ou 'unknown').
@@ -280,11 +298,7 @@ async function recuperarPostsProcessingStale() {
            next_retry_at = NULL,
            media_cleanup_after = NOW() + INTERVAL '7 days',
            media_cleaned_at = NULL
-     WHERE p.status = 'processing'
-       AND p.criado_em < NOW() - INTERVAL '6 hours'
-        AND NOT EXISTS (SELECT 1 FROM post_accounts pa WHERE pa.post_id = p.id AND pa.instagram_pending IS NOT NULL)
-        AND NOT EXISTS (SELECT 1 FROM post_accounts pa WHERE pa.post_id = p.id AND pa.instagram_pending->>'provider' = 'zernio' AND pa.instagram_pending->>'scheduled' = 'true')
-       AND NOT EXISTS (SELECT 1 FROM post_publications pp WHERE pp.post_id = p.id)
+     WHERE ${predicadoProcessingParado('p')}
      RETURNING p.id, p.user_id AS "userId"
   `)
   return rows
@@ -705,6 +719,7 @@ async function reagendarPost({ id, scheduledAt, userId, isAdmin }) {
 }
 
 module.exports = {
+  predicadoPostAgendadoVencido, predicadoProcessingParado,
   criarPost, listarPosts, deletarPost, buscarPostPorId, atualizarStatusPost, atualizarStatusPostSeProcessando,
   reservarPostsPendentes, recuperarPostsProcessingStale, reagendarParaRetry,
   definirContasDoPost, listarContasDoPost, buscarContaDoPost, atualizarErroPublicacaoConta, marcarContaPublicada,

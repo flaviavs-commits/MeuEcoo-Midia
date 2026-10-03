@@ -12,6 +12,7 @@ const DEFAULT_BATCH_SIZE = 100
 function eligiblePostPredicate(alias = 'p') {
   return `
     ${alias}.media_cleaned_at IS NULL
+    AND (${alias}.media_path IS NOT NULL OR ${alias}.media_items IS NOT NULL OR ${alias}.cover_path IS NOT NULL)
     AND NOT EXISTS (
       SELECT 1 FROM post_accounts pending_pa
       WHERE pending_pa.post_id = ${alias}.id
