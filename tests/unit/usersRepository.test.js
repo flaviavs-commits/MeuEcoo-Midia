@@ -266,13 +266,6 @@ describe('atualizarAvatar', () => {
   })
 })
 
-describe('contarSuperAdmins', () => {
-  test('retorna número de super_admins', async () => {
-    pool.query.mockResolvedValueOnce({ rows: [{ total: '1' }] })
-    expect(await repo.contarSuperAdmins()).toBe(1)
-  })
-})
-
 describe('listarEmailsAdmins', () => {
   test('retorna só os e-mails de admin/super_admin ativos', async () => {
     pool.query.mockResolvedValueOnce({ rows: [{ email: 'suporte@meuecoomidia.com.br' }, { email: 'tiago@vitissouls.com' }] })

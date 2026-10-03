@@ -384,16 +384,15 @@ async function publicarNaConta(account, post, isSuperAdmin, { scheduledFor = nul
 // perfis de Instagram). Contas são independentes entre si, então publicar em
 // paralelo reduz o tempo total da soma dos tempos para o máximo entre elas.
 async function publishPost(post) {
-  const isSuperAdmin = post.userRole === 'super_admin'
   const accounts = post.accounts || []
-  return mapWithConcurrency(accounts, account => publicarNaConta(account, post, isSuperAdmin), PUBLICATION_CONCURRENCY)
+  return mapWithConcurrency(accounts, account => publicarNaConta(account, post, false), PUBLICATION_CONCURRENCY)
 }
 
 // Entrega posts futuros à fila da Zernio no momento da criação. Assim a
 // publicação não depende de o cron desta aplicação estar online no horário.
 async function schedulePost(post) {
   const accounts = post.accounts || []
-  return mapWithConcurrency(accounts, account => publicarNaConta(account, post, post.userRole === 'super_admin', { scheduledFor: post.scheduledFor }), PUBLICATION_CONCURRENCY)
+  return mapWithConcurrency(accounts, account => publicarNaConta(account, post, false, { scheduledFor: post.scheduledFor }), PUBLICATION_CONCURRENCY)
 }
 
 // Verifica, por (post, conta), se o(s) container(s) pendentes do Instagram já
@@ -419,7 +418,7 @@ async function finalizarInstagramPendentes() {
     const pending = linha.instagramPending
     const postId = linha.id
     try {
-      const token = await buscarTokenPorId(pending.tokenId, linha.userId, linha.userRole === 'super_admin')
+      const token = await buscarTokenPorId(pending.tokenId, linha.userId, false)
       if (!token) throw new Error('Token da conta não encontrado ou desconectado')
       const containerIds = pending.stage === 'carousel_children' ? pending.childIds : [pending.containerId]
       const statuses = await Promise.all(containerIds.map(id => statusContainerInstagram(id, token.accessToken)))

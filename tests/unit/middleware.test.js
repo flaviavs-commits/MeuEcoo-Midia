@@ -1,6 +1,5 @@
-// Testes unitários — requireAdmin e requireSuperAdmin (sem I/O)
+// Testes unitários — requireAdmin (sem I/O)
 const requireAdmin = require('../../src/middleware/requireAdmin')
-const requireSuperAdmin = require('../../src/middleware/requireSuperAdmin')
 
 function mockRes() {
   const res = {}
@@ -57,38 +56,3 @@ describe('requireAdmin', () => {
   })
 })
 
-describe('requireSuperAdmin', () => {
-  test('deixa passar se role = super_admin', () => {
-    const req = { user: { role: 'super_admin' }, originalUrl: '/api/admin/users/1/role' }
-    const res = mockRes()
-    const next = jest.fn()
-    requireSuperAdmin(req, res, next)
-    expect(next).toHaveBeenCalled()
-  })
-
-  test('bloqueia role = admin com 403', () => {
-    const req = { user: { role: 'admin' }, originalUrl: '/api/admin/users/1/role' }
-    const res = mockRes()
-    const next = jest.fn()
-    requireSuperAdmin(req, res, next)
-    expect(next).not.toHaveBeenCalled()
-    expect(res.status).toHaveBeenCalledWith(403)
-  })
-
-  test('bloqueia role = user com 403', () => {
-    const req = { user: { role: 'user' }, originalUrl: '/api/admin/users/1/role' }
-    const res = mockRes()
-    const next = jest.fn()
-    requireSuperAdmin(req, res, next)
-    expect(next).not.toHaveBeenCalled()
-    expect(res.status).toHaveBeenCalledWith(403)
-  })
-
-  test('redireciona para rota não-api', () => {
-    const req = { user: { role: 'user' }, originalUrl: '/painel' }
-    const res = mockRes()
-    const next = jest.fn()
-    requireSuperAdmin(req, res, next)
-    expect(res.redirect).toHaveBeenCalled()
-  })
-})

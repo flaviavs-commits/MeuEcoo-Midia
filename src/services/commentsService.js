@@ -338,7 +338,8 @@ async function buscarTokenPost(post) {
   }
   if (!post.externalPostId) throw new Error('Este post não tem um ID externo salvo (publicado antes desta funcionalidade)')
 
-  const isSuperAdmin = post.userRole === 'super_admin'
+  // Sempre no escopo do dono do post (o papel super_admin não existe mais).
+  const isSuperAdmin = false
   let token = await buscarContaToken(post.externalPlatform, post.userId, isSuperAdmin, post.accountId)
   if (!token) throw new Error('Conta não está mais conectada')
 
