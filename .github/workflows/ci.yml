@@ -47,8 +47,10 @@ jobs:
       - name: Executar lint
         run: npm run lint --if-present
 
-      - name: Executar testes do backend
-        run: npm test
+      # Mede o src inteiro e falha abaixo do piso de cobertura (package.json → jest.coverageThreshold).
+      # O piso só sobe: ao melhorar a cobertura, atualize os números para os novos valores arredondados para baixo.
+      - name: Executar testes do backend (com piso de cobertura)
+        run: npm run test:coverage
 
       - name: Executar testes contra Postgres real
         run: npm run test:db
