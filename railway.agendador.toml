@@ -1,0 +1,13 @@
+# Serviço de cron do agendador externo (plano docs/superpowers/plans/2026-10-02-agendador-externo-sleep.md).
+# Mesmo repositório e imagem da API; o Railway roda o comando a cada 5 min e o processo termina.
+# Variáveis do serviço: AGENDADOR_API_URL=http://social-api-manager.railway.internal:3000,
+# CRON_SECRET (referência à API), DATABASE_URL apontando para o papel meuecoo_sistema (o detector
+# cruza usuários), PGSSL_CA_B64 e PGSSL_SERVER_FINGERPRINT (referência à API) e NODE_ENV=production.
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "node scripts/agendador-tick.js"
+cronSchedule = "*/5 * * * *"
+restartPolicyType = "never"
