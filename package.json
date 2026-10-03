@@ -31,30 +31,20 @@
       "**/tests/**/*.test.js"
     ],
     "collectCoverageFrom": [
-      "src/utils/**/*.js",
-      "src/middleware/**/*.js",
-      "src/services/mediaToken.js",
-      "src/services/tokenCrypto.js",
-      "src/services/totp.js",
-      "src/services/commentsService.js",
-      "src/config/**/*.js",
-      "src/http/errorHandler.js",
-      "src/infra/http/**/*.js",
-      "src/domain/posts/errors.js",
-      "src/repositories/usersRepository.js",
-      "src/repositories/postsRepository.js",
-      "src/repositories/credentialsRepository.js",
-      "src/repositories/logsRepository.js",
-      "src/routes/drafts.js",
-      "src/routes/posts.js",
-      "src/routes/auth.js",
-      "src/routes/admin.js"
+      "src/**/*.js"
     ],
     "coverageReporters": [
       "text",
       "text-summary"
     ],
-    "coverageThreshold": {},
+    "coverageThreshold": {
+      "global": {
+        "statements": 54,
+        "branches": 42,
+        "functions": 53,
+        "lines": 58
+      }
+    },
     "testPathIgnorePatterns": [
       "/node_modules/",
       "/tests/integration-db/"
