@@ -36,6 +36,7 @@ const apiV1Routes = require('./routes/apiV1')
 const { router: billingRoutes, handleStripeWebhook } = require('./routes/billing')
 const requireApiKey = require('./middleware/requireApiKey')
 const { rotaDeSistema } = require('./db/requestContext')
+const { resolverModoAgendador, iniciarTarefasDeFundo } = require('./config/schedulerMode')
 const scheduler      = require('./services/scheduler')
 const { runMigrations } = require('./db/runtimeMigrations')
 const { validarTokenMedia } = require('./infra/storage/mediaToken')
@@ -475,12 +476,20 @@ process.on('uncaughtException', (err) => {
 
 if (require.main === module) {
   const PORT = config.port
+  // Resolvido antes das migrations: valor inválido de SCHEDULER_MODE impede a subida.
+  let modoAgendador
+  try { modoAgendador = resolverModoAgendador() } catch (err) {
+    console.error('Configuração inválida — servidor não iniciado:', err.message)
+    process.exit(1)
+  }
   runMigrations()
     .then(() => {
       app.listen(PORT, '0.0.0.0', () => {
         console.log(`✅ Servidor rodando em http://localhost:${PORT}`)
         console.log(`   Acesso na rede local: http://${process.env.LAN_IP || '0.0.0.0'}:${PORT}`)
-        scheduler.start()
+        if (!iniciarTarefasDeFundo({ modo: modoAgendador, scheduler })) {
+          console.log('Agendador interno desligado (SCHEDULER_MODE=external)')
+        }
       })
     })
     .catch(err => {
