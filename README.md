@@ -214,21 +214,44 @@ variável `DATABASE_URL`. As tabelas principais são:
 - `users` — perfil dos usuários do sistema (email, nome, `role`: `admin`/`user`, `google_id`)
 - `credentials` — senha (bcrypt) de cada usuário, separada de `users`; contas criadas via Google não têm linha aqui
 - `session` — sessões de login (gerenciada pelo `connect-pg-simple`)
-- `nichos` — categorias/grupos de contas
-- `contas` — contas conectadas (uma linha por conta, com colunas por plataforma e `user_id` do dono)
+- `contas` — contas conectadas (uma linha por conta: `platform`, `handle` e `user_id` do dono)
 - `tokens` — tokens OAuth de cada conta/plataforma (`access_token`, `refresh_token`, `expires_at`, `status`)
 - `posts` — posts agendados (com `user_id` do dono)
 - `logs` — histórico de eventos (também usado pelo SSE em `/api/logs/stream`)
 
-As migrations ficam em `src/db/migrations/` e devem ser rodadas manualmente,
-em ordem, contra o banco configurado em `DATABASE_URL`:
+O schema de partida é `src/db/schema-base.sql` (a estrutura de produção, sem dados). Ele existe
+porque as migrations numeradas de `src/db/migrations/` não montam um banco vazio: as tabelas
+originais foram criadas à mão no protótipo. Por cima dele, o servidor roda
+`src/db/runtimeMigrations.js` a cada startup. Num banco novo:
 
 ```bash
-psql $DATABASE_URL -f src/db/migrations/001_users_and_sessions.sql
-psql $DATABASE_URL -f src/db/migrations/002_credentials.sql
-psql $DATABASE_URL -f src/db/migrations/003_multi_tenancy.sql
-psql $DATABASE_URL -f src/db/migrations/004_super_admin.sql
+psql "$URL_DO_DONO" -v ON_ERROR_STOP=1 -f src/db/schema-base.sql
+npm start   # o runtimeMigrations completa o schema no startup
 ```
+
+### Papéis do banco (quem conecta como quem)
+
+A API **não usa o superusuário** para atender requisições (fase 1 do plano
+`docs/superpowers/plans/2026-10-02-papel-banco-e-rls.md`, em produção desde 03/10/2026):
+
+| Variável da API | Papel | Para quê |
+|---|---|---|
+| `DATABASE_URL` | `meuecoo_app` | requisições e agendador: só leitura e escrita de linhas (DML), sem DDL, sem superusuário, sem `BYPASSRLS` |
+| `DATABASE_MIGRATION_URL` | `postgres` (dono das tabelas) | só o `runMigrations` no startup, num pool próprio que é fechado em seguida |
+
+O papel é criado e atualizado por `scripts/db/criar-papel-app.sql`, que é idempotente e recebe a
+senha por variável do psql. A conferência é feita por `scripts/db/verificar-papel-app.sql`. A senha
+fica em `MEUECOO_APP_DB_PASSWORD` no serviço do Postgres no Railway. A `DATABASE_URL` da API é montada
+por referência a ela, e **essa variável não deve ser apagada** em limpezas do serviço do banco.
+Tabelas criadas depois pelo dono já nascem com acesso para o app (`ALTER DEFAULT PRIVILEGES`). Isso
+vale desde que as migrations rodem com o mesmo papel que rodou o script.
+
+**Reverter** (se aparecer `permission denied`): na API, voltar `DATABASE_URL` para
+`${{meuecoo-midia-postgres.DATABASE_URL}}` e fazer redeploy. Leva cerca de 1 minuto, e o
+`DATABASE_MIGRATION_URL` pode ficar como está.
+
+Os testes `npm run test:db` (`tests/integration-db/`) sobem um Postgres real com o mesmo arranjo:
+migrations com o dono e o app como `meuecoo_app`.
 
 > Importante: colunas `timestamp` são gravadas e lidas em **UTC**. O parser de
 > tipos do `pg` é configurado em `src/db/pool.js` para tratar
