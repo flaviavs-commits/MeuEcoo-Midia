@@ -1,5 +1,5 @@
 // Contexto do usuário por requisição (src/db/requestContext.js), base do RLS.
-const { executarComUsuario, usuarioAtual, executarSemUsuario } = require('../../src/db/requestContext')
+const { executarComUsuario, usuarioAtual, executarComoSistema, emModoSistema } = require('../../src/db/requestContext')
 
 const esperar = ms => new Promise(resolve => setTimeout(resolve, ms))
 
@@ -40,14 +40,32 @@ test('o contexto é imutável e exige um userId válido', () => {
   expect(() => executarComUsuario({}, () => {})).toThrow(/userId válido/)
 })
 
-test('executarSemUsuario abre um trecho de sistema dentro da requisição', async () => {
+test('executarComoSistema marca o fluxo como sistema, sem usuário, e não vaza para fora', async () => {
+  expect(emModoSistema()).toBe(false)
+  await executarComoSistema(async () => {
+    await esperar(1)
+    expect(emModoSistema()).toBe(true)
+    expect(usuarioAtual()).toBeNull()
+  })
+  expect(emModoSistema()).toBe(false)
+})
+
+test('trecho de sistema dentro da requisição não herda o usuário, e a requisição continua com ele', async () => {
   await executarComUsuario({ userId: 7 }, async () => {
-    await executarSemUsuario(async () => {
-      await esperar(1)
+    await executarComoSistema(async () => {
       expect(usuarioAtual()).toBeNull()
+      expect(emModoSistema()).toBe(true)
     })
     expect(usuarioAtual().userId).toBe(7)
+    expect(emModoSistema()).toBe(false)
   })
+})
+
+test('um requireAuth dentro de uma rota de sistema abre o contexto do usuário por cima', async () => {
+  await executarComoSistema(() => executarComUsuario({ userId: 5 }, async () => {
+    expect(usuarioAtual().userId).toBe(5)
+    expect(emModoSistema()).toBe(false)
+  }))
 })
 
 describe('requireAuth e requireApiKey abrem o contexto', () => {

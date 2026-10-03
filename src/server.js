@@ -35,6 +35,7 @@ const apiKeysRoutes = require('./routes/apiKeys')
 const apiV1Routes = require('./routes/apiV1')
 const { router: billingRoutes, handleStripeWebhook } = require('./routes/billing')
 const requireApiKey = require('./middleware/requireApiKey')
+const { rotaDeSistema } = require('./db/requestContext')
 const scheduler      = require('./services/scheduler')
 const { runMigrations } = require('./db/runtimeMigrations')
 const { validarTokenMedia } = require('./infra/storage/mediaToken')
@@ -114,12 +115,12 @@ app.use('/oauth/tiktok/webhook', express.json({
 // O webhook do Stripe precisa do corpo bruto para validar a assinatura. Ele
 // fica fora do requireAuth porque é chamado pelo gateway, não pelo navegador.
 app.use('/api/billing/stripe/webhook', express.raw({ type: 'application/json', limit: '256kb' }))
-app.post('/api/billing/stripe/webhook', handleStripeWebhook)
+app.post('/api/billing/stripe/webhook', rotaDeSistema, handleStripeWebhook)
 
 // O callback da Zernio é público, mas autenticado pela assinatura HMAC. O
 // parser raw precisa estar antes do express.json() global para preservar os
 // bytes exatos usados no cálculo da assinatura.
-app.use('/webhooks/zernio', express.raw({ type: 'application/json', limit: '256kb' }), zernioWebhookRoutes)
+app.use('/webhooks/zernio', express.raw({ type: 'application/json', limit: '256kb' }), rotaDeSistema, zernioWebhookRoutes)
 
 // O agendador envia miniaturas comprimidas das imagens para a análise visual
 // conjunta de carrosséis. Mantém um limite explícito para não aceitar corpos
@@ -173,20 +174,22 @@ app.get('/auth/csrf', (req, res) => {
   res.json({ token })
 })
 
-app.use('/auth/login', authRoutes)
+app.use('/auth/login', rotaDeSistema, authRoutes)
 
 // As rotas de OAuth (incluindo os callbacks navegados pelo provedor externo)
 // ficam fora do requireAuth global: o callback não tem garantia de que o
 // cookie de sessão chega na requisição de retorno (popup + redirect
 // cross-site), então a autenticação é validada por rota dentro de oauth.js
 // via state assinado, não pelo middleware aqui.
-app.use('/auth', oauthRoutes)
-app.use('/oauth', oauthRoutes)
+// Callbacks de OAuth não têm sessão (o usuário vem do state assinado): rodam como sistema. As rotas
+// que iniciam a conexão passam pelo requireAuth do próprio router, que abre o contexto do usuário.
+app.use('/auth', rotaDeSistema, oauthRoutes)
+app.use('/oauth', rotaDeSistema, oauthRoutes)
 
 // Disparado pela infra de cron da Vercel (vercel.json) via requisição HTTP
 // comum — autenticado pelo header Authorization (CRON_SECRET), não por
 // sessão de usuário, então fica fora do requireAuth global.
-app.use('/api/cron', cronRoutes)
+app.use('/api/cron', rotaDeSistema, cronRoutes)
 app.use('/go', publicSmartlinksRoutes)
 
 // Bearer token não viaja em navegação simples, então o HTML em si não pode

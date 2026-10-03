@@ -12,6 +12,7 @@ const { processarFilasRecorrentes, processarRelatoriosAgendados } = require('./p
 const { dispatchWebhook } = require('./webhookService')
 const { limparMidiasExpiradas } = require('./mediaCleanupService')
 const { processarZernioWebhooksPendentes } = require('./zernioWebhookService')
+const { executarComoSistema } = require('../db/requestContext')
 
 const POST_CONCURRENCY = 4
 
@@ -269,26 +270,29 @@ async function processarPendentes() {
   await processarPrimeirosComentarios()
 }
 
-// Roda a cada minuto, publicando posts cujo horário chegou
+// Roda a cada minuto, publicando posts cujo horário chegou. Toda rotina do agendador cruza
+// usuários de propósito: roda marcada como sistema (conexão meuecoo_sistema quando o RLS estiver ligado).
+const comoSistema = rotina => () => executarComoSistema(rotina)
+
 function start() {
-  cron.schedule('* * * * *', processarPendentes)
+  cron.schedule('* * * * *', comoSistema(processarPendentes))
   // Processa imediatamente ao iniciar, para não esperar até 1 minuto por
   // posts que já estavam atrasados quando o servidor estava fora do ar
   // (ex: reinício/deploy).
-  processarPendentes()
+  comoSistema(processarPendentes)()
 
   // Renova tokens próximos do vencimento a cada 6 horas, e uma vez no início
-  cron.schedule('0 */6 * * *', renovarTokensProativamente)
-  renovarTokensProativamente()
+  cron.schedule('0 */6 * * *', comoSistema(renovarTokensProativamente))
+  comoSistema(renovarTokensProativamente)()
 
   // Limpa mídias expiradas uma vez por hora. A execução inicial também cobre
   // arquivos que venceram enquanto a aplicação estava desligada.
-  cron.schedule('17 * * * *', executarLimpezaMidias)
-  executarLimpezaMidias()
+  cron.schedule('17 * * * *', comoSistema(executarLimpezaMidias))
+  comoSistema(executarLimpezaMidias)()
 
   // Verifica a cada minuto se as redes sociais estão respondendo
-  cron.schedule('* * * * *', verificarSaudePlataformas)
-  verificarSaudePlataformas()
+  cron.schedule('* * * * *', comoSistema(verificarSaudePlataformas))
+  comoSistema(verificarSaudePlataformas)()
 
 }
 

@@ -1,7 +1,16 @@
 const pool = require('../db/pool')
 const { safeMessage } = require('../utils/redact')
+const { usuarioAtual, executarComoSistema } = require('../db/requestContext')
 
-async function registrarLog({ type, message, platform = null, conta_id = null, user_id = null, notification_key = null }) {
+// Log sem dono (sistema) ou de outro usuário que não o da requisição vai pela conexão de sistema:
+// com RLS em logs, o papel do app só grava linhas do próprio usuário.
+async function registrarLog(dados) {
+  const contexto = usuarioAtual()
+  const doProprioUsuario = contexto && dados.user_id != null && Number(dados.user_id) === contexto.userId
+  return doProprioUsuario ? inserirLog(dados) : executarComoSistema(() => inserirLog(dados))
+}
+
+async function inserirLog({ type, message, platform = null, conta_id = null, user_id = null, notification_key = null }) {
   const { rows: [log] } = await pool.query(`
     INSERT INTO logs (type, message, platform, conta_id, user_id, notification_key)
     VALUES ($1, $2, $3, $4, $5, $6)
