@@ -16,6 +16,11 @@ descrever('Postgres real', () => {
     expect(rows[0].ok).toBe(1)
   })
 
+  test('o pool do app (src/db/pool.js) conecta como meuecoo_app, não como o dono', async () => {
+    const { rows } = await banco.poolApp.query('SELECT current_user AS usuario')
+    expect(rows[0].usuario).toBe('meuecoo_app')
+  })
+
   test('um banco vazio chega ao schema atual pelo schema base e pelo runtimeMigrations', async () => {
     const { rows } = await banco.pool.query(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1)`,
@@ -26,6 +31,6 @@ descrever('Postgres real', () => {
 
   test('o runtimeMigrations pode rodar de novo sobre o schema atual (todo startup faz isso)', async () => {
     const { runMigrations } = require('../../src/db/runtimeMigrations')
-    await runMigrations()
+    await runMigrations({ pool: banco.pool })
   })
 })

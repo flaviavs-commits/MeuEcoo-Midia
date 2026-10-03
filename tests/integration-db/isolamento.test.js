@@ -248,7 +248,7 @@ descrever('isolamento entre usuários e papéis (Postgres real)', () => {
     test('o papel legado super_admin vira admin no startup e não sobra com escopo ampliado', async () => {
       const legado = await umValor("INSERT INTO users (email, role, plan, plan_active) VALUES ('legado@teste.local', 'super_admin', 'pro', TRUE) RETURNING id")
       const { runMigrations } = require('../../src/db/runtimeMigrations')
-      await runMigrations()
+      await runMigrations({ pool: banco.pool })
       expect(await umValor('SELECT role FROM users WHERE id=$1', [legado.id])).toEqual({ role: 'admin' })
     })
   })
