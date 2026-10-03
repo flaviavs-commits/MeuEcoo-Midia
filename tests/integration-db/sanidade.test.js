@@ -16,12 +16,16 @@ descrever('Postgres real', () => {
     expect(rows[0].ok).toBe(1)
   })
 
-  test('um banco vazio chega ao schema atual pelas migrations numeradas e pelo runtimeMigrations', async () => {
-    expect(banco.migrationsAplicadas).toBeGreaterThan(70)
+  test('um banco vazio chega ao schema atual pelo schema base e pelo runtimeMigrations', async () => {
     const { rows } = await banco.pool.query(
       `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1)`,
       [['users', 'credentials', 'contas', 'tokens', 'posts', 'post_accounts', 'logs', 'drafts', 'subscriptions', 'billing_plan_changes']]
     )
     expect(rows.map(r => r.table_name).sort()).toEqual(['billing_plan_changes', 'contas', 'credentials', 'drafts', 'logs', 'post_accounts', 'posts', 'subscriptions', 'tokens', 'users'])
+  })
+
+  test('o runtimeMigrations pode rodar de novo sobre o schema atual (todo startup faz isso)', async () => {
+    const { runMigrations } = require('../../src/db/runtimeMigrations')
+    await runMigrations()
   })
 })
