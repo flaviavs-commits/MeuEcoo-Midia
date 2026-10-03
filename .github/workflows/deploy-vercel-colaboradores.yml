@@ -17,7 +17,7 @@ concurrency:
 jobs:
   publicar:
     if: github.event_name == 'workflow_dispatch' || github.event.head_commit.author.username != 'flaviavs-commits'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       VERCEL_TEAM_ID: team_mg8vPLFfX35F85dfXtH6G6Wh
