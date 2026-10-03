@@ -1,6 +1,7 @@
 const { Pool, types } = require('pg')
 const { opcoesPool } = require('./poolConfig')
-const { usuarioAtual } = require('./requestContext')
+const { usuarioAtual, emModoSistema } = require('./requestContext')
+const { poolDeSistema } = require('./poolSistema')
 
 // Colunas "timestamp without time zone" são gravadas em UTC (NOW() do Postgres
 // está em UTC). Por padrão o driver as interpreta como horário local do
@@ -35,6 +36,12 @@ function contextoAtivo() {
   return usuarioAtual()
 }
 
+// Fluxo marcado como sistema vai para a conexão meuecoo_sistema (Task 7), quando ela existe.
+function poolSeSistema() {
+  if (process.env.DB_CONTEXTO_USUARIO !== 'ligado' || !emModoSistema()) return null
+  return poolDeSistema()
+}
+
 // Uma ida ao banco só: user_id é inteiro e o role é restrito a [a-z_], então
 // entram como literais sem risco de injeção.
 function sqlAplicarContexto({ userId, role }, local) {
@@ -46,6 +53,8 @@ const connectBase = pool.connect.bind(pool)
 const queryBase = pool.query.bind(pool)
 
 pool.query = function query(...args) {
+  const sistema = poolSeSistema()
+  if (sistema) return sistema.query(...args)
   const contexto = contextoAtivo()
   // Callback no último argumento: estilo antigo do pg, que o app não usa; segue sem contexto.
   if (!contexto || typeof args[args.length - 1] === 'function') return queryBase(...args)
@@ -70,6 +79,8 @@ pool.query = function query(...args) {
 // requisição que pegar o mesmo client.
 pool.connect = function connect(callback) {
   if (typeof callback === 'function') return connectBase(callback)
+  const sistema = poolSeSistema()
+  if (sistema) return sistema.connect()
   const contexto = contextoAtivo()
   if (!contexto) return connectBase()
   return connectBase().then(async client => {
