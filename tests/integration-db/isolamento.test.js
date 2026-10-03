@@ -222,7 +222,7 @@ descrever('isolamento entre usuários e papéis (Postgres real)', () => {
       expect((await outro.get(`/api/accounts/${conta.id}`)).status).toBe(404)
       expect((await outro.delete(`/api/accounts/${conta.id}`)).status).toBe(404)
       expect((await outro.delete(`/api/tokens/${token.id}`)).status).toBe(404)
-      expect((await outro.post(`/api/tokens/renew/${token.id}`)).status).toBeGreaterThanOrEqual(400)
+      expect((await outro.post(`/api/tokens/renew/${token.id}`)).status).toBe(404)
       expect((await outro.post('/api/tokens', { accountId: conta.id, platform: 'instagram', accessToken: 'intruso' })).status).toBe(404)
       expect(await umValor('SELECT c.ativo, t.access_token, (SELECT COUNT(*)::int FROM tokens WHERE conta_id=$1) AS tokens FROM contas c JOIN tokens t ON t.conta_id=c.id WHERE c.id=$1', [conta.id]))
         .toEqual({ ativo: true, access_token: 'token-cifrado-de-teste', tokens: 1 })

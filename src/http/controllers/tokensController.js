@@ -35,7 +35,12 @@ async function renew(req, res) {
     const id = parseId(req.params.id)
     if (id === null) return res.status(400).json({ erro: 'id inválido' })
     res.json(await tokens.renovarToken(id, req.user.id, false))
-  } catch (error) { serverError(res, error) }
+  } catch (error) {
+    // Token inexistente ou de outro usuário: o repositório responde com a mesma mensagem nos dois
+    // casos (não revela se o id existe); é 404, não erro do servidor.
+    if (error?.message === 'Token não encontrado') return res.status(404).json({ erro: 'Token não encontrado' })
+    serverError(res, error)
+  }
 }
 
 async function remove(req, res) {
