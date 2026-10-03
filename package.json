@@ -4,7 +4,7 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
+    "dev": "node --watch src/server.js",
     "build": "npm run frontend:build",
     "frontend:dev": "vite --config frontend/vite.config.js",
     "frontend:build": "vite build --config frontend/vite.config.js",
@@ -108,7 +108,6 @@
     "globals": "^17.13.0",
     "jest": "^30.4.2",
     "jsdom": "^29.1.1",
-    "nodemon": "^3.1.14",
     "postcss": "^8.5.25",
     "supertest": "^7.2.2",
     "tailwindcss": "^4.3.3",
