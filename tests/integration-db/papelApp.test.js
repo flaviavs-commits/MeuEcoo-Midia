@@ -11,7 +11,7 @@ const descrever = temBanco ? describe : describe.skip
 descrever('papel meuecoo_app (Postgres real)', () => {
   let banco
   const app = (texto, params) => banco.poolApp.query(texto, params)
-  const negado = expect.objectContaining({ message: expect.stringMatching(/permission denied|must be superuser|não tem permissão|permissão negada/i) })
+  const negado = expect.objectContaining({ message: expect.stringMatching(/permission denied|must be superuser|must be owner|não tem permissão|permissão negada/i) })
 
   beforeAll(async () => { banco = await prepararBanco() })
   afterAll(async () => { await limparBanco(banco) })
