@@ -23,3 +23,25 @@ describe('validateOutboundHttpsUrl', () => {
     await expect(validateOutboundHttpsUrl(url)).rejects.toThrow()
   })
 })
+
+// O undici chama o lookup do dispatcher com { all: true }. Devolver um
+// endereço solto nesse caso derrubava toda conexão (ERR_INVALID_IP_ADDRESS),
+// e por isso webhooks de saída e o download de mídia do kit falhavam.
+describe('lookupFixo', () => {
+  const { lookupFixo } = require('../../src/utils/outboundUrl')
+
+  test('com { all: true } devolve a lista com o endereço validado', () => {
+    const callback = jest.fn()
+    lookupFixo('142.250.1.1', 4)('www.exemplo.com', { all: true }, callback)
+    expect(callback).toHaveBeenCalledWith(null, [{ address: '142.250.1.1', family: 4 }])
+  })
+
+  test('sem all devolve endereço e família, e aceita a forma sem options', () => {
+    const callback = jest.fn()
+    lookupFixo('142.250.1.1', 4)('www.exemplo.com', {}, callback)
+    expect(callback).toHaveBeenCalledWith(null, '142.250.1.1', 4)
+    const semOptions = jest.fn()
+    lookupFixo('2001:db8::1', 6)('www.exemplo.com', semOptions)
+    expect(semOptions).toHaveBeenCalledWith(null, '2001:db8::1', 6)
+  })
+})

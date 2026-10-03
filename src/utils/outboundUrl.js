@@ -85,13 +85,25 @@ async function validateOutboundHttpsUrl(value) {
 // poderia responder com IP público na validação e IP privado na conexão
 // (DNS rebinding). O dispatcher fixa o resultado público validado, mantendo o
 // hostname original para SNI/certificado HTTPS.
+// O undici chama o lookup com { all: true } e espera a lista de endereços;
+// devolver um endereço solto nesse caso faz toda conexão falhar com
+// ERR_INVALID_IP_ADDRESS. Foi o que aconteceu de 07/09 a 03/10/2026: todo
+// webhook de saída falharia assim (não havia nenhum cadastrado em produção),
+// e o download de mídia do kit falhou na primeira validação real. Atende às
+// duas formas da assinatura de dns.lookup.
+function lookupFixo(address, family) {
+  return function lookup(_hostname, options, callback) {
+    if (typeof options === 'function') return options(null, address, family)
+    if (options?.all) return callback(null, [{ address, family }])
+    return callback(null, address, family)
+  }
+}
+
 async function prepareOutboundHttpsRequest(value) {
   const resolved = await resolveOutboundHttpsUrl(value)
   const dispatcher = new Agent({
     connect: {
-      lookup(_hostname, _options, callback) {
-        callback(null, resolved.address, resolved.family)
-      },
+      lookup: lookupFixo(resolved.address, resolved.family),
     },
   })
   return {
@@ -101,4 +113,4 @@ async function prepareOutboundHttpsRequest(value) {
   }
 }
 
-module.exports = { isPrivateIp, validateOutboundHttpsUrl, prepareOutboundHttpsRequest }
+module.exports = { isPrivateIp, validateOutboundHttpsUrl, prepareOutboundHttpsRequest, lookupFixo }
