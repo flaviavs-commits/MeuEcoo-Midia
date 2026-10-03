@@ -137,3 +137,24 @@ describe('Autenticação', () => {
     expect(true).toBe(true)
   })
 })
+
+describe('POST /api/drafts/import', () => {
+  test('importa um kit só de texto como rascunhos e responde o resumo por item', async () => {
+    pool.query.mockImplementation(async sql => (String(sql).includes('INSERT INTO drafts') ? { rows: [{ id: 55 }] } : { rows: [] }))
+
+    const res = await request(app).post('/api/drafts/import').set('Authorization', 'Bearer fake')
+      .send({ title: 'Kit', items: [{ textByPlatform: { instagram: 'Legenda' } }, { platforms: ['orkut'], text: 'x' }] })
+
+    expect(res.status).toBe(200)
+    expect(res.body).toMatchObject({ total: 2, criados: 1, falharam: 1 })
+    expect(res.body.itens[0]).toMatchObject({ ok: true, draftId: 55, title: 'Kit — item 1' })
+    const insert = pool.query.mock.calls.find(([sql]) => String(sql).includes('INSERT INTO drafts'))
+    expect(insert[1].slice(0, 5)).toEqual([1, 'Kit — item 1', null, ['instagram'], JSON.stringify({ instagram: 'Legenda' })])
+  })
+
+  test('kit sem itens responde 400 com a mensagem', async () => {
+    const res = await request(app).post('/api/drafts/import').set('Authorization', 'Bearer fake').send({ items: [] })
+    expect(res.status).toBe(400)
+    expect(res.body.erro).toContain('pelo menos um item')
+  })
+})

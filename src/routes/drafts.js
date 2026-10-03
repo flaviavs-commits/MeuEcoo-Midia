@@ -1,6 +1,7 @@
 const { Router } = require('express')
 const pool = require('../db/pool')
 const { parseId, serverError } = require('../utils/http')
+const { importarKit } = require('../use-cases/drafts/importarKit')
 const router = Router()
 
 // GET /api/drafts
@@ -51,6 +52,19 @@ router.post('/', async (req, res) => {
     )
     res.status(201).json({ id: rows[0].id })
   } catch (err) {
+    serverError(res, err)
+  }
+})
+
+// POST /api/drafts/import — importa um kit (lote de posts prontos) como
+// rascunhos do Baú de Ideias. Contrato em docs/KIT-IMPORTACAO.md. Kit
+// inválido responde 400; kit válido responde 200 com o resultado de cada
+// item, mesmo que parte deles falhe. Nada é publicado nem agendado.
+router.post('/import', async (req, res) => {
+  try {
+    res.json(await importarKit({ userId: req.user.id, kit: req.body }))
+  } catch (err) {
+    if (err.statusCode === 400) return res.status(400).json({ erro: err.message })
     serverError(res, err)
   }
 })
