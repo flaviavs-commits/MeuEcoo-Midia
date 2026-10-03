@@ -302,7 +302,7 @@ async function criarPost({ body, userId, userRole, isAdmin }) {
   // compatibilidade com quem ainda não manda accountIds (nesse caso, cai no
   // comportamento antigo de publicar em todas as contas de cada rede
   // marcada, resolvido mais abaixo). Ver contasRepository.listarContasPorIds.
-  let accountIds = null
+  let accountIds
   try {
     accountIds = parseSelectedAccountIds(body.accountIds)
   } catch {

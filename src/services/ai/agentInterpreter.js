@@ -112,7 +112,7 @@ function extractContent(message) {
   const text = String(message)
   const colon = text.match(/:\s*([\s\S]+)$/)
   if (colon) return colon[1].replace(/["“”']+$/, '').trim()
-  const match = text.match(/(?:dizendo|com o texto|que|para lembrar(?: que)?)\s*[:\-]?\s*([\s\S]+)$/i)
+  const match = text.match(/(?:dizendo|com o texto|que|para lembrar(?: que)?)\s*[:-]?\s*([\s\S]+)$/i)
   return (match?.[1] || '').replace(/["“”']+$/, '').trim()
 }
 
@@ -134,7 +134,7 @@ function extractScheduledAt(message, now = new Date()) {
   const minute = Number(hourMatch[2] || 0)
   if (hour > 23 || minute > 59) return null
 
-  const dateMatch = normalized.match(/\b(\d{1,2})[\/-](\d{1,2})(?:[\/-](20\d{2}))?\b/)
+  const dateMatch = normalized.match(/\b(\d{1,2})[/-](\d{1,2})(?:[/-](20\d{2}))?\b/)
   let date
   if (dateMatch) {
     const day = Number(dateMatch[1])

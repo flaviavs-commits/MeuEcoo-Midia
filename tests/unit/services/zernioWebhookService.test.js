@@ -23,7 +23,6 @@ jest.mock('../../../src/infra/db/postsRepository', () => ({
 }))
 
 const repo = require('../../../src/repositories/zernioWebhooksRepository')
-const zernioClient = require('../../../src/infra/social/zernioClient')
 const postsRepo = require('../../../src/infra/db/postsRepository')
 const publisher = require('../../../src/infra/social/publisher')
 const service = require('../../../src/services/zernioWebhookService')

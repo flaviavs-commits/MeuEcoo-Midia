@@ -9,7 +9,7 @@
     "frontend:dev": "vite --config frontend/vite.config.js",
     "frontend:build": "vite build --config frontend/vite.config.js",
     "frontend:lint": "eslint -c frontend/eslint.config.mjs frontend",
-    "lint": "npm run frontend:lint",
+    "lint": "npm run backend:lint && npm run frontend:lint",
     "frontend:e2e": "playwright test -c frontend/playwright.config.mjs",
     "test": "jest --runInBand",
     "test:unit": "jest --runInBand tests/unit",
@@ -21,7 +21,8 @@
     "security:preflight": "node scripts/security-preflight.js",
     "security:migrate-encrypted-secrets": "node scripts/migrate-encrypted-secrets.js",
     "zernio:webhook:register": "node scripts/register-zernio-webhook.js",
-    "db:migrate:security:local": "node scripts/apply-security-migration-local.js"
+    "db:migrate:security:local": "node scripts/apply-security-migration-local.js",
+    "backend:lint": "eslint -c eslint.config.mjs src scripts tests"
   },
   "jest": {
     "testEnvironment": "node",

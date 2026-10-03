@@ -53,9 +53,6 @@ function inferNiche(texts) {
   return scores[0]?.[1] ? scores[0][0] : 'não identificado'
 }
 
-function postRows(data, platform) {
-  return (data?.metrics || []).filter(row => row.platform === platform && row.metrics)
-}
 
 function interactionNamesFor(platform) {
   if (platform === 'facebook') return ['page_post_engagements', 'post_engagements']

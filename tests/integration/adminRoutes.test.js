@@ -63,15 +63,13 @@ const { gerarTokenSessao } = require('../../src/utils/authToken')
 const app = require('../../src/server')
 
 const ADMIN = { id: 1, email: 'admin@allowed.test', role: 'admin', full_name: 'Admin', avatar_url: null, totp_enabled: false }
-const SUPER = { id: 2, email: 'super@allowed.test', role: 'super_admin', full_name: 'Super', avatar_url: null, totp_enabled: false }
 const USER  = { id: 3, email: 'user@allowed.test',  role: 'user',        full_name: 'User',  avatar_url: null, totp_enabled: false }
 
-let tokenAdmin, tokenSuper, tokenUser
+let tokenAdmin, tokenUser
 
 beforeEach(() => {
   jest.clearAllMocks()
   tokenAdmin = gerarTokenSessao(ADMIN.id)
-  tokenSuper = gerarTokenSessao(SUPER.id)
   tokenUser  = gerarTokenSessao(USER.id)
 })
 

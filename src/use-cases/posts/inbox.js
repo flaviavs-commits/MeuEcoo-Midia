@@ -33,7 +33,7 @@ async function listarInbox({ userId, isAdmin, platform = null }) {
   const locais = all
     .filter(p => p.externalPostId && plats.includes(p.externalPlatform))
     .filter(p => !platform || p.externalPlatform === platform)
-  let remotos = []
+  let remotos
   try {
     remotos = await commentsService.listarPostsRemotos({ userId, platform })
   } catch {

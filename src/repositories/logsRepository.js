@@ -1,25 +1,6 @@
 const pool = require('../db/pool')
 const { safeMessage } = require('../utils/redact')
 
-// Um log "pertence" a um usuário se a conta associada (conta_id) for dele,
-// ou se o log foi gravado diretamente com o user_id dele (ex: erro antes de
-// existir uma conta/token, como falha de OAuth ou post sem conta conectada).
-// Logs sem conta_id nem user_id (eventos gerais do sistema) não pertencem a
-// nenhuma sessão de usuário e nunca entram no histórico privado.
-async function logVisivelPara(log, userId, isAdmin) {
-  if (userId !== null && userId !== undefined) {
-    if (log.user_id) return log.user_id === userId
-    if (!log.conta_id) return false
-  } else if (isAdmin) {
-    return true
-  } else {
-    return false
-  }
-  if (!log.conta_id) return false
-  const { rows: [row] } = await pool.query(`SELECT user_id FROM contas WHERE id = $1`, [log.conta_id])
-  return row && row.user_id === userId
-}
-
 async function registrarLog({ type, message, platform = null, conta_id = null, user_id = null, notification_key = null }) {
   const { rows: [log] } = await pool.query(`
     INSERT INTO logs (type, message, platform, conta_id, user_id, notification_key)

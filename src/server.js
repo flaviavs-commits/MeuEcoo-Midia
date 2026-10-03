@@ -37,7 +37,6 @@ const { router: billingRoutes, handleStripeWebhook } = require('./routes/billing
 const requireApiKey = require('./middleware/requireApiKey')
 const scheduler      = require('./services/scheduler')
 const { runMigrations } = require('./db/runtimeMigrations')
-const { getStatusMap } = require('./services/platformHealth')
 const { validarTokenMedia } = require('./infra/storage/mediaToken')
 const { isBlobUrl, isPrivateBlobMode, getPrivateBlob, readResponseLimited, readBlobStreamLimited, ALLOWED_MEDIA_TYPES, MAX_UPLOAD_SIZE_BYTES } = require('./infra/storage/blobStorage')
 const { issueAuthSession, issueCsrfToken, readCookie, CSRF_COOKIE, AUTH_COOKIE } = require('./utils/authCookie')

@@ -111,7 +111,9 @@ não confiável.
 |---|---|
 | `npm run frontend:dev` | servidor de desenvolvimento (HTTPS, porta 5173) |
 | `npm run frontend:build` (ou `npm run build`) | bundle de produção em `public/react/`, que é o que o Express e a Vercel publicam |
-| `npm run frontend:lint` (ou `npm run lint`, que o CI chama) | ESLint: regras recomendadas do JavaScript e regras de hooks do React |
+| `npm run frontend:lint` | ESLint do frontend: regras recomendadas do JavaScript e regras de hooks do React |
+| `npm run backend:lint` | ESLint do backend (`src`, `scripts`, `tests`): regras recomendadas do JavaScript para Node (`eslint.config.mjs` na raiz) |
+| `npm run lint` (o CI chama) | os dois lints acima |
 | `npm run test:components` | Vitest + Testing Library (`frontend/test/**/*.test.{js,jsx}`) |
 | `npm run frontend:e2e` | Playwright: E2E de fumaça (`frontend/e2e`), sem backend |
 
@@ -697,6 +699,7 @@ via `DATABASE_URL`, que referencia a variável do serviço do banco.
 npm test                  # backend (Jest)
 npm run test:coverage     # backend, com relatório de cobertura
 npm run test:components   # frontend (Vitest + Testing Library)
+npm run backend:lint      # backend (ESLint)
 npm run frontend:lint     # frontend (ESLint)
 npm run frontend:e2e      # frontend (Playwright, E2E de fumaça)
 ```

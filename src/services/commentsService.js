@@ -367,7 +367,7 @@ async function listarComentariosPost(post) {
     return { comments, replySupported: PLATAFORMAS_COM_RESPOSTA.includes(post.externalPlatform) }
   } catch (error) {
     const oauthMessage = traduzirErroOAuth(error, post.externalPlatform)
-    if (oauthMessage) throw new Error(oauthMessage)
+    if (oauthMessage) throw new Error(oauthMessage, { cause: error })
     throw error
   }
 }
@@ -402,7 +402,7 @@ async function responderComentario(post, commentId, text) {
     return await REPLIERS[post.externalPlatform](token, commentId, text)
   } catch (error) {
     const oauthMessage = traduzirErroOAuth(error, post.externalPlatform)
-    if (oauthMessage) throw new Error(oauthMessage)
+    if (oauthMessage) throw new Error(oauthMessage, { cause: error })
     throw error
   }
 }

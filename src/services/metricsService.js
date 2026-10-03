@@ -572,7 +572,7 @@ async function buscarSeriesStatsTiktok(userId, isAdmin) {
 async function metricsVideosTiktokZernio(token) {
   const videos = []
   let page = 1
-  let pages = 1
+  let pages
   do {
     const result = await zernioClient.getAnalytics({
       accountId: token.zernioAccountId,
