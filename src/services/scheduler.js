@@ -166,17 +166,18 @@ const COMENTAR_POR_PLATAFORMA = {
 async function executarLimpezaMidias() {
   try {
     const resultado = await limparMidiasExpiradas()
-    if (resultado.deleted || resultado.deferred || resultado.errors) {
+    if (resultado.deleted || resultado.deferred || resultado.handedOff || resultado.errors) {
+      const entregues = resultado.handedOff ? `, ${resultado.handedOff} mantido(s) por estar em fila, rascunho ou biblioteca` : ''
       await registrarLog({
         type: resultado.errors ? 'err' : 'info',
-        message: `Limpeza de mídias: ${resultado.deleted} arquivo(s) excluído(s), ${resultado.deferred} adiado(s), ${resultado.errors} erro(s)`,
+        message: `Limpeza de mídias: ${resultado.deleted} arquivo(s) excluído(s), ${resultado.deferred} adiado(s)${entregues}, ${resultado.errors} erro(s)`,
         platform: null
       })
     }
     return resultado
   } catch (err) {
     await registrarLog({ type: 'err', message: `Erro na limpeza automática de mídias: ${err.message}`, platform: null })
-    return { candidates: 0, deleted: 0, deferred: 0, marked: 0, errors: 1 }
+    return { candidates: 0, deleted: 0, deferred: 0, handedOff: 0, marked: 0, errors: 1 }
   }
 }
 

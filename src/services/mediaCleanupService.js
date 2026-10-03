@@ -56,23 +56,27 @@ const CANDIDATE_POSTS_QUERY = `
 // Checa referências em posts ainda ativos, rascunhos, filas recorrentes e
 // itens salvos na biblioteca. Uma mídia usada em qualquer desses lugares não
 // pode ser apagada só porque uma publicação terminou.
+// `origem` separa os dois casos: 'post' é outro post que ainda vai vencer e
+// cuidar da mídia (a limpeza espera por ele); 'dono' é um uso permanente
+// (rascunho, fila, biblioteca, avatar, logo), que assume a mídia: o post a
+// entrega e sai da limpeza, sem apagar o arquivo.
 const REFERENCES_QUERY = `
-  SELECT url FROM (
-    SELECT p.media_path AS url
+  SELECT url, origem FROM (
+    SELECT p.media_path AS url, 'post' AS origem
     FROM posts p
     WHERE p.media_path = ANY($1::text[])
       AND NOT (${eligiblePostPredicate('p')})
 
     UNION ALL
 
-    SELECT p.cover_path AS url
+    SELECT p.cover_path AS url, 'post'
     FROM posts p
     WHERE p.cover_path = ANY($1::text[])
       AND NOT (${eligiblePostPredicate('p')})
 
     UNION ALL
 
-    SELECT CASE WHEN item->>'path' = ANY($1::text[]) THEN item->>'path' ELSE item->>'url' END AS url
+    SELECT CASE WHEN item->>'path' = ANY($1::text[]) THEN item->>'path' ELSE item->>'url' END AS url, 'post'
     FROM posts p
     CROSS JOIN LATERAL jsonb_array_elements(
       CASE WHEN jsonb_typeof(p.media_items) = 'array' THEN p.media_items ELSE '[]'::jsonb END
@@ -82,7 +86,7 @@ const REFERENCES_QUERY = `
 
     UNION ALL
 
-    SELECT CASE WHEN item->>'path' = ANY($1::text[]) THEN item->>'path' ELSE item->>'url' END AS url
+    SELECT CASE WHEN item->>'path' = ANY($1::text[]) THEN item->>'path' ELSE item->>'url' END AS url, 'post'
     FROM post_accounts pa
     JOIN posts p ON p.id = pa.post_id
     CROSS JOIN LATERAL jsonb_array_elements(
@@ -93,13 +97,13 @@ const REFERENCES_QUERY = `
 
     UNION ALL
 
-    SELECT d.media_path AS url
+    SELECT d.media_path AS url, 'dono'
     FROM drafts d
     WHERE d.media_path = ANY($1::text[])
 
     UNION ALL
 
-    SELECT CASE WHEN item->>'path' = ANY($1::text[]) THEN item->>'path' ELSE item->>'url' END AS url
+    SELECT CASE WHEN item->>'path' = ANY($1::text[]) THEN item->>'path' ELSE item->>'url' END AS url, 'dono'
     FROM drafts d
     CROSS JOIN LATERAL jsonb_array_elements(
       CASE WHEN jsonb_typeof(d.media_items) = 'array' THEN d.media_items ELSE '[]'::jsonb END
@@ -108,7 +112,7 @@ const REFERENCES_QUERY = `
 
     UNION ALL
 
-    SELECT CASE WHEN item->>'path' = ANY($1::text[]) THEN item->>'path' ELSE item->>'url' END AS url
+    SELECT CASE WHEN item->>'path' = ANY($1::text[]) THEN item->>'path' ELSE item->>'url' END AS url, 'dono'
     FROM drafts d
     CROSS JOIN LATERAL jsonb_each(
       CASE WHEN jsonb_typeof(d.media_by_platform) = 'object' THEN d.media_by_platform ELSE '{}'::jsonb END
@@ -120,43 +124,43 @@ const REFERENCES_QUERY = `
 
     UNION ALL
 
-    SELECT c.content->>'mediaPath' AS url
+    SELECT c.content->>'mediaPath' AS url, 'dono'
     FROM content_queues c
     WHERE c.content->>'mediaPath' = ANY($1::text[])
 
     UNION ALL
 
-    SELECT a.url
+    SELECT a.url, 'dono'
     FROM media_assets a
     WHERE a.url = ANY($1::text[])
 
     UNION ALL
 
-    SELECT u.avatar_url AS url
+    SELECT u.avatar_url AS url, 'dono'
     FROM users u
     WHERE u.avatar_url = ANY($1::text[])
 
     UNION ALL
 
-    SELECT c.avatar_url AS url
+    SELECT c.avatar_url AS url, 'dono'
     FROM contas c
     WHERE c.avatar_url = ANY($1::text[])
 
     UNION ALL
 
-    SELECT s.theme->>'logoUrl' AS url
+    SELECT s.theme->>'logoUrl' AS url, 'dono'
     FROM smartlinks s
     WHERE s.theme->>'logoUrl' = ANY($1::text[])
 
     UNION ALL
 
-    SELECT r.branding->>'logoUrl' AS url
+    SELECT r.branding->>'logoUrl' AS url, 'dono'
     FROM report_schedules r
     WHERE r.branding->>'logoUrl' = ANY($1::text[])
 
     UNION ALL
 
-    SELECT w.branding->>'logoUrl' AS url
+    SELECT w.branding->>'logoUrl' AS url, 'dono'
     FROM workspaces w
     WHERE w.branding->>'logoUrl' = ANY($1::text[])
   ) AS references_found
@@ -222,7 +226,7 @@ async function limparMidiasExpiradas({ limit = DEFAULT_BATCH_SIZE } = {}) {
   const safeLimit = Math.max(1, Math.min(500, Number.parseInt(limit, 10) || DEFAULT_BATCH_SIZE))
   const { rows: candidates } = await pool.query(CANDIDATE_POSTS_QUERY, [safeLimit])
   if (!candidates.length) {
-    return { candidates: 0, deleted: 0, deferred: 0, marked: 0, errors: 0 }
+    return { candidates: 0, deleted: 0, deferred: 0, handedOff: 0, marked: 0, errors: 0 }
   }
 
   const entries = candidates.map(row => ({
@@ -231,26 +235,38 @@ async function limparMidiasExpiradas({ limit = DEFAULT_BATCH_SIZE } = {}) {
   }))
   const allReferences = Array.from(new Set(entries.flatMap(entry => Array.from(entry.references))))
 
-  const referencedTargets = new Set()
+  // Alvo usado por outro post ainda ativo: espera. Alvo com dono permanente:
+  // fica no Blob e o post o entrega. Um dono vence a espera, porque o arquivo
+  // nunca será apagado enquanto o dono existir.
+  const esperandoPost = new Set()
+  const comDono = new Set()
   if (allReferences.length) {
     const { rows: references } = await pool.query(REFERENCES_QUERY, [allReferences])
     for (const reference of references) {
       const target = canonicalBlobUrl(reference.url)
-      if (target) referencedTargets.add(target)
+      if (!target) continue
+      if (reference.origem === 'dono') comDono.add(target)
+      else esperandoPost.add(target)
     }
   }
+  const aguardaOutroPost = target => esperandoPost.has(target) && !comDono.has(target)
 
   const deletableTargets = new Set()
   let deferred = 0
+  let handedOff = 0
   const cleanableIds = []
+  const semNadaParaApagar = new Set()
   for (const entry of entries) {
-    const deferredTargets = Array.from(entry.targets).filter(target => referencedTargets.has(target))
-    if (deferredTargets.length) deferred += deferredTargets.length
-    else cleanableIds.push(entry.id)
-
-    for (const target of entry.targets) {
-      if (!referencedTargets.has(target)) deletableTargets.add(target)
-    }
+    const targets = Array.from(entry.targets)
+    const adiados = targets.filter(aguardaOutroPost)
+    const entregues = targets.filter(target => comDono.has(target))
+    const apagaveis = targets.filter(target => !aguardaOutroPost(target) && !comDono.has(target))
+    deferred += adiados.length
+    handedOff += entregues.length
+    apagaveis.forEach(target => deletableTargets.add(target))
+    if (adiados.length) continue
+    cleanableIds.push(entry.id)
+    if (!apagaveis.length) semNadaParaApagar.add(entry.id)
   }
 
   let deleted = 0
@@ -264,11 +280,11 @@ async function limparMidiasExpiradas({ limit = DEFAULT_BATCH_SIZE } = {}) {
     }
   }
 
-  // Sem confirmação da exclusão, mantém os posts elegíveis para uma nova
-  // tentativa no próximo ciclo. Posts sem Blob ou sem referências externas
-  // podem ser marcados como concluídos normalmente.
+  // Sem confirmação da exclusão, mantém elegíveis para uma nova tentativa os
+  // posts que tinham arquivo a apagar. Os que não tinham nada a apagar (sem
+  // Blob, ou com toda mídia entregue a um dono) são marcados normalmente.
   const idsToMark = errors
-    ? cleanableIds.filter(id => !entries.find(entry => entry.id === id)?.targets.size)
+    ? cleanableIds.filter(id => semNadaParaApagar.has(id))
     : cleanableIds
   const marked = await marcarPostsLimpos(idsToMark)
 
@@ -276,6 +292,7 @@ async function limparMidiasExpiradas({ limit = DEFAULT_BATCH_SIZE } = {}) {
     candidates: candidates.length,
     deleted,
     deferred,
+    handedOff,
     marked,
     errors
   }

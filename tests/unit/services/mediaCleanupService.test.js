@@ -60,4 +60,45 @@ describe('mediaCleanupService', () => {
     expect(pool.query).toHaveBeenCalledTimes(2)
     expect(result).toMatchObject({ candidates: 1, deleted: 0, deferred: 1, marked: 0, errors: 0 })
   })
+
+  test('entrega ao dono a mídia usada por fila, rascunho ou biblioteca: não apaga e marca o post', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ id: 12, mediaPath: 'https://blob.example/fila.jpg', mediaItems: null, accountMediaItems: [] }] })
+      .mockResolvedValueOnce({ rows: [{ url: 'https://blob.example/fila.jpg', origem: 'dono' }] })
+      .mockResolvedValueOnce({ rowCount: 1 })
+
+    const result = await limparMidiasExpiradas()
+
+    expect(excluirBlobs).not.toHaveBeenCalled()
+    expect(pool.query.mock.calls[2][1]).toEqual([[12]])
+    expect(result).toMatchObject({ candidates: 1, deleted: 0, deferred: 0, handedOff: 1, marked: 1, errors: 0 })
+  })
+
+  test('um dono permanente vence a espera por outro post ativo', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [{ id: 13, mediaPath: 'https://blob.example/x.jpg', mediaItems: null, accountMediaItems: [] }] })
+      .mockResolvedValueOnce({ rows: [{ url: 'https://blob.example/x.jpg', origem: 'post' }, { url: 'https://blob.example/x.jpg', origem: 'dono' }] })
+      .mockResolvedValueOnce({ rowCount: 1 })
+
+    const result = await limparMidiasExpiradas()
+
+    expect(excluirBlobs).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ deferred: 0, handedOff: 1, marked: 1 })
+  })
+
+  test('se a exclusão falha, marca só os posts que não tinham arquivo a apagar', async () => {
+    pool.query
+      .mockResolvedValueOnce({ rows: [
+        { id: 14, mediaPath: 'https://blob.example/apagar.jpg', mediaItems: null, accountMediaItems: [] },
+        { id: 15, mediaPath: 'https://blob.example/fila.jpg', mediaItems: null, accountMediaItems: [] },
+      ] })
+      .mockResolvedValueOnce({ rows: [{ url: 'https://blob.example/fila.jpg', origem: 'dono' }] })
+      .mockResolvedValueOnce({ rowCount: 1 })
+    excluirBlobs.mockRejectedValueOnce(new Error('Blob fora do ar'))
+
+    const result = await limparMidiasExpiradas()
+
+    expect(pool.query.mock.calls[2][1]).toEqual([[15]])
+    expect(result).toMatchObject({ deleted: 0, handedOff: 1, marked: 1, errors: 1 })
+  })
 })
