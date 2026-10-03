@@ -286,8 +286,9 @@ Arquivo: `frontend/src/pages/drafts-page.jsx`
 - Ver o texto completo de uma ideia (links longos quebram a linha).
 - Reabrir a ideia no Meu Post.
 - Excluir uma ideia (o foco vai para a ideia seguinte) e esvaziar o Baú.
+- **Importar kit** (botão no cabeçalho): colar ou escolher um arquivo JSON com um lote de posts prontos (até 20 itens e 30 mídias). Cada item vira uma ideia para revisar; nada é publicado nem agendado. As mídias vêm por link https e são copiadas para o armazenamento do app. Se parte do kit falhar, o diálogo continua aberto e lista o que não entrou e por quê. Formato em [`KIT-IMPORTACAO.md`](KIT-IMPORTACAO.md).
 
-**APIs:** `GET/POST/DELETE /api/drafts`, `DELETE /api/drafts/:id` e `POST /api/ai/generate`.
+**APIs:** `GET/POST/DELETE /api/drafts`, `DELETE /api/drafts/:id`, `POST /api/drafts/import` e `POST /api/ai/generate`.
 
 ### 6.3 Calendário
 

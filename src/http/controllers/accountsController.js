@@ -20,7 +20,7 @@ async function reconciliarContasZernio(userId) {
 
     let desconectadas = 0
     let reativadas = 0
-    // A lista da Zernio é confiável mesmo vazia (decisão da dona do produto,
+    // A lista da Zernio é confiável mesmo vazia (decisão do Felipe,
     // 03/10/2026): naquele dia ela listava zero contas em todos os perfis e
     // todas tinham de fato sido desconectadas. Adiar o vazio deixaria a conta
     // aparecendo como conectada e o post falhando sem ninguém ser avisado; e
