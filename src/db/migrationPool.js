@@ -8,7 +8,11 @@ const { opcoesPool } = require('./poolConfig')
 function criarPoolMigracao(env = process.env, { Pool } = require('pg')) {
   const url = String(env.DATABASE_MIGRATION_URL || '').trim()
   if (!url) return null
-  const poolMigracao = new Pool(opcoesPool(url, { max: 2 }))
+  // O runMigrations dispara cerca de 17 DDLs em paralelo (Promise.all): com 2 conexões e os 5 s de
+  // espera do pool das requisições, as que ficavam na fila estouravam o tempo num banco lento
+  // ("timeout exceeded when trying to connect" no deploy de 03/10/2026 17:08) e o servidor
+  // reiniciava. Mais conexões e 30 s de espera só aqui; o pool é fechado logo depois.
+  const poolMigracao = new Pool({ ...opcoesPool(url, { max: 5 }), connectionTimeoutMillis: 30000 })
   poolMigracao.on('error', err => console.error('Erro em cliente ocioso do pool de migrations:', err?.message || err))
   return poolMigracao
 }
