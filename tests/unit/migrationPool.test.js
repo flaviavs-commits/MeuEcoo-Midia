@@ -22,9 +22,9 @@ describe('criarPoolMigracao', () => {
     expect(criarDeVerdade({ DATABASE_MIGRATION_URL: '  ' }, { Pool: PoolFalso })).toBeNull()
   })
 
-  test('com a variável, cria um pool pequeno apontado para ela', () => {
+  test('com a variável, cria um pool próprio apontado para ela, com espera longa (DDLs em paralelo)', () => {
     const criado = criarDeVerdade({ DATABASE_MIGRATION_URL: 'postgresql://dono@banco/db' }, { Pool: PoolFalso })
-    expect(criado.opcoes).toMatchObject({ connectionString: 'postgresql://dono@banco/db', max: 2 })
+    expect(criado.opcoes).toMatchObject({ connectionString: 'postgresql://dono@banco/db', max: 5, connectionTimeoutMillis: 30000 })
     expect(criado.on).toHaveBeenCalledWith('error', expect.any(Function))
   })
 })
