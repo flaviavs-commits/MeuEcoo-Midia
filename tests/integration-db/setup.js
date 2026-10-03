@@ -5,14 +5,15 @@
 // TEST_DATABASE_URL=postgresql://postgres:teste@localhost:5433/postgres). O schema é recriado do
 // zero: nunca aponte para um banco com dados.
 //
-// O schema sai de dois lugares, como em produção: os SQL numerados de src/db/migrations (aplicados
-// em ordem) e o runtimeMigrations.js (o que o servidor roda no startup). Se um banco vazio não
-// chegar ao schema atual por esse caminho, o teste-sentinela falha dizendo em qual arquivo.
+// O schema sai de src/db/schema-base.sql (estrutura de produção, sem dados) e do
+// runtimeMigrations.js por cima dele, como no startup do servidor. As migrations numeradas de
+// src/db/migrations não servem de ponto de partida: a 003 já altera tabelas que nenhuma delas cria
+// (veja o cabeçalho do schema-base.sql).
 const fs = require('fs')
 const path = require('path')
 const { Client } = require('pg')
 
-const PASTA_MIGRATIONS = path.join(__dirname, '..', '..', 'src', 'db', 'migrations')
+const SCHEMA_BASE = path.join(__dirname, '..', '..', 'src', 'db', 'schema-base.sql')
 
 function urlDoBanco() {
   return process.env.TEST_DATABASE_URL || null
@@ -29,22 +30,14 @@ async function recriarSchema(url) {
   }
 }
 
-async function aplicarMigrationsNumeradas(url) {
-  const arquivos = fs.readdirSync(PASTA_MIGRATIONS).filter(nome => /^\d+_.*\.sql$/.test(nome)).sort()
+async function aplicarSchemaBase(url) {
   const client = new Client({ connectionString: url })
   await client.connect()
   try {
-    for (const arquivo of arquivos) {
-      try {
-        await client.query(fs.readFileSync(path.join(PASTA_MIGRATIONS, arquivo), 'utf8'))
-      } catch (error) {
-        throw new Error(`Migration ${arquivo} falhou num banco vazio: ${error.message}`, { cause: error })
-      }
-    }
+    await client.query(fs.readFileSync(SCHEMA_BASE, 'utf8'))
   } finally {
     await client.end()
   }
-  return arquivos.length
 }
 
 // Devolve as URLs que as próximas tasks do plano usam. urlApp e urlSistema ficam null até os
@@ -53,14 +46,14 @@ async function prepararBanco() {
   const urlDono = urlDoBanco()
   if (!urlDono) throw new Error('TEST_DATABASE_URL não definida')
   await recriarSchema(urlDono)
-  const migrationsAplicadas = await aplicarMigrationsNumeradas(urlDono)
+  await aplicarSchemaBase(urlDono)
 
   // runtimeMigrations lê o pool de src/db/pool.js, que se conecta em DATABASE_URL no require.
   process.env.DATABASE_URL = urlDono
   const pool = require('../../src/db/pool')
   const { runMigrations } = require('../../src/db/runtimeMigrations')
   await runMigrations()
-  return { urlDono, urlApp: null, urlSistema: null, migrationsAplicadas, pool }
+  return { urlDono, urlApp: null, urlSistema: null, pool }
 }
 
 async function limparBanco(banco) {
