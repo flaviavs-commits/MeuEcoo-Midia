@@ -413,6 +413,21 @@ async function atualizarStatusPrimeiroComentario(id, status, errorMessage = null
 
 // Todas as publicações (uma por rede) dos posts informados, para o Analytics
 // montar uma entrada de métricas por (post, rede) em vez de só uma por post.
+// Uma linha de post_accounts pelo id, com o status do post. Usada pela
+// reconciliação com a Zernio, que parte do postAccountId gravado no metadata.
+async function buscarContaDoPost(postAccountId) {
+  const { rows: [linha] } = await pool.query(`
+    SELECT pa.id AS "postAccountId", pa.post_id AS "postId", pa.account_id AS "accountId",
+           pa.publication_confirmed AS "publicationConfirmed", pa.publication_error AS "publicationError",
+           c.platform, p.status AS "postStatus", p.user_id AS "userId"
+    FROM post_accounts pa
+    JOIN posts p ON p.id = pa.post_id
+    JOIN contas c ON c.id = pa.account_id
+    WHERE pa.id = $1
+  `, [postAccountId])
+  return linha || null
+}
+
 async function listarPublicacoesDosPosts(postIds) {
   if (!postIds.length) return []
   const { rows } = await pool.query(
@@ -692,7 +707,7 @@ async function reagendarPost({ id, scheduledAt, userId, isAdmin }) {
 module.exports = {
   criarPost, listarPosts, deletarPost, buscarPostPorId, atualizarStatusPost, atualizarStatusPostSeProcessando,
   reservarPostsPendentes, recuperarPostsProcessingStale, reagendarParaRetry,
-  definirContasDoPost, listarContasDoPost, atualizarErroPublicacaoConta, marcarContaPublicada,
+  definirContasDoPost, listarContasDoPost, buscarContaDoPost, atualizarErroPublicacaoConta, marcarContaPublicada,
   obterProviderRequestId,
   salvarPublicacaoExterna, listarPublicacoesDosPosts, listarPostsPublicadosSemExternalId, definirAccountIdSeVazio,
   listarPrimeirosComentariosPendentes, atualizarStatusPrimeiroComentario,
