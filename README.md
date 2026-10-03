@@ -250,6 +250,24 @@ vale desde que as migrations rodem com o mesmo papel que rodou o script.
 `${{meuecoo-midia-postgres.DATABASE_URL}}` e fazer redeploy. Leva cerca de 1 minuto, e o
 `DATABASE_MIGRATION_URL` pode ficar como está.
 
+### RLS: cada usuário só enxerga as próprias linhas (fase 2)
+
+O RLS em `contas`, `tokens`, `posts` e `logs` está pronto (`src/db/migrations/078_rls_tabelas_principais.sql`) e ativa em duas etapas:
+
+1. **Etapa 1, em produção desde 03/10/2026 17:08.**
+   - Variáveis na API: `DB_CONTEXTO_USUARIO=ligado` e `DATABASE_SISTEMA_URL`, que aponta para o papel `meuecoo_sistema` (BYPASSRLS, senha em `MEUECOO_SISTEMA_DB_PASSWORD` no serviço do Postgres; não apagar).
+   - Cada consulta de uma requisição autenticada carrega `app.user_id`.
+   - Os fluxos que cruzam usuários usam a conexão de sistema: agendador, `/api/cron`, webhooks, login, callbacks de OAuth e logs sem dono. Eles são marcados com `executarComoSistema` em `src/db/requestContext.js`.
+   - Nesta etapa, ninguém perde acesso a nada.
+   - **Para desligar:** apagar `DB_CONTEXTO_USUARIO` na API e fazer redeploy.
+2. **Etapa 2, aplicar a 078.**
+   - Só fazer com alguém para validar login, a lista e a criação de posts, contas, tokens, a aprovação em workspace e a tela de logs. Uma consulta esquecida devolve **zero linhas**, não erro.
+   - Aplicar pelo socket do container do Postgres:
+     `psql -h /var/run/postgresql -U postgres -d railway -v ON_ERROR_STOP=1 -f 078_rls_tabelas_principais.sql`
+   - **Reverter, que vale na hora e sem deploy:** `078_rls_tabelas_principais.reverter.sql`.
+
+Sem `app.user_id`, o papel do app não vê linha nenhuma nessas tabelas (falha fechada). `tests/integration-db/rls.test.js` e a suíte de isolamento rodam com o RLS ligado.
+
 Os testes `npm run test:db` (`tests/integration-db/`) sobem um Postgres real com o mesmo arranjo:
 migrations com o dono e o app como `meuecoo_app`.
 
