@@ -1,0 +1,65 @@
+name: Monitor de produção
+
+# Checa a API de produção de hora em hora e avisa por issue quando ela não responde.
+# De hora em hora (e não a cada minuto) porque a API dorme no modo Sleep do Railway: um ping
+# frequente a manteria acordada o tempo todo. Cada checagem tolera a API acordando (até ~1 min).
+# O aviso é uma issue com o rótulo "producao-fora-do-ar": o GitHub notifica quem acompanha o
+# repositório, sem depender do e-mail do próprio app. Quando a API volta, a issue é fechada.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "URL a checar no lugar do /health (para testar o alerta com uma rota que não existe)"
+        required: false
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: monitor-producao
+  cancel-in-progress: false
+
+jobs:
+  checar:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      URL_SAUDE: ${{ inputs.url || 'https://social-api-manager-production.up.railway.app/health' }}
+      ROTULO: producao-fora-do-ar
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Checar /health (até 4 tentativas, tolerando a API acordando)
+        id: saude
+        run: |
+          set -u
+          for tentativa in 1 2 3 4; do
+            status=$(curl -s -o /tmp/corpo -w '%{http_code}' --max-time 45 "$URL_SAUDE" || echo 000)
+            if [ "$status" = "200" ] && grep -q '"ok"' /tmp/corpo; then
+              echo "ok=true" >> "$GITHUB_OUTPUT"; echo "API respondeu 200 na tentativa $tentativa"; exit 0
+            fi
+            echo "tentativa $tentativa: status $status"; sleep 15
+          done
+          echo "ok=false" >> "$GITHUB_OUTPUT"
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+
+      - name: Abrir ou atualizar a issue de queda
+        if: steps.saude.outputs.ok == 'false'
+        run: |
+          gh label create "$ROTULO" --color B60205 --description "Aberta pelo monitor de produção" 2>/dev/null || true
+          aberta=$(gh issue list --label "$ROTULO" --state open --json number -q '.[0].number' 2>/dev/null || true)
+          agora=$(date -u '+%d/%m/%Y %H:%M UTC')
+          texto="A API de produção não respondeu 200 em $URL_SAUDE ($agora, último status: ${{ steps.saude.outputs.status }}). Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [ -n "$aberta" ]; then gh issue comment "$aberta" --body "Ainda fora do ar. $texto"
+          else gh issue create --title "Produção fora do ar: /health sem resposta" --label "$ROTULO" --body "$texto"; fi
+          exit 1
+
+      - name: Fechar a issue de queda quando a API volta
+        if: steps.saude.outputs.ok == 'true'
+        run: |
+          for numero in $(gh issue list --label "$ROTULO" --state open --json number -q '.[].number' 2>/dev/null || true); do
+            gh issue close "$numero" --comment "API de volta: /health respondeu 200 em $(date -u '+%d/%m/%Y %H:%M UTC')."
+          done
