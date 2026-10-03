@@ -23,7 +23,8 @@
     "zernio:webhook:register": "node scripts/register-zernio-webhook.js",
     "db:migrate:security:local": "node scripts/apply-security-migration-local.js",
     "backend:lint": "eslint -c eslint.config.mjs src scripts tests",
-    "test:db": "jest --runInBand -c tests/integration-db/jest.config.js"
+    "test:db": "jest --runInBand -c tests/integration-db/jest.config.js",
+    "agendador:tick": "node scripts/agendador-tick.js"
   },
   "jest": {
     "testEnvironment": "node",
