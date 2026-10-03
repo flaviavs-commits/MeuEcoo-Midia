@@ -1,6 +1,7 @@
 // Isolamento entre usuários e papéis, contra o Postgres real: autenticação de verdade (token de
 // sessão assinado, requireAuth lendo o usuário no banco) e o SQL das rotas sem mock. A matriz que
-// estes testes provam está em docs/MATRIZ-AUTORIZACAO.md.
+// estes testes provam está em docs/MATRIZ-AUTORIZACAO.md. Roda como em produção depois da fase 2:
+// app como meuecoo_app, contexto do usuário no pool e RLS em contas, tokens, posts e logs.
 process.env.AUTH_TOKEN_SECRET = process.env.AUTH_TOKEN_SECRET || 'segredo-de-teste-auth-token-32-caracteres'
 process.env.SESSION_SECRET = process.env.SESSION_SECRET || 'segredo-de-teste-session-32-caracteres!!'
 process.env.ALLOWED_EMAIL_DOMAINS = 'teste.local'
@@ -27,7 +28,7 @@ descrever('isolamento entre usuários e papéis (Postgres real)', () => {
   const umValor = async (texto, params) => (await sql(texto, params)).rows[0]
 
   beforeAll(async () => {
-    banco = await prepararBanco()
+    banco = await prepararBanco({ rls: true })
     sql = (texto, params) => banco.pool.query(texto, params)
     app = require('../../src/server')
 

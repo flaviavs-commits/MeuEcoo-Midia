@@ -2,6 +2,7 @@ const { Router } = require('express')
 const pool = require('../db/pool')
 const { parseId, serverError } = require('../utils/http')
 const { dispatchWebhook } = require('../services/webhookService')
+const { executarComoSistema } = require('../db/requestContext')
 const router = Router()
 const slugify = value => String(value || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 50) || `workspace-${Date.now()}`
 
@@ -18,7 +19,7 @@ router.post('/', async (req, res) => {
 router.patch('/:id/branding', async (req, res) => { try { const id = parseId(req.params.id); const workspace = await access(id, req.user.id); if (!workspace || !['owner', 'admin'].includes(workspace.role)) return res.status(403).json({ erro: 'Sem permissão para editar a marca.' }); const branding = { name: String(req.body?.name || '').trim().slice(0, 120), logoUrl: String(req.body?.logoUrl || '').trim().slice(0, 500), primaryColor: /^#[0-9a-f]{6}$/i.test(req.body?.primaryColor || '') ? req.body.primaryColor : '#d9ad5b' }; await pool.query('UPDATE workspaces SET branding=$1 WHERE id=$2', [JSON.stringify(branding), id]); res.json({ branding }) } catch (err) { serverError(res, err) } })
 router.get('/:id/members', async (req, res) => { try { const id = parseId(req.params.id); const workspace = await access(id, req.user.id); if (!workspace) return res.status(403).json({ erro: 'Sem acesso a este espaço.' }); const { rows } = await pool.query('SELECT u.id,u.email,u.full_name AS "fullName",wm.role,wm.criado_em AS "joinedAt" FROM workspace_members wm JOIN users u ON u.id=wm.user_id WHERE wm.workspace_id=$1 ORDER BY wm.criado_em ASC', [id]); res.json({ members: rows }) } catch (err) { serverError(res, err) } })
 router.post('/:id/members', async (req, res) => { try { const id = parseId(req.params.id); const workspace = await access(id, req.user.id); if (!workspace || !['owner', 'admin'].includes(workspace.role)) return res.status(403).json({ erro: 'Sem permissão para convidar membros.' }); const email = req.body?.email?.trim().toLowerCase(); const role = ['admin', 'editor', 'reviewer'].includes(req.body?.role) ? req.body.role : 'editor'; const { rows: users } = await pool.query('SELECT id FROM users WHERE LOWER(email)=LOWER($1)', [email]); if (!users.length) return res.status(404).json({ erro: 'Usuário não encontrado. Ele precisa criar uma conta antes do convite.' }); if (users[0].id === workspace.ownerId) return res.status(409).json({ erro: 'O dono do espaço não pode ter o papel alterado por convite.' }); const { rowCount } = await pool.query("INSERT INTO workspace_members (workspace_id,user_id,role) VALUES ($1,$2,$3) ON CONFLICT (workspace_id,user_id) DO UPDATE SET role=EXCLUDED.role WHERE workspace_members.role <> 'owner'", [id, users[0].id, role]); if (!rowCount) return res.status(409).json({ erro: 'O dono do espaço não pode ter o papel alterado por convite.' }); res.status(201).json({ ok: true }) } catch (err) { serverError(res, err) } })
-router.get('/:id/approvals', async (req, res) => { try { const id = parseId(req.params.id); if (!await access(id, req.user.id)) return res.status(403).json({ erro: 'Sem acesso a este espaço.' }); const { rows } = await pool.query(`SELECT ar.id,ar.post_id AS "postId",ar.status,ar.feedback,ar.criado_em AS "createdAt",p.text,p.platforms,p.media_path AS "mediaPath",p.media_type AS "mediaType",p.media_items AS "mediaItems",p.scheduled_at AS "scheduledAt",p.status AS "postStatus" FROM approval_requests ar JOIN posts p ON p.id=ar.post_id WHERE ar.workspace_id=$1 ORDER BY ar.criado_em DESC`, [id]); res.json({ approvals: rows }) } catch (err) { serverError(res, err) } })
+router.get('/:id/approvals', async (req, res) => { try { const id = parseId(req.params.id); if (!await access(id, req.user.id)) return res.status(403).json({ erro: 'Sem acesso a este espaço.' }); const { rows } = await executarComoSistema(() => pool.query(`SELECT ar.id,ar.post_id AS "postId",ar.status,ar.feedback,ar.criado_em AS "createdAt",p.text,p.platforms,p.media_path AS "mediaPath",p.media_type AS "mediaType",p.media_items AS "mediaItems",p.scheduled_at AS "scheduledAt",p.status AS "postStatus" FROM approval_requests ar JOIN posts p ON p.id=ar.post_id WHERE ar.workspace_id=$1 ORDER BY ar.criado_em DESC`, [id])); res.json({ approvals: rows }) } catch (err) { serverError(res, err) } })
 router.post('/:id/approvals', async (req, res) => {
   let client
   try {
@@ -63,7 +64,9 @@ router.patch('/approvals/:approvalId', async (req, res) => {
     if (!initial.length || !workspace || !['owner', 'admin', 'reviewer'].includes(workspace.role)) return res.status(403).json({ erro: 'Apenas proprietários, administradores ou revisores podem avaliar aprovações.' })
     if (status === 'approved' && initial[0].requested_by === req.user.id) return res.status(403).json({ erro: 'A pessoa que solicitou a aprovação não pode aprovar o próprio conteúdo.' })
 
-    client = await pool.connect()
+    // O post é de quem pediu a aprovação, não de quem avalia: com RLS, só a conexão de sistema o
+    // altera. O papel no workspace é conferido de novo dentro da transação, com a linha travada.
+    client = await executarComoSistema(() => pool.connect())
     await client.query('BEGIN')
     const { rows } = await client.query('SELECT workspace_id,post_id,requested_by,status FROM approval_requests WHERE id=$1 FOR UPDATE', [approvalId])
     if (!rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ erro: 'Aprovação não encontrada.' }) }
