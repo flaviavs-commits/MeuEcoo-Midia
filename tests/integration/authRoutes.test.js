@@ -301,6 +301,28 @@ describe('POST /auth/login/forgot-password', () => {
     expect(res.status).toBe(200)
     expect(require('../../src/services/mailer').enviarEmailRedefinicaoSenha).toHaveBeenCalled()
   })
+
+  test('o link de redefinição abre no domínio do produto (FRONTEND_URL), não no da API', async () => {
+    const antes = { FRONTEND_URL: process.env.FRONTEND_URL, BASE_URL: process.env.BASE_URL }
+    process.env.FRONTEND_URL = 'https://produto.test/'
+    process.env.BASE_URL = 'https://api.produto.test'
+    try {
+      usersRepo.buscarPorEmail.mockResolvedValue({ id: 1, email: 'a@allowed.test' })
+      credRepo.buscarPorUserId.mockResolvedValue({ user_id: 1 })
+      credRepo.gerarTokenReset.mockResolvedValue('tok/123')
+      const mailer = require('../../src/services/mailer')
+      mailer.enviarEmailRedefinicaoSenha.mockClear()
+
+      await request(app).post(`${BASE}/forgot-password`).send({ email: 'a@allowed.test' })
+
+      expect(mailer.enviarEmailRedefinicaoSenha).toHaveBeenCalledWith('a@allowed.test', 'https://produto.test/reset-password.html#token=tok%2F123')
+    } finally {
+      for (const [chave, valor] of Object.entries(antes)) {
+        if (valor === undefined) delete process.env[chave]
+        else process.env[chave] = valor
+      }
+    }
+  })
 })
 
 // ── /reset-password/validar ───────────────────────────────────────────────────

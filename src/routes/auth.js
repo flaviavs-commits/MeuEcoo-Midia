@@ -314,7 +314,12 @@ router.post('/forgot-password', forgotIpLimiter, forgotContaLimiter, async (req,
     const token = await credentialsRepo.gerarTokenReset(user.id)
     // Fragmento não é enviado ao servidor nem aparece no Referer. A página
     // troca o fragmento por memória assim que carrega.
-    const resetLink = `${process.env.BASE_URL}/reset-password.html#token=${encodeURIComponent(token)}`
+    // O link abre no domínio do produto (FRONTEND_URL), não no endereço da
+    // API: as duas servem a página, mas pelo BASE_URL a pessoa saía de
+    // meuecoomidia.com.br e continuava no domínio técnico do Railway. Mesmo
+    // padrão do link do painel admin nos alertas de cobrança.
+    const base = String(process.env.FRONTEND_URL || process.env.BASE_URL || '').replace(/\/$/, '')
+    const resetLink = `${base}/reset-password.html#token=${encodeURIComponent(token)}`
     await mailer.enviarEmailRedefinicaoSenha(user.email, resetLink)
 
     res.json(respostaPadrao)
