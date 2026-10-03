@@ -81,3 +81,16 @@ describe('config/env', () => {
     expect(() => assertProductionSecrets({ ...production, BLOB_READ_WRITE_TOKEN: 'blob-token' })).not.toThrow()
   })
 })
+
+describe('openaiApiKey', () => {
+  const { openaiApiKey } = require('../../src/config/env')
+
+  test('apara a quebra de linha que veio colada no valor do Railway', () => {
+    expect(openaiApiKey({ OPENAI_API_KEY: 'sk-teste\n' })).toBe('sk-teste')
+  })
+
+  test('ausente ou só espaço vira string vazia (e conta como "sem chave")', () => {
+    expect(openaiApiKey({})).toBe('')
+    expect(openaiApiKey({ OPENAI_API_KEY: ' \n' })).toBe('')
+  })
+})

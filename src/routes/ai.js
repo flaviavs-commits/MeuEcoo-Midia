@@ -4,6 +4,7 @@ const rateLimit = require('express-rate-limit')
 const { chavePorUsuario } = require('../infra/http/chavesRateLimit')
 const { createRateLimitStore } = require('../infra/http/postgresRateLimitStore')
 const { serverError, isAdminRole } = require('../utils/http')
+const { openaiApiKey } = require('../config/env')
 const { encrypt, decrypt } = require('../services/tokenCrypto')
 const { getManagementApiKey, getOrCreateOpenRouterUserKey } = require('../services/openrouterKeyService')
 const { ajustarPostParaPlataformas, limiteTexto, YOUTUBE_TITLE_MAX } = require('../domain/posts/platformLimits')
@@ -284,7 +285,7 @@ async function generateWithClaude(prompt, userKey, modelId = 'claude') {
 }
 
 async function generateWithOpenAI(prompt, userKey, modelId = 'openai') {
-  const key = userKey || process.env.OPENAI_API_KEY
+  const key = userKey || openaiApiKey()
   if (!key) throw Object.assign(new Error('Para usar o GPT, configure sua chave de API da OpenAI.'), { status: 503 })
   const OpenAI = require('openai')
   const client = new OpenAI({ apiKey: key })
@@ -472,7 +473,7 @@ async function analisarMidiaComModelo({ modelo, prompt, mediaBase64, mimeType, m
       : prompt
 
   if (OPENAI_MODEL_IDS[modelo]) {
-    const key = userKey || process.env.OPENAI_API_KEY
+    const key = userKey || openaiApiKey()
     if (!key) throw Object.assign(new Error('Para usar o GPT, configure sua chave de API da OpenAI.'), { status: 503 })
     const OpenAI = require('openai')
     const client = new OpenAI({ apiKey: key })
@@ -1019,7 +1020,7 @@ router.post('/generate', async (req, res) => {
     // OpenAI pode usar a chave do servidor quando o usuário não tem uma chave
     // própria salva. Claude continua exigindo sua própria chave.
     if (OPENAI_MODEL_IDS[modelo] && !userKey) {
-      if (!process.env.OPENAI_API_KEY) {
+      if (!openaiApiKey()) {
         throw Object.assign(new Error('Para usar o GPT sem sua própria chave, configure a chave de API da OpenAI no servidor.'), { status: 503 })
       }
       const rawTextOpenai = await generateWithOpenAI(prompt, null, modelo)
@@ -1686,7 +1687,7 @@ Responda APENAS com JSON válido, sem texto antes ou depois:
 // sempre "disponível" já que basta o usuário colar a chave dele).
 router.get('/models', (req, res) => {
   const hasGemini = !!getGeminiApiKey()
-  const hasOpenai = !!process.env.OPENAI_API_KEY
+  const hasOpenai = !!openaiApiKey()
   const hasOpenrouter = !!(process.env.OPENROUTER_API_KEY || getManagementApiKey())
   res.json({
     models: [
@@ -1731,7 +1732,7 @@ async function gerarTextoParaAgente(prompt, userId, modelo = 'openrouter') {
     return raw
   }
   if (OPENAI_MODEL_IDS[modeloReal]) {
-    if (!userKey && !process.env.OPENAI_API_KEY) return null
+    if (!userKey && !openaiApiKey()) return null
     const raw = await generateWithOpenAI(prompt, userKey, modeloReal)
     return raw
   }

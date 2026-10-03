@@ -127,4 +127,12 @@ function assertProductionSecrets(source = process.env) {
   }
 }
 
-module.exports = { DEFAULT_PORT, csv, boolean, readEnv, assertProductionSecrets }
+// Chave da OpenAI da plataforma (usada quando o cliente não tem chave
+// própria). Em 02/10/2026 o valor no Railway terminava com quebra de linha;
+// o fetch do Node apara o header e a chamada funcionava, mas a leitura não
+// deve depender disso.
+function openaiApiKey(source = process.env) {
+  return String(source.OPENAI_API_KEY || '').trim()
+}
+
+module.exports = { DEFAULT_PORT, csv, boolean, readEnv, assertProductionSecrets, openaiApiKey }
