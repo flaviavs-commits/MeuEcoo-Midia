@@ -40,9 +40,13 @@ describe('cliente HTTP', () => {
 
   it('nunca mostra a página HTML de um proxy como mensagem de erro', async () => {
     const html = '<!DOCTYPE html><html><head><title>502 Bad Gateway</title></head><body><h1>502 Bad Gateway</h1></body></html>'
+    vi.useFakeTimers()
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 502, text: async () => html })))
 
-    await expect(apiFetch('/api/posts')).rejects.toMatchObject({ name: 'ApiError', status: 502, message: 'Não foi possível concluir a operação' })
+    const pending = apiFetch('/api/posts')
+    const assertion = expect(pending).rejects.toMatchObject({ name: 'ApiError', status: 502, message: 'Não foi possível concluir a operação' })
+    await vi.advanceTimersByTimeAsync(4000)
+    await assertion
   })
 
   it('também descarta texto com marcação dentro de um JSON de erro', async () => {
@@ -71,5 +75,52 @@ describe('cliente HTTP', () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 400, text: async () => JSON.stringify({ erro }) })))
 
     await expect(apiFetch('/api/posts')).rejects.toMatchObject({ status: 400, message: erro })
+  })
+
+  describe('API acordando do Sleep (502/503)', () => {
+    const resposta = (status, corpo = {}) => ({ ok: status >= 200 && status < 300, status, text: async () => JSON.stringify(corpo) })
+
+    it('GET com 502 é repetido depois de 1 s e devolve o corpo do 200', async () => {
+      vi.useFakeTimers()
+      const fetchMock = vi.fn().mockResolvedValueOnce(resposta(502)).mockResolvedValueOnce(resposta(200, { id: 7 }))
+      vi.stubGlobal('fetch', fetchMock)
+
+      const pending = apiFetch('/api/me')
+      await vi.advanceTimersByTimeAsync(999)
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1)
+      await expect(pending).resolves.toEqual({ id: 7 })
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+    })
+
+    it('POST com 502 não é repetido: repetir duplicaria o post (Review Focus 4)', async () => {
+      const fetchMock = vi.fn(async url => String(url).endsWith('/auth/csrf') ? resposta(200, { token: 't' }) : resposta(502))
+      vi.stubGlobal('fetch', fetchMock)
+
+      await expect(apiFetch('/api/posts', { method: 'POST', body: JSON.stringify({ text: 'x' }) })).rejects.toMatchObject({ status: 502 })
+      expect(fetchMock.mock.calls.filter(([url]) => String(url).endsWith('/api/posts'))).toHaveLength(1)
+    })
+
+    it('GET sem conexão tenta 3 vezes (esperas de 1 s e 3 s) e então desiste', async () => {
+      vi.useFakeTimers()
+      const fetchMock = vi.fn(async () => { throw new TypeError('Failed to fetch') })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const pending = apiFetch('/api/me')
+      const assertion = expect(pending).rejects.toMatchObject({ status: 0, message: 'Não foi possível conectar ao servidor.' })
+      await vi.advanceTimersByTimeAsync(4000)
+      await assertion
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+    })
+
+    it('GET cancelado pelo chamador não é repetido', async () => {
+      vi.stubGlobal('fetch', vi.fn(fetchThatAborts))
+      const controller = new AbortController()
+      const pending = apiFetch('/api/me', { signal: controller.signal })
+      const assertion = expect(pending).rejects.toMatchObject({ status: 408 })
+      controller.abort()
+      await assertion
+      expect(fetch).toHaveBeenCalledTimes(1)
+    })
   })
 })

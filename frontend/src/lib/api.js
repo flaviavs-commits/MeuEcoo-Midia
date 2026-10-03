@@ -113,7 +113,7 @@ function errorMessage(body, fallback) {
   return readableMessage(body?.erro) || readableMessage(body?.message) || readableMessage(body?.mensagem) || fallback
 }
 
-async function request(path, options = {}) {
+async function requestUmaVez(path, options = {}) {
   const { headers = {}, timeoutMs = 15_000, signal: externalSignal, csrfRetried, keepSessionOn401, ...requestOptions } = options
   const controller = new AbortController()
   const abortFromCaller = () => controller.abort()
@@ -141,7 +141,7 @@ async function request(path, options = {}) {
     if (token && !options.csrfRetried && isCsrfRejection(response, body)) {
       csrfToken = null
       clearTimeout(timer)
-      return request(path, { ...options, csrfRetried: true })
+      return requestUmaVez(path, { ...options, csrfRetried: true })
     }
     return { response, body }
   } catch (error) {
@@ -151,6 +151,31 @@ async function request(path, options = {}) {
   } finally {
     clearTimeout(timer)
     externalSignal?.removeEventListener('abort', abortFromCaller)
+  }
+}
+
+// A API dorme no modo Sleep do Railway e, enquanto acorda, o proxy responde 502/503. Só leituras
+// (GET) são repetidas, até 2 vezes, depois de 1 s e 3 s: repetir uma mutação poderia duplicar um
+// post. Tempo esgotado e cancelamento pelo chamador não são repetidos.
+const ESPERAS_GET_MS = [1000, 3000]
+
+async function request(path, options = {}) {
+  const leitura = String(options.method || 'GET').toUpperCase() === 'GET'
+  for (let tentativa = 0; ; tentativa++) {
+    let resultado
+    let erro
+    try {
+      resultado = await requestUmaVez(path, options)
+    } catch (caught) {
+      erro = caught
+    }
+    const acordando = erro ? erro.status === 0 : [502, 503].includes(resultado.response.status)
+    const repetir = leitura && acordando && tentativa < ESPERAS_GET_MS.length && !options.signal?.aborted
+    if (!repetir) {
+      if (erro) throw erro
+      return resultado
+    }
+    await new Promise(resolve => setTimeout(resolve, ESPERAS_GET_MS[tentativa]))
   }
 }
 
