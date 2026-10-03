@@ -5,7 +5,7 @@ const postsRepo = require('../infra/db/postsRepository')
 const tokensRepo = require('../repositories/tokensRepository')
 const pool = require('../db/pool')
 const { enviarPush } = require('./pushService')
-const { verificarSaudePlataformas } = require('./platformHealth')
+const { verificarSaudePlataformas, garantirSaudeRecente } = require('./platformHealth')
 const { comentarYoutube } = require('../infra/social/youtubePublisher')
 const { mapWithConcurrency } = require('../utils/concurrency')
 const { processarFilasRecorrentes, processarRelatoriosAgendados } = require('./prioritySchedulers')
@@ -219,6 +219,14 @@ async function processarPrimeirosComentarios() {
 }
 
 async function processarPendentes() {
+  // A saúde das redes é checada aqui, sob demanda (no máximo a cada 15 min), e não mais num cron
+  // próprio de 1 minuto: assim ela também roda quando o agendador é externo e a API acorda só para
+  // publicar. Falha na checagem não impede a publicação.
+  try {
+    await garantirSaudeRecente()
+  } catch (err) {
+    await registrarLog({ type: 'err', message: `Erro ao verificar a saúde das redes: ${err.message}`, platform: null })
+  }
   // Drena callbacks persistidos da Zernio antes da reconciliação por polling.
   // Se a instância reiniciou depois de devolver 200 ao provedor, o resultado
   // ainda será processado sem depender de uma nova entrega externa.
@@ -289,10 +297,6 @@ function start() {
   // arquivos que venceram enquanto a aplicação estava desligada.
   cron.schedule('17 * * * *', comoSistema(executarLimpezaMidias))
   comoSistema(executarLimpezaMidias)()
-
-  // Verifica a cada minuto se as redes sociais estão respondendo
-  cron.schedule('* * * * *', comoSistema(verificarSaudePlataformas))
-  comoSistema(verificarSaudePlataformas)()
 
 }
 

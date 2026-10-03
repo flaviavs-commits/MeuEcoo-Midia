@@ -1,5 +1,6 @@
 const pool = require('../db/pool')
 const { decrypt } = require('./tokenCrypto')
+const { executarComoSistema } = require('../db/requestContext')
 const { registrarLog, broadcastEvent } = require('../repositories/logsRepository')
 const zernioClient = require('../infra/social/zernioClient')
 
@@ -164,4 +165,22 @@ async function getStatusMap(userId = null) {
   return map
 }
 
-module.exports = { verificarSaudePlataformas, getStatusMap, PLATFORMS }
+// Checagem sob demanda (plano do agendador externo, Task 2): em vez de pingar as redes a cada minuto,
+// verifica só quando a última checagem tem mais de maxIdadeMin. Chamada no tick de publicação e na
+// leitura de /api/platform-health. A verificação lê tokens de todos os usuários, então roda como
+// sistema mesmo quando quem pediu foi uma requisição. Uma verificação por vez (trava em memória).
+let verificacaoEmAndamento = null
+
+async function garantirSaudeRecente({ maxIdadeMin = 15 } = {}) {
+  if (verificacaoEmAndamento) return false
+  const { rows } = await pool.query('SELECT MAX(checked_at) AS ultima FROM platform_health')
+  const ultima = rows[0]?.ultima ? new Date(rows[0].ultima).getTime() : 0
+  if (ultima && Date.now() - ultima < maxIdadeMin * 60000) return false
+  if (verificacaoEmAndamento) return false
+  verificacaoEmAndamento = executarComoSistema(() => verificarSaudePlataformas())
+    .finally(() => { verificacaoEmAndamento = null })
+  await verificacaoEmAndamento
+  return true
+}
+
+module.exports = { verificarSaudePlataformas, garantirSaudeRecente, getStatusMap, PLATFORMS }

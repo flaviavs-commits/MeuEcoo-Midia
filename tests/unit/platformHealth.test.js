@@ -60,3 +60,49 @@ describe('verificação de saúde com conta removida no Zernio', () => {
     expect(registrarLog).not.toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringContaining('fora do ar') }))
   })
 })
+
+describe('garantirSaudeRecente: checagem sob demanda', () => {
+  const { garantirSaudeRecente } = require('../../src/services/platformHealth')
+  const ultimaChecagemHa = minutos => ({ rows: [{ ultima: minutos === null ? null : new Date(Date.now() - minutos * 60000) }] })
+  const checouAsRedes = () => pool.query.mock.calls.some(([sql]) => /FROM tokens/.test(sql))
+
+  beforeEach(() => {
+    jest.clearAllMocks()
+    pool.query.mockResolvedValue({ rows: [] })
+  })
+
+  test('checagem de 5 min atrás ainda vale: não verifica de novo', async () => {
+    pool.query.mockResolvedValueOnce(ultimaChecagemHa(5))
+    expect(await garantirSaudeRecente()).toBe(false)
+    expect(checouAsRedes()).toBe(false)
+  })
+
+  test('checagem de 20 min atrás está velha: verifica as redes', async () => {
+    pool.query.mockResolvedValueOnce(ultimaChecagemHa(20))
+    expect(await garantirSaudeRecente()).toBe(true)
+    expect(checouAsRedes()).toBe(true)
+  })
+
+  test('tabela vazia conta como velha', async () => {
+    pool.query.mockResolvedValueOnce(ultimaChecagemHa(null))
+    expect(await garantirSaudeRecente()).toBe(true)
+  })
+
+  test('duas chamadas ao mesmo tempo fazem uma verificação só', async () => {
+    pool.query.mockImplementation(async sql => /MAX\(checked_at\)/.test(sql) ? ultimaChecagemHa(30) : { rows: [] })
+    const resultados = await Promise.all([garantirSaudeRecente(), garantirSaudeRecente()])
+    expect(resultados.sort()).toEqual([false, true])
+  })
+
+  test('a verificação roda como sistema mesmo chamada dentro de uma requisição (lê tokens de todos)', async () => {
+    const { executarComUsuario, emModoSistema } = require('../../src/db/requestContext')
+    const modos = []
+    pool.query.mockImplementation(async sql => {
+      if (/FROM tokens/.test(sql)) modos.push(emModoSistema())
+      return /MAX\(checked_at\)/.test(sql) ? ultimaChecagemHa(30) : { rows: [] }
+    })
+    await executarComUsuario({ userId: 7 }, () => garantirSaudeRecente())
+    expect(modos.length).toBeGreaterThan(0)
+    expect(modos.every(Boolean)).toBe(true)
+  })
+})
