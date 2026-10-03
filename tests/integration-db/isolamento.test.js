@@ -176,4 +176,80 @@ descrever('isolamento entre usuários e papéis (Postgres real)', () => {
       })
     })
   })
+
+  describe('posts, contas e tokens das redes', () => {
+    let conta, token, post
+
+    beforeAll(async () => {
+      conta = await umValor("INSERT INTO contas (user_id, platform, handle, tipo) VALUES ($1, 'instagram', 'perfil_do_dono', 'NICHO') RETURNING id", [u.dono.id])
+      token = await umValor("INSERT INTO tokens (conta_id, platform, access_token, expires_at) VALUES ($1, 'instagram', 'token-cifrado-de-teste', NOW() + INTERVAL '30 days') RETURNING id", [conta.id])
+      post = await umValor("INSERT INTO posts (user_id, text, platforms, scheduled_at, status) VALUES ($1, 'Post do dono', ARRAY['instagram'], NOW() + INTERVAL '2 days', 'scheduled') RETURNING id", [u.dono.id])
+      await sql('INSERT INTO post_accounts (post_id, account_id) VALUES ($1, $2)', [post.id, conta.id])
+    })
+
+    const idsDaLista = res => Object.values(res.body).find(Array.isArray)?.map(item => item.id) || []
+
+    test.each(['estranho', 'adminSistema'])('as listagens de %s não trazem post, conta nem token do dono', async (quem) => {
+      const posts = await como(u[quem]).get('/api/posts')
+      const contas = await como(u[quem]).get('/api/accounts')
+      const tokens = await como(u[quem]).get('/api/tokens')
+      expect([posts.status, contas.status, tokens.status]).toEqual([200, 200, 200])
+      expect(idsDaLista(posts)).not.toContain(post.id)
+      expect(idsDaLista(contas)).not.toContain(conta.id)
+      expect(idsDaLista(tokens)).not.toContain(token.id)
+    })
+
+    test('o dono vê o próprio post e a própria conta', async () => {
+      expect(idsDaLista(await como(u.dono).get('/api/posts'))).toContain(post.id)
+      expect(idsDaLista(await como(u.dono).get('/api/accounts'))).toContain(conta.id)
+    })
+
+    test('um estranho não lê, reagenda, repete nem apaga o post do dono', async () => {
+      const outro = como(u.estranho)
+      const amanha = new Date(Date.now() + 86400000).toISOString()
+      expect((await outro.patch(`/api/posts/${post.id}`, { scheduledAt: amanha })).status).toBe(404)
+      expect((await outro.post(`/api/posts/${post.id}/repeat`, { scheduledAt: amanha })).status).toBe(404)
+      expect((await outro.get(`/api/posts/${post.id}/metrics-history`)).status).toBe(404)
+      expect((await outro.get(`/api/posts/${post.id}/comments`)).status).toBe(404)
+      expect((await outro.delete(`/api/posts/${post.id}`)).status).toBe(404)
+      expect(await umValor('SELECT status, (SELECT COUNT(*)::int FROM posts WHERE user_id=$2) AS copias FROM posts WHERE id=$1', [post.id, u.estranho.id]))
+        .toEqual({ status: 'scheduled', copias: 0 })
+    })
+
+    test('um estranho não lê, desconecta nem pendura token na conta do dono', async () => {
+      const outro = como(u.estranho)
+      expect((await outro.get(`/api/accounts/${conta.id}`)).status).toBe(404)
+      expect((await outro.delete(`/api/accounts/${conta.id}`)).status).toBe(404)
+      expect((await outro.delete(`/api/tokens/${token.id}`)).status).toBe(404)
+      expect((await outro.post(`/api/tokens/renew/${token.id}`)).status).toBeGreaterThanOrEqual(400)
+      expect((await outro.post('/api/tokens', { accountId: conta.id, platform: 'instagram', accessToken: 'intruso' })).status).toBe(404)
+      expect(await umValor('SELECT c.ativo, t.access_token, (SELECT COUNT(*)::int FROM tokens WHERE conta_id=$1) AS tokens FROM contas c JOIN tokens t ON t.conta_id=c.id WHERE c.id=$1', [conta.id]))
+        .toEqual({ ativo: true, access_token: 'token-cifrado-de-teste', tokens: 1 })
+    })
+  })
+
+  describe('painel administrativo', () => {
+    test('quem não é admin do sistema não entra', async () => {
+      for (const rota of ['/api/admin/users', '/api/admin/dashboard', '/api/admin/billing/reconciliation']) {
+        expect({ rota, status: (await como(u.dono).get(rota)).status }).toEqual({ rota, status: 403 })
+      }
+    })
+
+    test('o admin do sistema vê só a própria conta e não muda papel nem situação de outra', async () => {
+      const admin = como(u.adminSistema)
+      const lista = await admin.get('/api/admin/users')
+      expect(lista.status).toBe(200)
+      expect(lista.body.data.map(usuario => usuario.id)).toEqual([u.adminSistema.id])
+      expect((await admin.post(`/api/admin/users/${u.dono.id}/role`, { role: 'admin' })).status).toBe(403)
+      expect((await admin.post(`/api/admin/users/${u.dono.id}/ativo`, { ativo: false })).status).toBe(403)
+      expect(await umValor('SELECT role, ativo FROM users WHERE id=$1', [u.dono.id])).toEqual({ role: 'user', ativo: true })
+    })
+
+    test('o papel legado super_admin vira admin no startup e não sobra com escopo ampliado', async () => {
+      const legado = await umValor("INSERT INTO users (email, role, plan, plan_active) VALUES ('legado@teste.local', 'super_admin', 'pro', TRUE) RETURNING id")
+      const { runMigrations } = require('../../src/db/runtimeMigrations')
+      await runMigrations()
+      expect(await umValor('SELECT role FROM users WHERE id=$1', [legado.id])).toEqual({ role: 'admin' })
+    })
+  })
 })
