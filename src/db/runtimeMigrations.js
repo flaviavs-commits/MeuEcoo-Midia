@@ -1,4 +1,5 @@
 const pool = require('./pool')
+const { criarPoolMigracao } = require('./migrationPool')
 
 // Compatibilidade de inicialização para instalações que ainda não executaram
 // todas as migrations versionadas. As operações são idempotentes, mas uma
@@ -6,7 +7,9 @@ const pool = require('./pool')
 // que deixar o supervisor reiniciar o processo após corrigir a migração.
 // Todas as queries abaixo são aguardadas. Qualquer falha rejeita runMigrations
 // e impede o servidor de iniciar com schema parcial.
-const requiredQuery = query => pool.query(query)
+// Pool em uso pela migração corrente: o de migrations quando existir, senão o padrão.
+let poolAtivo = pool
+const requiredQuery = query => poolAtivo.query(query)
 // Alias temporário para os blocos históricos; ele não engole exceções.
 const bestEffort = requiredQuery
 
@@ -261,7 +264,7 @@ async function ensureSubscriptionsTable() {
   await bestEffort('CREATE INDEX IF NOT EXISTS idx_users_stripe_customer_id ON users (stripe_customer_id) WHERE stripe_customer_id IS NOT NULL')
 }
 
-async function runMigrations() {
+async function aplicarMigracoes() {
   await Promise.all([
     requiredQuery(`
       CREATE TABLE IF NOT EXISTS rate_limit_counters (
@@ -382,6 +385,19 @@ async function runMigrations() {
   await ensureUserPlanColumns()
   await ensureBillingTables()
   await ensureSubscriptionsTable()
+}
+
+// `pool` permite apontar a migração para um pool já aberto (testes). Sem ele, usa o pool de
+// DATABASE_MIGRATION_URL, se houver, e o encerra ao terminar, com sucesso ou falha.
+async function runMigrations({ pool: poolRecebido } = {}) {
+  const poolMigracao = poolRecebido ? null : criarPoolMigracao()
+  poolAtivo = poolRecebido || poolMigracao || pool
+  try {
+    await aplicarMigracoes()
+  } finally {
+    poolAtivo = pool
+    if (poolMigracao) await poolMigracao.end().catch(err => console.error('Erro ao encerrar o pool de migrations:', err?.message || err))
+  }
 }
 
 module.exports = { runMigrations }
