@@ -441,7 +441,9 @@ app.use('/api/webhooks', webhooksRoutes)
 app.use('/api/api-keys', requirePaidPlan, apiKeysRoutes)
 
 app.get('/api/platform-health', requirePaidPlan, asyncHandler(async (req, res) => {
-  const { getStatusMap } = require('./services/platformHealth')
+  const { getStatusMap, garantirSaudeRecente } = require('./services/platformHealth')
+  // Atualiza em segundo plano se a checagem estiver velha; a resposta usa o que já está gravado.
+  garantirSaudeRecente().catch(err => console.error('Falha ao verificar a saúde das redes:', safeMessage(err?.message)))
   res.json({ platforms: await getStatusMap(req.user.id) })
 }))
 

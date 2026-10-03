@@ -20,7 +20,7 @@ jest.mock('../../../src/infra/db/postsRepository', () => ({
 jest.mock('../../../src/repositories/tokensRepository', () => ({ renovarTodos: jest.fn() }))
 jest.mock('../../../src/db/pool', () => ({ query: jest.fn().mockResolvedValue({ rows: [] }) }))
 jest.mock('../../../src/services/pushService', () => ({ enviarPush: jest.fn().mockResolvedValue() }))
-jest.mock('../../../src/services/platformHealth', () => ({ verificarSaudePlataformas: jest.fn() }))
+jest.mock('../../../src/services/platformHealth', () => ({ verificarSaudePlataformas: jest.fn(), garantirSaudeRecente: jest.fn().mockResolvedValue(false) }))
 jest.mock('../../../src/infra/social/youtubePublisher', () => ({ comentarYoutube: jest.fn().mockResolvedValue() }))
 jest.mock('../../../src/services/prioritySchedulers', () => ({
   processarFilasRecorrentes: jest.fn().mockResolvedValue(),
@@ -204,6 +204,18 @@ describe('processarPendentes: o tick de 1 minuto', () => {
     ])
   })
 
+  test('confere a saúde das redes antes de publicar; se a checagem falhar, publica mesmo assim', async () => {
+    const { garantirSaudeRecente } = require('../../../src/services/platformHealth')
+    garantirSaudeRecente.mockRejectedValueOnce(new Error('banco lento'))
+    postsRepo.reservarPostsPendentes.mockResolvedValueOnce([post({ id: 9 })])
+    publisher.publishPost.mockResolvedValue([ok('instagram')])
+
+    await scheduler.processarPendentes()
+
+    expect(mensagensDeLog()[0]).toBe('Erro ao verificar a saúde das redes: banco lento')
+    expect(publisher.publishPost).toHaveBeenCalledWith(expect.objectContaining({ id: 9 }))
+  })
+
   test('avisa quando encerra publicações presas em processamento', async () => {
     postsRepo.recuperarPostsProcessingStale.mockResolvedValueOnce([{ id: 1 }, { id: 2 }])
 
@@ -275,17 +287,18 @@ describe('rotinas de manutenção', () => {
     await expect(scheduler.executarLimpezaMidias()).resolves.toMatchObject({ errors: 1 })
   })
 
-  test('start agenda as quatro rotinas e roda cada uma uma vez na subida', async () => {
+  test('start agenda as três rotinas e roda cada uma uma vez na subida (saúde das redes é sob demanda)', async () => {
     tokensRepo.renovarTodos.mockResolvedValue({ total: 0, renewed: [], requiresManual: [], failed: [] })
     limparMidiasExpiradas.mockResolvedValue({ candidates: 0, deleted: 0, deferred: 0, handedOff: 0, marked: 0, errors: 0 })
-    const { verificarSaudePlataformas } = require('../../../src/services/platformHealth')
+    const { verificarSaudePlataformas, garantirSaudeRecente } = require('../../../src/services/platformHealth')
 
     scheduler.start()
     await new Promise(resolve => setImmediate(resolve))
 
-    expect(cron.schedule.mock.calls.map(([expressao]) => expressao)).toEqual(['* * * * *', '0 */6 * * *', '17 * * * *', '* * * * *'])
+    expect(cron.schedule.mock.calls.map(([expressao]) => expressao)).toEqual(['* * * * *', '0 */6 * * *', '17 * * * *'])
     expect(tokensRepo.renovarTodos).toHaveBeenCalledTimes(1)
     expect(limparMidiasExpiradas).toHaveBeenCalledTimes(1)
-    expect(verificarSaudePlataformas).toHaveBeenCalledTimes(1)
+    expect(verificarSaudePlataformas).not.toHaveBeenCalled()
+    expect(garantirSaudeRecente).toHaveBeenCalledTimes(1)
   })
 })
