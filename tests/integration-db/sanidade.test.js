@@ -1,0 +1,27 @@
+// Teste-sentinela da suíte de banco real: o schema sobe do zero e responde.
+const { urlDoBanco, prepararBanco, limparBanco } = require('./setup')
+
+const temBanco = Boolean(urlDoBanco())
+if (!temBanco) console.warn('TEST_DATABASE_URL não definida: a suíte de banco real foi pulada (veja tests/integration-db/setup.js).')
+const descrever = temBanco ? describe : describe.skip
+
+descrever('Postgres real', () => {
+  let banco
+
+  beforeAll(async () => { banco = await prepararBanco() })
+  afterAll(async () => { await limparBanco(banco) })
+
+  test('conecta como dono e responde', async () => {
+    const { rows } = await banco.pool.query('SELECT 1 AS ok')
+    expect(rows[0].ok).toBe(1)
+  })
+
+  test('um banco vazio chega ao schema atual pelas migrations numeradas e pelo runtimeMigrations', async () => {
+    expect(banco.migrationsAplicadas).toBeGreaterThan(70)
+    const { rows } = await banco.pool.query(
+      `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_name = ANY($1)`,
+      [['users', 'credentials', 'contas', 'tokens', 'posts', 'post_accounts', 'logs', 'drafts', 'subscriptions', 'billing_plan_changes']]
+    )
+    expect(rows.map(r => r.table_name).sort()).toEqual(['billing_plan_changes', 'contas', 'credentials', 'drafts', 'logs', 'post_accounts', 'posts', 'subscriptions', 'tokens', 'users'])
+  })
+})

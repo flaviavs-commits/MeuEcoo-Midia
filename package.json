@@ -22,7 +22,8 @@
     "security:migrate-encrypted-secrets": "node scripts/migrate-encrypted-secrets.js",
     "zernio:webhook:register": "node scripts/register-zernio-webhook.js",
     "db:migrate:security:local": "node scripts/apply-security-migration-local.js",
-    "backend:lint": "eslint -c eslint.config.mjs src scripts tests"
+    "backend:lint": "eslint -c eslint.config.mjs src scripts tests",
+    "test:db": "jest --runInBand -c tests/integration-db/jest.config.js"
   },
   "jest": {
     "testEnvironment": "node",
@@ -53,7 +54,11 @@
       "text",
       "text-summary"
     ],
-    "coverageThreshold": {}
+    "coverageThreshold": {},
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/tests/integration-db/"
+    ]
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.109.0",
