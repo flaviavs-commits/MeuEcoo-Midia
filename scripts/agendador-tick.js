@@ -1,5 +1,5 @@
 // Tick do agendador externo (plano docs/superpowers/plans/2026-10-02-agendador-externo-sleep.md,
-// Task 4). Roda como serviço de cron do Railway a cada 5 min (railway.agendador.toml): consulta o
+// Task 4). Roda como serviço de cron do Railway a cada 5 min (serviço meuecoo-midia-agendador, ver README): consulta o
 // banco com o detector de trabalho e só chama /api/cron/* pela rede privada quando há o que fazer,
 // para a API poder dormir no modo Sleep. Enquanto a API acorda, ela responde 502/503: repete com
 // espera crescente. 4xx (ex.: CRON_SECRET errado) não repete.
