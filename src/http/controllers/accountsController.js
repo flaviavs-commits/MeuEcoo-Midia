@@ -18,13 +18,22 @@ async function reconciliarContasZernio(userId) {
       porPerfil.set(local.zernioProfileId, grupo)
     }
 
-    let removidas = 0
+    let desconectadas = 0
+    let reativadas = 0
+    // A lista da Zernio é confiável mesmo vazia (decisão da dona do produto,
+    // 03/10/2026): naquele dia ela listava zero contas em todos os perfis e
+    // todas tinham de fato sido desconectadas. Adiar o vazio deixaria a conta
+    // aparecendo como conectada e o post falhando sem ninguém ser avisado; e
+    // um vazio errado se desfaz sozinho, porque a sincronização só desativa.
     for (const [profileId] of porPerfil) {
       const resposta = await zernioClient.listAccounts({ profileId, includeOverLimit: true })
       const idsAtivos = (resposta.accounts || []).map(account => account._id || account.accountId || account.id).filter(Boolean)
-      removidas += await accounts.removerContasZernioAusentes(userId, idsAtivos, profileId)
+      const resultado = await accounts.sincronizarContasZernio(userId, profileId, idsAtivos)
+      desconectadas += resultado.desconectadas
+      reativadas += resultado.reativadas
     }
-    if (removidas) addLog('info', `${removidas} conexão(ões) removida(s) após sincronização com o Zernio`, null, null, userId)
+    if (desconectadas) addLog('warn', `${desconectadas} conta(s) marcada(s) como desconectada(s) no Zernio: é preciso reconectar`, null, null, userId)
+    if (reativadas) addLog('info', `${reativadas} conta(s) voltaram a aparecer conectadas no Zernio`, null, null, userId)
   } catch (error) {
     // Falha no provedor não deve impedir o usuário de ver e gerenciar as
     // contas locais, nem deve ser interpretada como exclusão remota.
@@ -103,4 +112,4 @@ async function remove(req, res) {
   }
 }
 
-module.exports = { getStats, list, getById, create, remove }
+module.exports = { getStats, list, getById, create, remove, reconciliarContasZernio }

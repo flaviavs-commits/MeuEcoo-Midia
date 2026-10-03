@@ -194,33 +194,61 @@ async function buscarContaZernioDoUsuario({ userId, platform, zernioAccountId } 
   return contas.find(conta => String(conta.zernioAccountId) === String(zernioAccountId)) || null
 }
 
-async function removerContasZernioAusentes(userId, zernioAccountIds, zernioProfileId) {
-  const ids = Array.isArray(zernioAccountIds) ? zernioAccountIds.filter(Boolean) : []
-  const profileFilter = zernioProfileId ? ' AND zernio_profile_id = $3' : ''
-  const profileParams = zernioProfileId ? [zernioProfileId] : []
-  const linkedIds = ids.length
-    ? (await pool.query(
-      `SELECT id FROM contas
-        WHERE user_id = $1
+// Espelha no app o que a Zernio diz estar conectado em um perfil. Conta que
+// sumiu da Zernio fica inativa (a publicação já ignora conta inativa) e com o
+// token em 'error', que a tela de contas mostra como "Reconecte a conta".
+// Nunca apaga: apagar levava junto, por cascata, o histórico de seguidores e
+// estatísticas e os vínculos dos posts, e a reconexão reaproveita a mesma
+// linha (criarContaRapida + definirZernioAccountId). Até 03/10/2026 esta
+// sincronização apagava; só não apagou nada em produção porque a consulta do
+// caso "lista vazia" falhava com parâmetro sem tipo. Uma consulta única cobre
+// os dois casos: com `ids` vazio, `ANY` é falso e todas contam como ausentes.
+async function sincronizarContasZernio(userId, zernioProfileId, zernioAccountIds) {
+  const ids = (Array.isArray(zernioAccountIds) ? zernioAccountIds : []).filter(Boolean).map(String)
+  const client = await pool.connect()
+  try {
+    await client.query('BEGIN')
+    const { rows: ausentes } = await client.query(
+      `UPDATE contas SET ativo = FALSE, atualizado_em = NOW()
+        WHERE user_id = $1 AND zernio_profile_id = $2 AND ativo = TRUE
           AND zernio_account_id IS NOT NULL
-          AND NOT (zernio_account_id = ANY($2::text[]))${profileFilter}`,
-      [userId, ids, ...profileParams]
-    )).rows.map(row => row.id)
-    : (await pool.query(
-      `SELECT id FROM contas
-         WHERE user_id = $1 AND zernio_account_id IS NOT NULL${profileFilter}`,
-      [userId, ...profileParams]
-    )).rows.map(row => row.id)
-
-  if (!linkedIds.length) return 0
-
-  // Mantém a mesma ordem da exclusão manual: tokens primeiro, conta depois.
-  await pool.query('DELETE FROM tokens WHERE conta_id = ANY($1::int[])', [linkedIds])
-  const { rowCount } = await pool.query(
-    'DELETE FROM contas WHERE id = ANY($1::int[]) AND user_id = $2',
-    [linkedIds, userId]
-  )
-  return rowCount
+          AND NOT (zernio_account_id = ANY($3::text[]))
+        RETURNING id`,
+      [userId, zernioProfileId, ids]
+    )
+    const { rows: voltaram } = await client.query(
+      `UPDATE contas SET ativo = TRUE, atualizado_em = NOW()
+        WHERE user_id = $1 AND zernio_profile_id = $2 AND ativo = FALSE
+          AND zernio_account_id = ANY($3::text[])
+        RETURNING id`,
+      [userId, zernioProfileId, ids]
+    )
+    const desconectadas = ausentes.map(row => row.id)
+    const reativadas = voltaram.map(row => row.id)
+    // Só tokens sem expiração: são os da Zernio (quem renova é ela), e
+    // atualizarStatusTokens não os recalcula, então o 'error' permanece.
+    if (desconectadas.length) {
+      await client.query(
+        `UPDATE tokens SET status = 'error', atualizado_em = NOW()
+          WHERE conta_id = ANY($1::int[]) AND expires_at IS NULL`,
+        [desconectadas]
+      )
+    }
+    if (reativadas.length) {
+      await client.query(
+        `UPDATE tokens SET status = 'valid', atualizado_em = NOW()
+          WHERE conta_id = ANY($1::int[]) AND expires_at IS NULL AND status = 'error'`,
+        [reativadas]
+      )
+    }
+    await client.query('COMMIT')
+    return { desconectadas: desconectadas.length, reativadas: reativadas.length }
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {})
+    throw error
+  } finally {
+    client.release()
+  }
 }
 
 // Todas as contas ativas do usuário nas plataformas informadas — usado por
@@ -346,11 +374,14 @@ async function criarContaRapida({ name, platform, userId, avatarUrl = null, exte
 // migradas para essa integração (Facebook/Instagram/TikTok), onde o Zernio
 // detém o token OAuth real e nosso lado só guarda esse identificador para
 // chamar a API deles. Ver migrations/040 e src/infra/social/zernioClient.js.
+// Também reativa: é por aqui que passa a reconexão de uma conta que a
+// sincronização marcou como desconectada (sincronizarContasZernio).
 async function definirZernioAccountId(contaId, zernioAccountId, zernioProfileId = null) {
   await pool.query(
     `UPDATE contas
         SET zernio_account_id = $1,
-            zernio_profile_id = COALESCE($2, zernio_profile_id)
+            zernio_profile_id = COALESCE($2, zernio_profile_id),
+            ativo = TRUE
       WHERE id = $3`,
     [zernioAccountId, zernioProfileId, contaId]
   )
@@ -473,7 +504,7 @@ async function buscarHistoricoSeguidoresYoutube(userId, isAdmin) {
 }
 
 module.exports = {
-  getDashboardStats, listarContas, listarIdsZernioDoUsuario, listarContasZernioDoUsuario, buscarContaZernioDoUsuario, removerContasZernioAusentes,
+  getDashboardStats, listarContas, listarIdsZernioDoUsuario, listarContasZernioDoUsuario, buscarContaZernioDoUsuario, sincronizarContasZernio,
   listarContasAtivasPorPlataformas, listarContasPorIds, criarConta, buscarContaPorId, criarContaRapida, deletarConta,
   buscarContasPorExternalUserId, apagarDadosDaConta, definirZernioAccountId,
   registrarSnapshotSeguidoresInstagram, buscarHistoricoSeguidoresInstagram,
