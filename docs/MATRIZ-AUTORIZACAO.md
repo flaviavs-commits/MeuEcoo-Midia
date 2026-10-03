@@ -44,8 +44,34 @@ O bloqueio de mudar o papel do owner foi corrigido em 03/10/2026. Antes, o convi
 dono fazia `ON CONFLICT ... DO UPDATE SET role`: um admin do espaço rebaixava o dono, ou o próprio
 dono se rebaixava, e o espaço ficava sem dono.
 
+## Posts, contas e tokens das redes
+
+Rotas: `/api/posts`, `/api/accounts`, `/api/tokens`.
+
+| Ação | dono | estranho | admin do sistema |
+|---|---|---|---|
+| listar posts, contas e tokens | vê os seus ✅ teste | não vê os do dono ✅ teste | não vê os do dono ✅ teste |
+| reagendar, repetir, ver métricas e comentários, apagar post | sim | 404, nada muda ✅ teste | (igual ao estranho) |
+| ver ou desconectar conta | sim | 404 ✅ teste | (igual ao estranho) |
+| apagar ou renovar token, ou salvar token na conta do dono | sim | 404/erro, nada muda ✅ teste | (igual ao estranho) |
+
+Os controllers montam o contexto com `isAdmin: false` sempre (`ctx(req)` em `postsController.js`).
+
+## Painel administrativo (`/api/admin`)
+
+| Ação | usuário comum | admin do sistema |
+|---|---|---|
+| entrar em qualquer rota do painel | 403 ✅ teste | sim |
+| listar usuários | — | só a própria conta ✅ teste |
+| mudar papel ou situação de **outra** conta | — | 403 ✅ teste |
+
+**Não existe mais super admin.** O `runtimeMigrations` converte `super_admin` em `admin` a cada startup
+✅ teste, e o `requireAdmin` só aceita `admin`. Sobrou código morto que testa `userRole === 'super_admin'`
+em `publisher.js`, `metricsService.js` e `commentsService.js`. Ele só ampliaria o escopo de dados quando
+`userId` viesse nulo, e todos os chamadores passam o `userId` do post. Hoje não vaza nada, mas pode ser
+removido numa limpeza.
+
 ## O que ainda falta cobrir
 
-- Rotas de posts, contas e tokens: cobertas com mock em `tests/integration/`, ainda não no banco real.
-- Painel `/api/admin` com papel super admin (o fixture existe em `adminRoutes.test.js`, mas não é usado).
+- Ações do painel admin sobre clientes (gerar link de plano, vincular pagamento, conciliação): cobertas com mock em `tests/integration/adminRoutes.test.js`.
 - A camada de banco (papel sem `BYPASSRLS` e RLS por `user_id`), no plano `docs/superpowers/plans/2026-10-02-papel-banco-e-rls.md`.
