@@ -704,6 +704,31 @@ Para produção, configure também:
 - **Variáveis de ambiente** no servidor (não usar `.env` em produção)
 - **`DATABASE_URL`** apontando para o PostgreSQL de produção
 
+### Agendador externo e API dormindo (Railway)
+
+Desde 03/10/2026 17:51, a API roda com `SCHEDULER_MODE=external`: ela não executa `node-cron` e
+pode dormir no modo Sleep do Railway. Quem agenda é o serviço de cron `meuecoo-midia-agendador`:
+mesmo repositório e mesma imagem, **configurado no próprio serviço**, porque serviços novos não leem
+`railway.toml`. A configuração é esta:
+
+- **Execução:** comando de início `node scripts/agendador-tick.js`, cron `*/5 * * * *`, sem reinício, sem domínio e sem healthcheck.
+- **Variáveis, todas por referência à API:**
+  - `AGENDADOR_API_URL=http://${{meuecoo-midia-social-api-manager.RAILWAY_PRIVATE_DOMAIN}}:${{…PORT}}`;
+  - `CRON_SECRET`;
+  - `DATABASE_URL=${{…DATABASE_SISTEMA_URL}}`, o papel de sistema, porque o detector cruza usuários;
+  - `PGSSL_CA_B64` e `PGSSL_SERVER_FINGERPRINT`;
+  - `NODE_ENV=production`.
+- **O que cada tick faz:** consulta o banco com `src/services/agendadorTrabalho.js` e só chama
+  `/api/cron/process-posts` quando há trabalho. `media-cleanup` e `renew-tokens` só entram no
+  primeiro tick de cada janela de 6 h. O log mostra uma linha por execução: `agendador: nada a fazer` ou
+  a rota com o status e o número de tentativas.
+- **Saúde das redes:** é checada sob demanda, no máximo a cada 15 min, em cada tick de publicação e na
+  leitura de `/api/platform-health`.
+- **O front:** repete GET com 502/503 enquanto a API acorda, 1 s e depois 3 s.
+- **Para voltar ao agendador interno:** apagar `SCHEDULER_MODE` na API e fazer redeploy. Também dá
+  para pausar o serviço do agendador, mas com os dois ligados nada publica em dobro, porque a reserva
+  de posts é atômica.
+
 ### Acesso ao PostgreSQL de produção (Railway)
 
 O Postgres de produção (`meuecoo-midia-postgres`) **não tem proxy TCP público**:
