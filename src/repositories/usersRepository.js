@@ -247,11 +247,6 @@ async function contarAdmins() {
   return Number(r.total)
 }
 
-async function contarSuperAdmins() {
-  const { rows: [r] } = await pool.query(`SELECT COUNT(*) AS total FROM users WHERE role = 'super_admin' AND ativo = TRUE`)
-  return Number(r.total)
-}
-
 // Usado pelo alerta de pagamento não vinculado: todo admin ativo recebe o
 // aviso (decisão registrada no IA.md de 10/09/2026). super_admin também
 // entra — hoje é convertido em admin a cada boot (runtimeMigrations.js), mas
@@ -283,6 +278,6 @@ module.exports = {
   buscarPorEmail, buscarPorId, buscarPorIdIncluindoInativo, buscarPorGoogleId, criar, criarComGoogle, vincularGoogleId,
   buscarZernioProfileId, salvarZernioProfileId,
   atualizarAvatar, buscarPerfil, atualizarPerfil, invalidarSessoes, salvarSegredoTotp, ativarTotp, desativarTotp, buscarTotp,
-  listarTodos, obterMetricasAgregadas, contarAdmins, contarSuperAdmins, listarEmailsAdmins, atualizarRole, atualizarAtivo,
+  listarTodos, obterMetricasAgregadas, contarAdmins, listarEmailsAdmins, atualizarRole, atualizarAtivo,
   salvarStripeCustomerId, buscarPorStripeCustomerId, atualizarPlanoPorAssinatura
 }

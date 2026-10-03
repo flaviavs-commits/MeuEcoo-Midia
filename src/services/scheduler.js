@@ -204,8 +204,7 @@ async function processarPrimeirosComentarios() {
       return
     }
     try {
-      const isSuperAdmin = item.userRole === 'super_admin'
-      const token = await buscarContaToken(item.platform, item.userId, isSuperAdmin, item.accountId)
+      const token = await buscarContaToken(item.platform, item.userId, false, item.accountId)
       if (!token) throw new Error('Conta desconectada — não foi possível publicar o comentário')
 
       await comentar(token, item.externalPostId, item.firstComment)

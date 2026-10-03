@@ -175,7 +175,8 @@ async function buscarMetricasPost(post) {
   if (!post.externalPostId || !post.externalPlatform) return null
   if (!PLATAFORMAS_COM_METRICAS.includes(post.externalPlatform)) return null
 
-  const isSuperAdmin = post.userRole === 'super_admin'
+  // Sempre no escopo do dono do post (o papel super_admin não existe mais).
+  const isSuperAdmin = false
   let token = await buscarContaToken(post.externalPlatform, post.userId, isSuperAdmin, post.accountId)
   if (!token) return null
 

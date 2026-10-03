@@ -13,7 +13,6 @@ jest.mock('../../src/repositories/usersRepository', () => ({
   obterMetricasAgregadas: jest.fn(),
   atualizarRole: jest.fn(),
   atualizarAtivo: jest.fn(),
-  contarSuperAdmins: jest.fn(),
   buscarPorIdIncluindoInativo: jest.fn(),
 }))
 jest.mock('../../src/repositories/contasRepository', () => ({

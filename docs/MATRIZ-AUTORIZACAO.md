@@ -66,10 +66,8 @@ Os controllers montam o contexto com `isAdmin: false` sempre (`ctx(req)` em `pos
 | mudar papel ou situação de **outra** conta | — | 403 ✅ teste |
 
 **Não existe mais super admin.** O `runtimeMigrations` converte `super_admin` em `admin` a cada startup
-✅ teste, e o `requireAdmin` só aceita `admin`. Sobrou código morto que testa `userRole === 'super_admin'`
-em `publisher.js`, `metricsService.js` e `commentsService.js`. Ele só ampliaria o escopo de dados quando
-`userId` viesse nulo, e todos os chamadores passam o `userId` do post. Hoje não vaza nada, mas pode ser
-removido numa limpeza.
+✅ teste, e o `requireAdmin` só aceita `admin`. Os ramos mortos que testavam `userRole === 'super_admin'`
+no caminho de publicação, o `requireSuperAdmin` e o `contarSuperAdmins` foram removidos em 03/10/2026.
 
 ## O que ainda falta cobrir
 
