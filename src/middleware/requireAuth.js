@@ -2,6 +2,7 @@ const usersRepo = require('../repositories/usersRepository')
 const { verificarTokenSessaoDetalhado } = require('../utils/authToken')
 const { AUTH_COOKIE, readCookie } = require('../utils/authCookie')
 const { allowedEmailDomainLabel, isAllowedEmail } = require('../utils/allowedEmailDomain')
+const { executarComUsuario } = require('../db/requestContext')
 
 async function requireAuth(req, res, next) {
   // Modo público solicitado para a demonstração: todas as requisições usam
@@ -21,7 +22,7 @@ async function requireAuth(req, res, next) {
       avatarUrl: null,
       totpEnabled: false
     }
-    return next()
+    return executarComUsuario({ userId: req.user.id, role: req.user.role }, next)
   }
 
   const header = req.headers.authorization || ''
@@ -77,7 +78,8 @@ async function requireAuth(req, res, next) {
     }
 
     req.user = { id: user.id, email: user.email, role: user.role, plan: user.plan, planActive: user.planActive !== false, planUnrestricted: user.plan_unrestricted === true, allowedPlatforms: user.allowedPlatforms || [], fullName: user.full_name, avatarUrl: user.avatar_url ?? null, totpEnabled: user.totp_enabled ?? false, notificationPreferences: user.notificationPreferences || {} }
-    next()
+    // O resto da requisição roda com o usuário no contexto (src/db/requestContext.js).
+    executarComUsuario({ userId: user.id, role: user.role }, next)
   } catch (err) {
     res.status(500).json({ erro: 'Não foi possível verificar sua sessão agora. Tente novamente.' })
   }
