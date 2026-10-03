@@ -43,7 +43,12 @@ descrever('detector de trabalho (Postgres real)', () => {
 
   test('data malformada na pendência não derruba a consulta', async () => {
     const post = await novoPost('processing')
+    // Agendada sem data legível: não dá para saber se venceu, então não acorda a API.
     await pendencia(post, { provider: 'zernio', scheduled: true, scheduledFor: 'amanhã cedo', criadoEm: 'ontem' })
+    await expect(detector().haPostsParaProcessar()).resolves.toBe(false)
+    // Não agendada (aguardando confirmação) com criadoEm ilegível: conta, para o finalizador decidir.
+    await sql('DELETE FROM post_accounts')
+    await pendencia(post, { provider: 'zernio', criadoEm: 'ontem' })
     await expect(detector().haPostsParaProcessar()).resolves.toBe(true)
   })
 
