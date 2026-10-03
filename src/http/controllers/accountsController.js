@@ -1,7 +1,41 @@
 const accounts = require('../../repositories/contasRepository')
 const zernioClient = require('../../infra/social/zernioClient')
+const usersRepo = require('../../repositories/usersRepository')
+const { registrarLog } = require('../../repositories/logsRepository')
+const mailer = require('../../services/mailer')
 const { addLog } = require('../../middleware/logger')
 const { PLATFORMS, TIPOS, parseId, serverError } = require('../../utils/http')
+
+// A sincronização roda a cada abertura de tela que lista contas, então o aviso
+// sai uma vez por usuário por dia: o log tem notification_key, e o ON CONFLICT
+// do registrarLog não grava (nem devolve) o repetido. Melhor esforço, como os
+// alertas de cobrança: falha de e-mail vira log, nunca erro para a tela.
+// Em 03/10/2026 todas as contas sumiram da Zernio e ninguém foi avisado por
+// uma semana (a saúde das redes só mede se a API responde).
+async function alertarAdminsContasDesconectadas(userId, quantidade) {
+  try {
+    const dia = new Date().toISOString().slice(0, 10)
+    const log = await registrarLog({
+      type: 'err',
+      message: `${quantidade} conta(s) desconectada(s) no Zernio: a publicação nelas falha até o usuário reconectar`,
+      user_id: userId,
+      notification_key: `zernio-contas-desconectadas:${userId}:${dia}`,
+    })
+    if (!log) return
+    const recipients = await usersRepo.listarEmailsAdmins()
+    if (!recipients.length) return
+    const usuario = await usersRepo.buscarPorId(userId).catch(() => null)
+    const base = String(process.env.FRONTEND_URL || process.env.BASE_URL || '').replace(/\/$/, '')
+    await mailer.enviarEmailAlertaAdmin(recipients, {
+      title: 'Contas desconectadas no Zernio',
+      description: 'A sincronização encontrou contas que não estão mais conectadas no Zernio. Os posts dessas contas vão falhar até a pessoa reconectar em Contas.',
+      rows: [['Conta no app', usuario?.email ? `#${userId} (${usuario.email})` : `#${userId}`], ['Contas desconectadas', String(quantidade)]],
+      adminUrl: `${base}/admin.html`,
+    })
+  } catch (error) {
+    addLog('err', `Falha ao avisar os admins sobre contas desconectadas no Zernio: ${error.message}`, null, null, userId)
+  }
+}
 
 async function reconciliarContasZernio(userId) {
   const locais = await accounts.listarIdsZernioDoUsuario(userId)
@@ -32,7 +66,10 @@ async function reconciliarContasZernio(userId) {
       desconectadas += resultado.desconectadas
       reativadas += resultado.reativadas
     }
-    if (desconectadas) addLog('warn', `${desconectadas} conta(s) marcada(s) como desconectada(s) no Zernio: é preciso reconectar`, null, null, userId)
+    if (desconectadas) {
+      addLog('warn', `${desconectadas} conta(s) marcada(s) como desconectada(s) no Zernio: é preciso reconectar`, null, null, userId)
+      await alertarAdminsContasDesconectadas(userId, desconectadas)
+    }
     if (reativadas) addLog('info', `${reativadas} conta(s) voltaram a aparecer conectadas no Zernio`, null, null, userId)
   } catch (error) {
     // Falha no provedor não deve impedir o usuário de ver e gerenciar as

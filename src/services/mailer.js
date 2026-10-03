@@ -194,4 +194,8 @@ async function enviarEmailFalhaCobrancaAssinatura(email, { fullName, planName })
   })
 }
 
-module.exports = { enviarEmailRedefinicaoSenha, enviarEmailAcessoMeuEcoo, enviarRelatorioAgendado, enviarEmailAlertaPagamentoNaoVinculado, enviarEmailFalhaCobrancaAssinatura, enviarEmailAlertaEventoStripe }
+// O alerta de evento da Stripe é genérico no conteúdo (título, descrição, tabela e botão do painel):
+// outros avisos a admin usam o mesmo e-mail pelo nome neutro.
+const enviarEmailAlertaAdmin = enviarEmailAlertaEventoStripe
+
+module.exports = { enviarEmailRedefinicaoSenha, enviarEmailAcessoMeuEcoo, enviarRelatorioAgendado, enviarEmailAlertaPagamentoNaoVinculado, enviarEmailFalhaCobrancaAssinatura, enviarEmailAlertaEventoStripe, enviarEmailAlertaAdmin }

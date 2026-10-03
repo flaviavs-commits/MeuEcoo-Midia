@@ -9,10 +9,16 @@ jest.mock('../../src/repositories/contasRepository', () => ({
 }))
 jest.mock('../../src/infra/social/zernioClient', () => ({ listAccounts: jest.fn() }))
 jest.mock('../../src/middleware/logger', () => ({ addLog: jest.fn() }))
+jest.mock('../../src/repositories/usersRepository', () => ({ listarEmailsAdmins: jest.fn(), buscarPorId: jest.fn() }))
+jest.mock('../../src/repositories/logsRepository', () => ({ registrarLog: jest.fn() }))
+jest.mock('../../src/services/mailer', () => ({ enviarEmailAlertaAdmin: jest.fn() }))
 
 const accounts = require('../../src/repositories/contasRepository')
 const zernioClient = require('../../src/infra/social/zernioClient')
 const { addLog } = require('../../src/middleware/logger')
+const usersRepo = require('../../src/repositories/usersRepository')
+const { registrarLog } = require('../../src/repositories/logsRepository')
+const mailer = require('../../src/services/mailer')
 const { reconciliarContasZernio } = require('../../src/http/controllers/accountsController')
 
 beforeEach(() => jest.clearAllMocks())
@@ -57,4 +63,51 @@ test('falha da Zernio não mexe nas contas e só registra aviso', async () => {
 
   expect(accounts.sincronizarContasZernio).not.toHaveBeenCalled()
   expect(addLog).toHaveBeenCalledWith('warn', expect.stringContaining('timeout'), null, null, 17)
+})
+
+describe('alerta aos admins quando contas são desconectadas', () => {
+  beforeEach(() => {
+    accounts.listarIdsZernioDoUsuario.mockResolvedValue([{ id: 103, zernioAccountId: 'a1', zernioProfileId: 'p1' }])
+    zernioClient.listAccounts.mockResolvedValue({ accounts: [] })
+    accounts.sincronizarContasZernio.mockResolvedValue({ desconectadas: 1, reativadas: 0 })
+    usersRepo.listarEmailsAdmins.mockResolvedValue(['admin@empresa.test'])
+    usersRepo.buscarPorId.mockResolvedValue({ id: 17, email: 'cliente@allowed.test' })
+  })
+
+  test('primeira vez no dia: grava o log com chave do dia e manda o e-mail', async () => {
+    registrarLog.mockResolvedValue({ id: 1 })
+
+    await reconciliarContasZernio(17)
+
+    expect(registrarLog).toHaveBeenCalledWith(expect.objectContaining({ type: 'err', user_id: 17, notification_key: expect.stringMatching(/^zernio-contas-desconectadas:17:\d{4}-\d{2}-\d{2}$/) }))
+    expect(mailer.enviarEmailAlertaAdmin).toHaveBeenCalledWith(['admin@empresa.test'], expect.objectContaining({
+      title: 'Contas desconectadas no Zernio',
+      rows: [['Conta no app', '#17 (cliente@allowed.test)'], ['Contas desconectadas', '1']],
+    }))
+  })
+
+  test('mesma conta no mesmo dia: o log já existe e o e-mail não sai de novo', async () => {
+    registrarLog.mockResolvedValue(undefined)
+
+    await reconciliarContasZernio(17)
+
+    expect(mailer.enviarEmailAlertaAdmin).not.toHaveBeenCalled()
+  })
+
+  test('falha no envio do e-mail vira log e não derruba a sincronização', async () => {
+    registrarLog.mockResolvedValue({ id: 1 })
+    mailer.enviarEmailAlertaAdmin.mockRejectedValue(new Error('SMTP fora'))
+
+    await expect(reconciliarContasZernio(17)).resolves.toBeUndefined()
+    expect(addLog).toHaveBeenCalledWith('err', expect.stringContaining('SMTP fora'), null, null, 17)
+  })
+
+  test('sem conta desconectada não há alerta', async () => {
+    accounts.sincronizarContasZernio.mockResolvedValue({ desconectadas: 0, reativadas: 0 })
+
+    await reconciliarContasZernio(17)
+
+    expect(registrarLog).not.toHaveBeenCalled()
+    expect(mailer.enviarEmailAlertaAdmin).not.toHaveBeenCalled()
+  })
 })
