@@ -217,5 +217,61 @@ describe('DraftsPage', () => {
     expect(await screen.findAllByText('2 de 3 ideias foram salvas no Baú de Ideias. As outras não entraram; gere de novo se quiser mais.')).not.toHaveLength(0)
     expect(apiFetchMock.mock.calls.filter(([path]) => path.startsWith('/api/drafts?')).length).toBeGreaterThan(1)
   })
+
+  describe('Importar kit', () => {
+    const kit = JSON.stringify({ title: 'Kit', items: [{ textByPlatform: { instagram: 'Legenda' } }, { text: 'Outro' }] })
+
+    function mockApi(importResult) {
+      const calls = []
+      vi.spyOn(api, 'apiFetch').mockImplementation((path, options) => {
+        calls.push([path, options])
+        if (path.startsWith('/api/drafts?')) return Promise.resolve({ drafts: [] })
+        if (path === '/api/drafts/import') return Promise.resolve(importResult)
+        return Promise.resolve({})
+      })
+      return calls
+    }
+
+    async function openAndImport(content) {
+      renderPage()
+      fireEvent.click(await screen.findByRole('button', { name: 'Importar kit' }))
+      fireEvent.change(screen.getByLabelText('Kit (JSON)'), { target: { value: content } })
+      fireEvent.click(screen.getByRole('button', { name: 'Importar para o Baú' }))
+    }
+
+    it('sends the kit, closes the dialog and reloads when every item went in', async () => {
+      const calls = mockApi({ total: 2, criados: 2, falharam: 0, itens: [{ index: 0, ok: true }, { index: 1, ok: true }] })
+
+      await openAndImport(kit)
+
+      expect(await screen.findByText('2 itens do kit entraram no Baú de Ideias.')).toBeInTheDocument()
+      const [, options] = calls.find(([path]) => path === '/api/drafts/import')
+      expect(options.method).toBe('POST')
+      expect(JSON.parse(options.body)).toEqual(JSON.parse(kit))
+      await waitFor(() => expect(screen.queryByLabelText('Kit (JSON)')).not.toBeInTheDocument())
+      expect(calls.filter(([path]) => path.startsWith('/api/drafts?')).length).toBeGreaterThan(1)
+    })
+
+    it('keeps the dialog open and lists what did not go in when part of the kit fails', async () => {
+      mockApi({ total: 2, criados: 1, falharam: 1, itens: [{ index: 0, ok: true }, { index: 1, ok: false, erro: 'Tipo de mídia não permitido: text/html' }] })
+
+      await openAndImport(kit)
+
+      expect(await screen.findByText(/1 de 2 itens entraram no Baú de Ideias/)).toBeInTheDocument()
+      const failures = screen.getByRole('list', { name: 'Itens que não entraram' })
+      expect(within(failures).getByText(/Tipo de mídia não permitido/)).toBeInTheDocument()
+      expect(within(failures).getByText('Item 2:')).toBeInTheDocument()
+      expect(screen.getByLabelText('Kit (JSON)')).toBeInTheDocument()
+    })
+
+    it('does not call the API when the content is not valid JSON', async () => {
+      const calls = mockApi({})
+
+      await openAndImport('{ items: [')
+
+      expect(await screen.findByText(/não é um JSON válido/)).toBeInTheDocument()
+      expect(calls.some(([path]) => path === '/api/drafts/import')).toBe(false)
+    })
+  })
 })
 

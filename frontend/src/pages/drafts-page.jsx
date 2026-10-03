@@ -9,6 +9,7 @@ import { OverflowMenu } from '../components/ui/overflow-menu.jsx'
 import { FilterGroup, FilterOption, FilterSheet, FiltersButton } from '../components/ui/filters.jsx'
 import { useIsPhone } from '../lib/breakpoints.js'
 import { PLATFORM_LABELS } from '../lib/platforms.js'
+import { KitImportDialog } from '../components/drafts/kit-import-dialog.jsx'
 
 const AI_GENERATION_TIMEOUT_MS = 60_000
 // O /api/ai/generate recusa instruções com mais de 4000 caracteres (o mesmo limite do Assistente).
@@ -110,6 +111,7 @@ export function DraftsPage({ onNavigate }) {
   // `error` é só da lista; excluir e esvaziar mostram o próprio aviso.
   const { value: drafts, loading, error, reload } = useApiResource(load, [])
   const notify = useToast()
+  const [kitOpen, setKitOpen] = useState(false)
   const { confirm, confirmDialog } = useConfirm()
 
   useEffect(() => { if (!loading) setHasLoaded(true) }, [loading])
@@ -204,6 +206,14 @@ export function DraftsPage({ onNavigate }) {
     setFocusAfterRemoval(Math.max(index, 0))
   }
 
+  // A importação de kit grava cada item por conta própria (como as ideias geradas em lote): o que entrou
+  // já está no Baú, então a lista recarrega mesmo quando parte do kit falha.
+  function kitImported(result) {
+    reload().catch(() => {})
+    if (result.falharam) notify(`${result.criados} de ${result.total} itens do kit entraram no Baú de Ideias.`, 'error')
+    else notify(`${result.criados} ${result.criados === 1 ? 'item do kit entrou' : 'itens do kit entraram'} no Baú de Ideias.`)
+  }
+
   async function clearIdeas() {
     if (!drafts.length) return
     const ok = await confirm({
@@ -259,6 +269,9 @@ export function DraftsPage({ onNavigate }) {
         </p>
       </div>
       <div className="ds-pagehead__actions">
+        <button type="button" className="ds-btn ds-btn--secondary" onClick={() => setKitOpen(true)}>
+          <Icon name="upload" />Importar kit
+        </button>
         <button type="button" className="ds-btn ds-btn--secondary" onClick={() => reload().catch(() => {})} disabled={loading}>
           <Icon name="refresh" />Atualizar
         </button>
@@ -383,6 +396,7 @@ export function DraftsPage({ onNavigate }) {
         {IDEA_FILTERS.map(([value, label]) => <FilterOption key={value} selected={pending.filter === value} onSelect={() => setPending({ ...pending, filter: value })}>{label}</FilterOption>)}
       </FilterGroup>}
     </FilterSheet>}
+    <KitImportDialog open={kitOpen} onClose={() => setKitOpen(false)} onImported={kitImported} />
     {confirmDialog}
   </div>
 }
