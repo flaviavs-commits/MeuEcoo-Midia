@@ -11,9 +11,11 @@
 // (veja o cabeçalho do schema-base.sql).
 const fs = require('fs')
 const path = require('path')
-const { Client } = require('pg')
+const crypto = require('crypto')
+const { Client, Pool } = require('pg')
 
 const SCHEMA_BASE = path.join(__dirname, '..', '..', 'src', 'db', 'schema-base.sql')
+const SCRIPT_PAPEL_APP = path.join(__dirname, '..', '..', 'scripts', 'db', 'criar-papel-app.sql')
 
 function urlDoBanco() {
   return process.env.TEST_DATABASE_URL || null
@@ -40,24 +42,51 @@ async function aplicarSchemaBase(url) {
   }
 }
 
-// Devolve as URLs que as próximas tasks do plano usam. urlApp e urlSistema ficam null até os
-// papéis meuecoo_app e meuecoo_sistema existirem (Tasks 3 e 7 do plano de papel de banco e RLS).
+// Roda scripts/db/criar-papel-app.sql como o psql rodaria: a variável :'senha_app' vira um literal.
+async function aplicarScriptPapelApp(urlDono, senha) {
+  const literal = `'${String(senha).replace(/'/g, "''")}'`
+  const sql = fs.readFileSync(SCRIPT_PAPEL_APP, 'utf8').replace(/:'senha_app'/g, literal)
+  const client = new Client({ connectionString: urlDono })
+  await client.connect()
+  try {
+    await client.query(sql)
+  } finally {
+    await client.end()
+  }
+}
+
+function urlComo(url, usuario, senha) {
+  const nova = new URL(url)
+  nova.username = usuario
+  nova.password = senha
+  return nova.toString()
+}
+
+// O banco sobe como em produção depois do rollout da fase 1: migrations com o dono (pool próprio)
+// e o pool do app (src/db/pool.js) conectado como meuecoo_app, criado pelo script real. Assim
+// toda suíte que usa as rotas prova também que o app funciona sem superusuário.
+// urlSistema fica null até o papel meuecoo_sistema existir (Task 7 do plano).
 async function prepararBanco() {
   const urlDono = urlDoBanco()
   if (!urlDono) throw new Error('TEST_DATABASE_URL não definida')
   await recriarSchema(urlDono)
   await aplicarSchemaBase(urlDono)
 
-  // runtimeMigrations lê o pool de src/db/pool.js, que se conecta em DATABASE_URL no require.
-  process.env.DATABASE_URL = urlDono
-  const pool = require('../../src/db/pool')
+  const poolDono = new Pool({ connectionString: urlDono, max: 3 })
+  const senhaApp = crypto.randomBytes(24).toString('hex')
+  const urlApp = urlComo(urlDono, 'meuecoo_app', senhaApp)
+  // src/db/pool.js se conecta em DATABASE_URL no require: precisa apontar para o app antes.
+  process.env.DATABASE_URL = urlApp
   const { runMigrations } = require('../../src/db/runtimeMigrations')
-  await runMigrations()
-  return { urlDono, urlApp: null, urlSistema: null, pool }
+  await runMigrations({ pool: poolDono })
+  await aplicarScriptPapelApp(urlDono, senhaApp)
+  const poolApp = require('../../src/db/pool')
+  return { urlDono, urlApp, urlSistema: null, pool: poolDono, poolApp }
 }
 
 async function limparBanco(banco) {
   if (banco?.pool) await banco.pool.end().catch(() => {})
+  if (banco?.poolApp) await banco.poolApp.end().catch(() => {})
 }
 
-module.exports = { urlDoBanco, prepararBanco, limparBanco }
+module.exports = { urlDoBanco, prepararBanco, limparBanco, aplicarScriptPapelApp, urlComo }
