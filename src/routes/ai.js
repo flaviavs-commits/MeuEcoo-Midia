@@ -928,6 +928,11 @@ router.get('/requirements', (req, res) => {
 
 // POST /api/ai/generate
 router.post('/generate', async (req, res) => {
+  // Declarado fora do try: o catch final também usa o fallback local. Como
+  // const dentro do try, ele não existia no catch e toda falha de provedor
+  // que chegava até lá virava ReferenceError (500) em vez do texto local.
+  // Fica null até a entrada ser validada; sem ele o catch segue para o erro.
+  let responderComTemplate = null
   try {
     const { instrucao, plataformas: plataformasRaw, quantidade, tom, idioma, modelo: modeloSolicitado = 'openrouter' } = req.body
     // Clientes antigos podem enviar "local"; o provedor padrão do produto é o OpenRouter.
@@ -990,7 +995,7 @@ router.post('/generate', async (req, res) => {
 
     // O template é somente um fallback técnico quando o provedor não responde;
     // a rota continua protegida por plano pago ativo.
-    const responderComTemplate = (motivo = null) => {
+    responderComTemplate = (motivo = null) => {
       const parsedLocal = gerarPostsLocal(instrucao, plataformas, qtd, tom)
       return montarResposta(parsedLocal.posts, 'local', motivo ? { fallback: motivo } : {})
     }
@@ -1082,7 +1087,7 @@ router.post('/generate', async (req, res) => {
     const providerFailure = err?.code === 'ai_provider_timeout'
       || [401, 429, 503].includes(Number(err?.status))
       || /quota|resource_exhausted|provedor|sem json|resposta inválida/i.test(String(err?.message || ''))
-    if (typeof req.body?.instrucao === 'string' && req.body.instrucao.trim() && providerFailure) {
+    if (responderComTemplate && typeof req.body?.instrucao === 'string' && req.body.instrucao.trim() && providerFailure) {
       console.error(`[AI generate:${modeloTentado}] falha final, usando fallback:`, err.message)
       return responderComTemplate(`provedor_${modeloTentado}_indisponivel`)
     }
