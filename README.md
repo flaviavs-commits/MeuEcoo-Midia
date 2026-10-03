@@ -704,6 +704,22 @@ Para produção, configure também:
 - **Variáveis de ambiente** no servidor (não usar `.env` em produção)
 - **`DATABASE_URL`** apontando para o PostgreSQL de produção
 
+### Configuração dos serviços no Railway
+
+A configuração de build e deploy fica **no próprio serviço** do Railway, e não em arquivo no
+repositório. O `railway.toml` (Config as Code, depreciado, com corte em 01/12/2026) saiu em
+03/10/2026.
+
+- **API (`meuecoo-midia-social-api-manager`):**
+  - build pelo `Dockerfile`;
+  - comando `node src/server.js`;
+  - healthcheck `/api/config` com timeout de 30 s;
+  - reinício `ON_FAILURE` com até 3 tentativas;
+  - Sleep ligado.
+- **Agendador:** configuração descrita logo abaixo.
+
+Para conferir, use `railway` → `describe-service`, ou o painel em Settings.
+
 ### Agendador externo e API dormindo (Railway)
 
 Desde 03/10/2026 17:51, a API roda com `SCHEDULER_MODE=external`: ela não executa `node-cron` e
