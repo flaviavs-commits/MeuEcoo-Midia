@@ -1,6 +1,7 @@
 const crypto = require('crypto')
 const pool = require('../db/pool')
 const usersRepo = require('../repositories/usersRepository')
+const { executarComUsuario } = require('../db/requestContext')
 
 async function requireApiKey(req, res, next) {
   const value = req.headers['x-api-key'] || String(req.headers.authorization || '').replace(/^Bearer\s+/i, '')
@@ -19,7 +20,7 @@ async function requireApiKey(req, res, next) {
     if (!user) return res.status(401).json({ erro: 'Usuário da API key não está ativo.' })
     req.apiKeyId = rows[0].id
     req.user = user
-    next()
+    executarComUsuario({ userId: user.id, role: user.role }, next)
   } catch (err) { res.status(500).json({ erro: 'Não foi possível validar a API key.' }) }
 }
 
