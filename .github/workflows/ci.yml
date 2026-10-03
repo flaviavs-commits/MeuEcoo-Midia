@@ -13,7 +13,9 @@ permissions:
 
 jobs:
   validar:
-    runs-on: ubuntu-latest
+    # Runner fixo: o ubuntu-latest passa para Ubuntu 26 em 19/10/2026; a troca vira uma decisão
+    # nossa, testada num PR, e não uma quebra sem commit.
+    runs-on: ubuntu-24.04
 
     # Postgres descartável para `npm run test:db` (tests/integration-db): o schema é recriado do zero.
     services:
@@ -31,12 +33,12 @@ jobs:
 
     steps:
       - name: Baixar código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Instalar dependências
@@ -62,21 +64,36 @@ jobs:
       - name: Gerar build
         run: npm run frontend:build
 
+  # Constrói a imagem de produção do Railway (Dockerfile) e carrega os módulos nativos, para uma
+  # quebra de imagem (versão do Node, bcrypt/sharp no Alpine) aparecer no PR, não no deploy.
+  imagem:
+    name: Imagem Docker
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v7
+
+      - name: Construir a imagem
+        run: docker build -t meuecoo-api:ci .
+
+      - name: Carregar os módulos nativos na imagem
+        run: docker run --rm meuecoo-api:ci node -e "require('bcrypt'); require('sharp'); require('pg'); console.log('módulos nativos ok no Node', process.version)"
+
   publicar:
     name: Publicar produção
-    needs: validar
+    needs: [validar, imagem]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: production
 
     steps:
       - name: Baixar código
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Configurar Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Instalar Vercel CLI
         run: npm install --global vercel@59.23.2
